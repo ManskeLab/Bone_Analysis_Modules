@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-set(MODULE_NAME automaticContour)
+set(MODULE_NAME AutomaticContour)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
