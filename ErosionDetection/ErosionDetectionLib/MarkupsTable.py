@@ -100,7 +100,7 @@ class MarkupsTable:
     self.markupsControlPointsTableWidget.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
 
   def onDeleteAllButton(self):
-    """Run this whenver the delete all button is clicked"""
+    """Run this whenever the delete all button is clicked"""
     markupsNum = self._currentNode.GetNumberOfFiducials()
     currentNodeName = self._currentNode.GetName()
     if slicer.util.confirmOkCancelDisplay(

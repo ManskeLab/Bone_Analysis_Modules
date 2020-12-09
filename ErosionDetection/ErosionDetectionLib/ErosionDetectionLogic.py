@@ -37,22 +37,22 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     self._contourSegmentId = ""   # will be reused
     self._erosionSegmentIndex = 1 # will be incremented, used for relabeling segmentation names
 
-  def getNeighbourCoords(self, coord, imageSize):
+  def getNeighbourCoords(self, coords, imageSize):
     """
     Return a list that contains the seed point (x, y, z) and some neighbouring points. 
     The additional seed points increase the chance of being connected to the 
     erosions.
     
     Args: 
-      Coord (list of int)
+      coords (list of int)
       imageSize (list of int)
 
     Returns:
-      list of list of int
+      list of tuple of int
     """
     seeds = []
     distance = 2
-    x, y, z = coord
+    x, y, z = coords
     width, height, depth = imageSize
 
     seeds.append((x, y, z))
@@ -77,8 +77,8 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     and scaling the coordinates with respect to the spacing. 
 
     Args:
-      ras_coords (list of Int)
-      masterNode (vtkMRMLScalarVolumeNode/vtkMRMLLabelMapVolumeNode)
+      ras_3coords (list of Int)
+      ras2ijk (vtkMatrix4x4): 4 by 4 matrix that converts from RAS to IJK
 
     Returns:
       tuple of int
@@ -383,15 +383,15 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       return True
     return False
 
-  def getStatisticsTable(self, segmentNode, inputErosionNode, outputTableNode):
+  def _getStatisticsTable(self, segmentNode, inputErosionNode, outputTableNode):
     """
     Get statistics from the segmentation and store them in the output table. 
     Supported statistics include volume, surface area, sphericity, and location. 
 
     Args:
       sementNode (vtkMRMLSegmentationNode)
+      inputErosionNode (vtkMRMLLabelMapVolumeNode)
       outputTableNode (vtkMRMLTableNode): will be modified
-      spacing (list/tuple of int): spacing of the scan
     """
     import SegmentStatistics
     # set parameters in segmentation statistics module
@@ -456,7 +456,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       segment = segmentNode.GetSegmentation().GetNthSegment(segmentIndex)
       segment.SetName("erosion_%03d" % (segmentIndex+1))
 
-    self.getStatisticsTable(segmentNode, inputErosionNode, outputTableNode)
+    self._getStatisticsTable(segmentNode, inputErosionNode, outputTableNode)
     
     # updated widgets
     self.segmentationNodeToLabelmap(segmentNode, inputErosionNode, inputErosionNode)
