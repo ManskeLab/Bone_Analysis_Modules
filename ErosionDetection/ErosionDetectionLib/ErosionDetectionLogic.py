@@ -44,11 +44,11 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     erosions.
     
     Args: 
-      Coord (list/tuple of int)
-      imageSize (list/tuple of int)
+      Coord (list of int)
+      imageSize (list of int)
 
     Returns:
-      list of tuple of int
+      list of list of int
     """
     seeds = []
     distance = 2
@@ -70,22 +70,21 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       seeds.append((x, y, z+distance))
     return seeds
 
-  def rasToITKCoord(self, ras_coords, spacing_scale):
+  def RASToIJKCoords(self, ras_3coords, ras2ijk):
     """
-    Convert from RAS coordinates to LPS coordinates. 
-    Normally this involves negating the x, y coordinates. 
-    Slicer uses RAS coordinates, and ITK uses LPS coordinates. 
+    Convert from RAS coordinates to SimpleITK coordinates. 
+    Normally this involves negating the x, y coordinates, 
+    and scaling the coordinates with respect to the spacing. 
 
     Args:
-      ras_coords (list/tuple of Int)
-      spacing_scale (double)
+      ras_coords (list of Int)
+      masterNode (vtkMRMLScalarVolumeNode/vtkMRMLLabelMapVolumeNode)
 
     Returns:
       tuple of int
     """
-    return (-int(ras_coords[0] / spacing_scale), 
-            -int(ras_coords[1] / spacing_scale), 
-            int(ras_coords[2] / spacing_scale))
+    ras_4coords = ras_3coords + [1]
+    return tuple((int(i) for i in ras2ijk.MultiplyPoint(ras_4coords)[:3]))
 
   def setErosionParameters(self, inputVolumeNode, inputContourNode, outputVolumeNode,
     lower, upper, fiducialNode, minimalRadius, dilationErosionRadius):
@@ -129,11 +128,12 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
 
     # seed points
     physical_coord = [0,0,0]
-    spacing_scale = model_img.GetSpacing()[0]
+    ras2ijk = vtk.vtkMatrix4x4()
+    inputVolumeNode.GetRASToIJKMatrix(ras2ijk)
     seeds = []
     for i in range(fiducial_num):
       fiducialNode.GetNthFiducialPosition(i,physical_coord) # slicer coordinates
-      itk_coord = self.rasToITKCoord(physical_coord, spacing_scale)
+      itk_coord = self.RASToIJKCoords(physical_coord, ras2ijk)
       itk_coords = self.getNeighbourCoords(itk_coord, model_img.GetSize()) # itk coordinates
       seeds += itk_coords
     self.voidVolume.setSeeds(seeds)
@@ -383,7 +383,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       return True
     return False
 
-  def getStatisticsTable(self, segmentNode, outputTableNode, spacing):
+  def getStatisticsTable(self, segmentNode, inputErosionNode, outputTableNode):
     """
     Get statistics from the segmentation and store them in the output table. 
     Supported statistics include volume, surface area, sphericity, and location. 
@@ -409,8 +409,9 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     segStatsLogic.exportToTable(outputTableNode)
 
     # table info
-    spacing_scale = spacing[0]
-    real_scale = self.voxelSize / spacing_scale
+    ras2ijk = vtk.vtkMatrix4x4()
+    inputErosionNode.GetRASToIJKMatrix(ras2ijk)
+    real_scale = self.voxelSize / inputErosionNode.GetSpacing()[0]
     row_num = outputTableNode.GetNumberOfRows()
     volume_mm3_col = outputTableNode.GetColumnIndex("Volume [mm3]")
     surface_area_mm2_col = outputTableNode.GetColumnIndex("Surface area [mm2]")
@@ -428,7 +429,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       outputTableNode.SetCellText(row, surface_area_mm2_col, str(surface_area))
       # convert coordinates to ITK coordinates
       ras_coord = [float(num) for num in (outputTableNode.GetCellText(row, centroid_col)).split(' ')]
-      itk_coord = self.rasToITKCoord(ras_coord, spacing_scale)
+      itk_coord = self.RASToIJKCoords(ras_coord, ras2ijk)
       outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 0, itk_coord[0])
       outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 1, itk_coord[1])
       outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 2, itk_coord[2])
@@ -455,8 +456,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       segment = segmentNode.GetSegmentation().GetNthSegment(segmentIndex)
       segment.SetName("erosion_%03d" % (segmentIndex+1))
 
-    spacing = inputErosionNode.GetSpacing()
-    self.getStatisticsTable(segmentNode, outputTableNode, spacing)
+    self.getStatisticsTable(segmentNode, inputErosionNode, outputTableNode)
     
     # updated widgets
     self.segmentationNodeToLabelmap(segmentNode, inputErosionNode, inputErosionNode)

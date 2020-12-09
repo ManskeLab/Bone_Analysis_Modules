@@ -448,9 +448,13 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     Update the spacing scale in the seed point table 
     whenever the input volume selector in step 4 changes
     """
-    inputVolume = self.inputVolumeSelector.currentNode()
-    if inputVolume:
-      self.markupsTableWidget.setSpacingScale(inputVolume.GetSpacing()[0])
+    inputVolumeNode = self.inputVolumeSelector.currentNode()
+    if inputVolumeNode:
+      ras2ijk = vtk.vtkMatrix4x4()
+      ijk2ras = vtk.vtkMatrix4x4()
+      inputVolumeNode.GetRASToIJKMatrix(ras2ijk)
+      inputVolumeNode.GetIJKToRASMatrix(ijk2ras)
+      self.markupsTableWidget.setCoordsMatrices(ras2ijk, ijk2ras)
 
   def onSelectSeed(self):
     """Run this whenever the seed point selector in step 4 changes"""

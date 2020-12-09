@@ -21,7 +21,8 @@ class MarkupsTable:
     self._currentNode = None
     self._currentNodeObservers = []
     self._logic = MarkupsTableLogic()
-    self._spacing_scale = 1.0
+    self._ras2ijk = vtk.vtkMatrix4x4()
+    self._ijk2ras = vtk.vtkMatrix4x4()
 
     if not parent:
       self.parent = slicer.qMRMLWidget()
@@ -119,7 +120,7 @@ class MarkupsTable:
     else:
       currentControlPointPosition = [0,0,0]
       self._currentNode.GetNthControlPointPosition(row, currentControlPointPosition)
-      ITKCoord = self._logic.rasToITKCoord(currentControlPointPosition, self._spacing_scale)
+      ITKCoord = self._logic.RASToIJKCoords(currentControlPointPosition, self._ras2ijk)
       newControlPointPosition = 0.000
       try:
         newControlPointPosition = float(qText)
@@ -132,7 +133,7 @@ class MarkupsTable:
         ITKCoord[1] = newControlPointPosition
       elif (column == CONTROL_POINT_Z_COLUMN):
         ITKCoord[2] = newControlPointPosition
-      currentControlPointPosition = self._logic.ITKToRasCoord(ITKCoord, self._spacing_scale)
+      currentControlPointPosition = self._logic.IJKToRASCoords(ITKCoord, self._ijk2ras)
       self._currentNode.SetNthControlPointPositionFromArray(row, currentControlPointPosition)
 
   def onMarkupsControlPointSelected(self, row, column):
@@ -266,9 +267,9 @@ class MarkupsTable:
   def getViewGroup(self):
     return self.viewGroup
 
-  def setSpacingScale(self, spacingScale):
-    self._spacing_scale = spacingScale
-    self.updateWidget()
+  def setCoordsMatrices(self, ras2ijk, ijk2ras):
+    self._ras2ijk = ras2ijk
+    self._ijk2ras = ijk2ras
 
   def updateWidget(self, caller=None, event=None):
     """Update the markup control point table widget"""
@@ -293,7 +294,7 @@ class MarkupsTable:
       for i in range(controlPointsNum):
         controlPointLabel = currentNode.GetNthControlPointLabel(i)
         currentNode.GetNthControlPointPosition(i, controlPointPosition)
-        ITKCoord = self._logic.rasToITKCoord(controlPointPosition, self._spacing_scale)
+        ITKCoord = self._logic.RASToIJKCoords(controlPointPosition, self._ras2ijk)
         self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN).setText(controlPointLabel)
         self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_X_COLUMN).setText('%.3f' % (ITKCoord[0]))
         self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_Y_COLUMN).setText('%.3f' % (ITKCoord[1]))
@@ -309,7 +310,7 @@ class MarkupsTable:
       for i in range(controlPointsNum):
         controlPointLabel = currentNode.GetNthControlPointLabel(i)
         currentNode.GetNthControlPointPosition(i, controlPointPosition)
-        ITKCoord = self._logic.rasToITKCoord(controlPointPosition, self._spacing_scale)
+        ITKCoord = self._logic.RASToIJKCoords(controlPointPosition, self._ras2ijk)
         labelItem = qt.QTableWidgetItem(controlPointLabel)
         xItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[0]))
         yItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[1]))
@@ -342,12 +343,10 @@ class MarkupsTableLogic:
                 else slicer.vtkMRMLSliceNode.OffsetJumpSlice)
     slicer.vtkMRMLSliceNode.JumpAllSlices(mrmlScene, x, y, z, jumpMode, viewGroup)
 
-  def rasToITKCoord(self, ras_coord, spacing_scale):
-    return [-ras_coord[0] / spacing_scale, 
-            -ras_coord[1] / spacing_scale, 
-            ras_coord[2] / spacing_scale]
+  def RASToIJKCoords(self, ras_3coords, ras2ijk):
+    ras_4coords = ras_3coords + [1]
+    return [i for i in ras2ijk.MultiplyPoint(ras_4coords)[:3]]
 
-  def ITKToRasCoord(self, ras_coord, spacing_scale):
-    return [-ras_coord[0] * spacing_scale, 
-            -ras_coord[1] * spacing_scale, 
-            ras_coord[2] * spacing_scale]
+  def IJKToRASCoords(self, ijk_3coords, ijk2ras):
+    ijk_4coords = ijk_3coords + [1]
+    return [i for i in ijk2ras.MultiplyPoint(ijk_4coords)[:3]]

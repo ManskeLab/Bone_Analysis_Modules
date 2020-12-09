@@ -1,15 +1,21 @@
 # Usage
 This usage file outlines how to use the erosion analysis extension. Only two of the modules are part of the erosion analysis. The first module “Automatic Contour” draws the periosteal bone surface. The second module “Erosion Detection” identifies erosions based on the periosteal bone surface, and the seed points plotted by the user. "Automatic Contour" should run first before "Erosion Detection". 
 
-## Instructions
+---
+
 **Load File**
-Load a greyscale scan to 3D Slicer through drop file or the Add Data Button. There are three viewer windows in 3D Slicer, coloured in red, yellow, and green. The axial slices of the scan should fall in the red window. If not so, the scan has to be resampled to have that orientation, for the extension to work properly.
+
+Load a greyscale scan to 3D Slicer through drop file or the Add Data Button. This extension assumes a 61 um isotropic voxel size. It should work with MHA and NIFTI images.
+
+There are three viewer windows in 3D Slicer, coloured in red, yellow, and green. The axial slices of the scan should fall in the red window. If not so, the scan has to be resampled to have that orientation for the extension to work properly. Switch to the built-in module "Resample Scalar/Vector/DWI Volume" to resample images.
 
 ---
 
 **Step 1 - Bone Separation**
+
 This step is only necessary if multiple bones in the scan appear to be close or connected to each other. The purpose is to manually separate the bones. If the bones are clearly not connected, then they will be automatically separated by a connectivity component filter in the future steps.
 
+Parameters:
 - *Volume to be separated*: the loaded greyscale scan
 
 Hit the "**Initialize**" button, and the editor tools will be activated. 
@@ -23,8 +29,10 @@ Once completed editing, hit the “**Apply**” button. The output will be a lab
 ---
 
 **Step 2 – Automatic Contour**
+
 This step is to identify the periosteal bone surface. It takes around one minute to process each bone. 
 
+Parameters:
 - *Input Volume*: the greyscale scan
 - *Output Contour*: each separate bone will be labeled differently
 - *Lower Threshold/Upper Threshold*: global thresholds
@@ -34,18 +42,22 @@ This step is to identify the periosteal bone surface. It takes around one minute
 ---
 
 **Step 3 – Manual Correction**
+
 This step is to manually correct the periosteal bone surface. 
 
 The user will need to hit the "**Initialize**" and "**Apply**" buttons at the beginning and end of this step.
 
+Parameters:
 - *Contour to be Corrected*
 - *Master Volume*: the greyscale scan
 
 ---
 
 **Step 4 – Erosions**
+
 In this step, erosions will be identified by placing seed points in each of them. Large and small erosions will be identified separately, so the user will run this step multiple times. Each time, the seed points are plotted in erosions of similar size. 
 
+Parameters:
 - *Input Volume*: the greyscale scan
 - *Input Contour*: the output contour from the previous steps
 - *Output Volume*: each erosion will be labeled differently
@@ -63,12 +75,14 @@ If the output contains trabecular leakage, increase the *Advanced* parameters. I
 ---
 
 **Step 5 - Manual Correction**
+
 The user will be able to manually correct the erosions in this step. Since large and small erosions were identified separately, the erosions scatter among multiple outputs. This step also allows to combine those erosions into a single output. 
 
 The user will need to hit the "**Initialize**" and "**Apply**" buttons at the beginning and end of this step.
 
 The editor is set so that only voxels with low intensities are editable.
 
+Parameters:
 - *Input Erosions*: the output from Step 4
 - Master Volume: the greyscale scan
 - Input contour: the periosteal bone surface
@@ -80,8 +94,10 @@ To add erosions from a different output, change the “Input Erosions”, and hi
 ---
 
 **Step 6 - Statistics**
+
 Statistics are collected. 
 
+Parameters:
 - *Input Erosions*: all the erosions in one bone
 
 Only the erosions in the selected “Input Erosions” will appear in the output table.
@@ -89,6 +105,7 @@ Only the erosions in the selected “Input Erosions” will appear in the output
 ---
 
 **Save and Reload Files**
+
 Save the periosteal bone surface, the erosion segmentations, and the statistics table through the Save Button. 
 
 When reloading, the label maps/masks, i.e. the periosteal bone surface and the erosion segmentations, need to be loaded as "LabelMapVolume"s. To do so, check the “**Show Options**” check box at the top right corner of the Add Data prompt window, and then check the “**LabelMap**” option.
