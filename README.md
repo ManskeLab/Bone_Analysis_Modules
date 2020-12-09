@@ -10,3 +10,6 @@ This 3D Slicer extension allows for measurement of the volume, surface area, and
 5.	Click “Add” and navigate to the directory where you downloaded the erosion analysis toolkits. Choose the directory of each toolkit separately i.e. AutomaticContour; ErosionDetection. 
 6.	After adding all the toolkits, click OK. Slicer wants to be restarted.
 7.	After restarting Slicer, the toolkits should be listed in the “Bone” category under the "Modules:" list. An alternative way to access the toolkits is to click the magnifying glass beside the “Modules:” list and search for “Automatic Contour” or “Erosion Detection”. 
+
+## Usage
+Refer to [USAGE.md](USAGE.md) for user instructions.
