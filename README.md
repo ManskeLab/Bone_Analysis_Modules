@@ -12,4 +12,4 @@ This 3D Slicer extension allows for measurement of the volume, surface area, and
 7.	After restarting Slicer, the toolkits should be listed in the “Bone” category under the "Modules:" list. An alternative way to access the toolkits is to click the magnifying glass beside the “Modules:” list and search for “Automatic Contour” or “Erosion Detection”. 
 
 ## Usage
-Refer to [USAGE.md](USAGE.md) for user instructions.
+Refer to [USAGE.pdf](USAGE.pdf) for user instructions.
