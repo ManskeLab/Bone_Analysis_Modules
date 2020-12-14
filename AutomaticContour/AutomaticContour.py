@@ -78,6 +78,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.onSelect1()
     self.onSelect2()
     self.onSelect3()
+    self.onSelectInputVolume()
 
   def setupBoneSeparation(self):
     """Set up widgets in step 1 bone separation"""
@@ -186,7 +187,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.showHidden = False
     self.outputVolumeSelector.showChildNodeTypes = False
     self.outputVolumeSelector.setMRMLScene( slicer.mrmlScene )
-    self.outputVolumeSelector.baseName = "Contour"
+    self.outputVolumeSelector.baseName = "MASK"
     self.outputVolumeSelector.setToolTip( "Select the output volume to store the contour" )
     automaticContourLayout.addRow("Output Contour: ", self.outputVolumeSelector)
 
@@ -250,6 +251,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
     # connections
     self.automaticContourCollapsibleButton.connect('contentsCollapsed(bool)', self.onCollapsed2)
+    self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputVolume)
     self.getContourButton.connect('clicked(bool)', self.onGetContour)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
     self.outputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
@@ -410,27 +412,42 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
     # update widgets
     if separateOutputNode:
-      self.inputVolumeSelector.setCurrentNodeID(separateOutputNode.GetID())
+      self.inputVolumeSelector.setCurrentNodeID(separateInputNode.GetID())
+      self.separateMapSelector.setCurrentNodeID(separateOutputNode.GetID())
     self.disableBoneSeparationWidgets()
+
+  def onSelectInputVolume(self):
+    """Run this whenever the input volume selector in step 2 changes"""
+    inputVolumeNode = self.inputVolumeSelector.currentNode()
+
+    # update the default output base name
+    if inputVolumeNode:
+      self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_MASK")
+    else:
+      self.outputVolumeSelector.baseName = "MASK"
 
   def onGetContour(self):
     """Run this whenever the get contour button in step 2 is clicked"""
     # update widgets
     self.disableAutomaticContourWidgets()
 
-    ready = self._logic.setParameters(self.inputVolumeSelector.currentNode(), 
-                                     self.outputVolumeSelector.currentNode(),
+    inputVolumeNode = self.inputVolumeSelector.currentNode()
+    outputVolumeNode = self.outputVolumeSelector.currentNode()
+    separateMapNode = self.separateMapSelector.currentNode()
+
+    ready = self._logic.setParameters(inputVolumeNode, 
+                                     outputVolumeNode,
                                      self.lowerThresholdText.value,
                                      self.upperThresholdText.value,
                                      self.boneNumSpinBox.value,
-                                     self.separateMapSelector.currentNode())
+                                     separateMapNode)
     if ready:
       # run the algorithm
       success = self._logic.getContour(self.outputVolumeSelector.currentNode())
       if success:
         # update viewer windows and widgets
-        slicer.util.setSliceViewerLayers(background=self.inputVolumeSelector.currentNode(),
-                                         label=self.outputVolumeSelector.currentNode(), 
+        slicer.util.setSliceViewerLayers(background=inputVolumeNode,
+                                         label=outputVolumeNode, 
                                          labelOpacity=0.5)
         self.contourVolumeSelector.setCurrentNodeID(self.outputVolumeSelector.currentNodeID)
         self.masterVolumeSelector.setCurrentNodeID(self.inputVolumeSelector.currentNodeID)

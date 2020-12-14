@@ -298,7 +298,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
         segmentNode.SetReferenceImageGeometryParameterFromVolumeNode(masterVolumeNode)
         # binarize contour
         tempLabelVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode",
-                                                                 "Contour_Dont_Modify")
+                                                                 "MASK_Dont_Modify")
         slicer.vtkSlicerVolumesLogic().CreateLabelVolumeFromVolume(slicer.mrmlScene, 
                                                                    tempLabelVolumeNode, 
                                                                    contourVolumeNode)

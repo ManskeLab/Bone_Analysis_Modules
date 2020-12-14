@@ -79,6 +79,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     self.onSelect6()
     self.onSelectInputVolume()
     self.onSelectSeed()
+    self.onSelectInputErosion()
 
   def setupErosions(self):
     """Set up widgets in step 4 erosions"""
@@ -129,7 +130,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.showHidden = False
     self.outputVolumeSelector.showChildNodeTypes = False
     self.outputVolumeSelector.setMRMLScene(slicer.mrmlScene)
-    self.outputVolumeSelector.baseName = "Erosion"
+    self.outputVolumeSelector.baseName = "ERO"
     self.outputVolumeSelector.setToolTip( "Pick the output volume to store the erosions" )
     erosionsLayout.addRow("Output Volume: ", self.outputVolumeSelector)
 
@@ -394,6 +395,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     self.statsCollapsibleButton.connect('contentsCollapsed(bool)', self.onCollapsed6)
     self.getStatsButton.connect('clicked(bool)', self.onGetStatsButton)
     self.inputErosionSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect6)
+    self.inputErosionSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputErosion)
     self.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect6)
 
   def onCollapsed4(self):
@@ -444,17 +446,21 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
                                   self.outputTableSelector.currentNode())
   
   def onSelectInputVolume(self):
-    """
-    Update the spacing scale in the seed point table 
-    whenever the input volume selector in step 4 changes
-    """
+    """Run this whenever the input volume selector in step 4 changes"""
     inputVolumeNode = self.inputVolumeSelector.currentNode()
+
     if inputVolumeNode:
+      # Update the spacing scale in the seed point table
       ras2ijk = vtk.vtkMatrix4x4()
       ijk2ras = vtk.vtkMatrix4x4()
       inputVolumeNode.GetRASToIJKMatrix(ras2ijk)
       inputVolumeNode.GetIJKToRASMatrix(ijk2ras)
       self.markupsTableWidget.setCoordsMatrices(ras2ijk, ijk2ras)
+
+      # update the default output base name
+      self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_ERO")
+    else:
+      self.outputVolumeSelector.baseName = "ERO"
 
   def onSelectSeed(self):
     """Run this whenever the seed point selector in step 4 changes"""
@@ -468,6 +474,15 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     else:
       self.minimalRadiusText.value = 3
       self.dilationErosionRadiusText.value = 4
+
+  def onSelectInputErosion(self):
+    """Run this whenever the input erosion selector in step 6 changes"""
+    inputErosionNode = self.inputErosionSelector.currentNode()
+
+    if inputErosionNode:
+      self.outputTableSelector.baseName = (inputErosionNode.GetName()+"_TABLE")
+    else:
+      self.outputTableSelector.baseName = "_TABLE"
 
   def onGetErosionsButton(self):
     """Run this whenever the get erosions button in step 4 is clicked"""
