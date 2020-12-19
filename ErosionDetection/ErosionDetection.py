@@ -456,9 +456,11 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
       inputVolumeNode.GetRASToIJKMatrix(ras2ijk)
       inputVolumeNode.GetIJKToRASMatrix(ijk2ras)
       self.markupsTableWidget.setCoordsMatrices(ras2ijk, ijk2ras)
-
       # update the default output base name
       self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_ERO")
+      # update the viewer window
+      slicer.util.setSliceViewerLayers(background=inputVolumeNode)
+      slicer.util.resetSliceViews() # centre the volume in the viewer windows
     else:
       self.outputVolumeSelector.baseName = "ERO"
 
@@ -502,12 +504,9 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
                                             self.minimalRadiusText.value,
                                             self.dilationErosionRadiusText.value)
     if ready:
-      success = self._logic.getErosions(outputVolumeNode)
+      success = self._logic.getErosions(inputVolumeNode, outputVolumeNode)
       if success:
-        # update viewer windows and widgets
-        slicer.util.setSliceViewerLayers(background=inputVolumeNode,
-                                         label=outputVolumeNode, 
-                                         labelOpacity=0.5)
+        # update widgets
         self.erosionVolumeSelector.setCurrentNodeID(self.outputVolumeSelector.currentNodeID)
         self.masterVolumeSelector.setCurrentNodeID(self.inputVolumeSelector.currentNodeID)
         self.contourVolumeSelector.setCurrentNodeID(self.inputContourSelector.currentNodeID)

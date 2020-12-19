@@ -14,7 +14,7 @@ import vtk
 import SimpleITK as sitk
 import sitkUtils
 import logging
-from AutomaticContourLib.ContourLogic import ContourLogic
+from AutomaticContourLib.FastContourLogic import FastContourLogic
 from AutomaticContourLib.SegmentEditor import SegmentEditor
 
 #
@@ -30,7 +30,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     # initialize call back object for updating progrss bar
     self.progressCallBack = None
     # initialize contour object containing logics from contour module
-    self.contour = ContourLogic()
+    self.contour = FastContourLogic()
     self._segmentNodeId = ""
   
   def enterSegmentEditor(self, segmentEditor):
@@ -188,11 +188,12 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def getContour(self, outputVolumeNode):
+  def getContour(self, inputVolumeNode, outputVolumeNode):
     """
     Run the automatic contour algorithm.
 
     Args:
+      inputVolumeNode (vtkMRMLScalarVolumeNode)
       outputVolumeNode (vtkMRMLLabelMapVolumeNode): will be modified
 
     Returns:
@@ -217,8 +218,12 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     # push result to outputVolumeNode
     contour_img = self.contour.getOutput()
     sitkUtils.PushVolumeToSlicer(contour_img, outputVolumeNode)
-
     logging.info('Processing completed')
+
+    # update viewer windows
+    slicer.util.setSliceViewerLayers(background=inputVolumeNode,
+                                     label=outputVolumeNode, 
+                                     labelOpacity=0.5)
     return True
 
   def labelmapToSegmentationNode(self, labelMapNode, segmentNode):

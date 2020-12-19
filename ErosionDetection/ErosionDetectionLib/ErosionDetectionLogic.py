@@ -140,12 +140,13 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     
     return True
 
-  def getErosions(self, outputVolumeNode):
+  def getErosions(self, inputVolumeNode, outputVolumeNode):
     """
     Run the erosion detection algorithm and store the result in the output volume. 
     Return False if fail, and return true if successful.
 
     Args:
+      inputVolumeNode (vtkMRMLScalarVolumeNode)
       outputVolumeNode (vtkMRMLLabelMapVolumeNode): will be modified.
 
     Returns:
@@ -170,8 +171,12 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     # push result to outputVolumeNode
     void_volume_img = self.voidVolume.getOutput()
     sitkUtils.PushVolumeToSlicer(void_volume_img, outputVolumeNode)
-
     logging.info('Processing completed')
+
+    # update viewer windows
+    slicer.util.setSliceViewerLayers(background=inputVolumeNode,
+                                     label=outputVolumeNode, 
+                                     labelOpacity=0.5)
     return True
 
   def labelmapToSegmentationNode(self, labelMapNode, segmentNode):
