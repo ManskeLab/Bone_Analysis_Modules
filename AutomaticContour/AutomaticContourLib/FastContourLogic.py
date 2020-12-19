@@ -1,17 +1,17 @@
 #-----------------------------------------------------
-# ContourLogic.py
+# FastContourLogic.py
 #
 # Created by:  Mingjie Zhao
-# Created on:  09-10-2020
+# Created on:  15-12-2020
 #
 # Description: This module draws the contours of the input bones 
 #              and saves them in one label mask. Each bone will have a different label. 
-#              The bones are first smoothened by a Gaussian filter. 
+#              The bones are first smoothened by a Gaussian filter.
 #              Then, they are separated by either a connectivity filter or 
-#              a user provided label map. 
-#              Morphological closing operations (i.e. dilate, connectivity, and erode) 
+#              a user provided label map.
+#              Morphological closing operations (i.e. dilate, connectivity, and erode)
 #              are applied to each bone separately to close the inner voids. 
-#              There are 7 steps. Each bone has to run steps 2-7 separately.
+#              There are 8 steps. Each bone has to run Steps 4-8 separately.
 #
 #-----------------------------------------------------
 # Usage:       This module is plugged into 3D Slicer, but can
@@ -186,24 +186,32 @@ class FastContourLogic:
 
         return extract_img
 
-    def dilate(self, img, radius, foreground):
+    def inflate(self, img, radius, foreground):
         """
-        Dilate the objects in the image.
+        Inflate the objects in the image.
+
         Args:
             img (Image)
-            radius (Int): dilate steps, in voxels
-            foreground (int): Only voxels with the foreground value are dilated.
+            radius (Int): Inflate steps, in voxels
+            foreground (int): Only voxels with the foreground value are inflated.
+
         Returns:
             Image
         """
-        # dilate
-        print("Applying dilate filter")
-        dilate_filter = sitk.BinaryDilateImageFilter()
-        dilate_filter.SetKernelRadius(radius)
-        dilate_filter.SetForegroundValue(foreground)
-        dilate_img = dilate_filter.Execute(img)
+        # inflate with Maurer distance map filter
+        print("Applying distance map filter")
+        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+        distance_filter.SetSquaredDistance(False)
+        distance_filter.SetBackgroundValue(0)
+        distance_img = distance_filter.Execute(img)
 
-        return dilate_img
+        distance_img = sitk.BinaryThreshold(distance_img, 
+                                          lowerThreshold=1,
+                                          upperThreshold=radius,
+                                          insideValue=foreground)
+        inflate_img = distance_img + img
+
+        return inflate_img
 
     def connect(self, img, foreground):
         """
@@ -252,26 +260,33 @@ class FastContourLogic:
         invert_img = self.setPhysicalSpace(invert_img, origin, spacing)
         return invert_img
 
-    def erode(self, img, radius, foreground):
+    def deflate(self, img, radius, foreground):
         """
-        Erode the objects in the image back to its original size. 
+        Deflate the objects in the image back to their original size. 
         
         Args:
             img (Image)
-            radius (Int): erode steps, in voxels
-            foreground (int): Only voxels with the foreground value are eroded.
+            radius (Int): deflate steps, in voxels
+            foreground (int): Only voxels with the foreground value are deflated.
         
         Returns:
             Image
         """
-        # erode to original size
-        print("Applying erode filter")
-        erode_filter = sitk.BinaryErodeImageFilter()
-        erode_filter.SetKernelRadius(radius)
-        erode_filter.SetForegroundValue(foreground)
-        contour_img = erode_filter.Execute(img)
+        # deflate with Maurer distance map filter
+        print("Applying distance map filter")
+        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+        distance_filter.SetSquaredDistance(False)
+        distance_filter.SetBackgroundValue(foreground)
+        distance_img = distance_filter.Execute(img)
 
-        return contour_img
+        distance_img = sitk.BinaryThreshold(distance_img, 
+                                          lowerThreshold=1,
+                                          upperThreshold=radius,
+                                          insideValue=foreground)
+
+        deflate_img = img - distance_img
+
+        return deflate_img
 
     def pasteBack(self, extract_img):
         """
@@ -330,11 +345,11 @@ class FastContourLogic:
             elif self._step == 4: # step 4
                 self.img = self.extract(self.label_img, self.boneNum)
             elif self._step == 5: # step 5
-                self.img = self.dilate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
+                self.img = self.inflate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
             elif self._step == 6: # step 6
                 self.img = self.connect(self.img, self.boneNum)
             elif self._step == 7: # step 7
-                self.img = self.erode(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
+                self.img = self.deflate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
             elif self._step == 8: # step 8
                 if (self.output_img is None): # store first bone in output_img
                     self.output_img = self.pasteBack(self.img)

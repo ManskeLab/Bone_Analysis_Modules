@@ -420,9 +420,12 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     """Run this whenever the input volume selector in step 2 changes"""
     inputVolumeNode = self.inputVolumeSelector.currentNode()
 
-    # update the default output base name
     if inputVolumeNode:
+      # update the default output base name
       self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_MASK")
+      # update viewer windows
+      slicer.util.setSliceViewerLayers(background=inputVolumeNode)
+      slicer.util.resetSliceViews() # centre the volume in the viewer windows
     else:
       self.outputVolumeSelector.baseName = "MASK"
 
@@ -443,12 +446,9 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
                                      separateMapNode)
     if ready:
       # run the algorithm
-      success = self._logic.getContour(self.outputVolumeSelector.currentNode())
+      success = self._logic.getContour(inputVolumeNode, outputVolumeNode)
       if success:
-        # update viewer windows and widgets
-        slicer.util.setSliceViewerLayers(background=inputVolumeNode,
-                                         label=outputVolumeNode, 
-                                         labelOpacity=0.5)
+        # update widgets
         self.contourVolumeSelector.setCurrentNodeID(self.outputVolumeSelector.currentNodeID)
         self.masterVolumeSelector.setCurrentNodeID(self.inputVolumeSelector.currentNodeID)
         self.outputVolumeSelector.setCurrentNodeID("") # reset the output volume selector
