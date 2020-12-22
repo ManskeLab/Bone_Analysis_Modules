@@ -191,21 +191,30 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     advancedParameterLayout = qt.QGridLayout(self.advancedParameterBox)
     advancedParameterLayout.setColumnMinimumWidth(2, 15)
 
-    # erosion radius spin boxes
+    # advanced parameter instructions
+    advancedParameterLayout.addWidget(qt.QLabel(
+      "Increase the values for less leakage into the trabecular structure."
+      ), 0, 0, 1, 2)
+    advancedParameterLayout.addWidget(qt.QLabel(
+      "Decrease the values for more small erosions to be labeled."
+      ), 1, 0, 1, 2)
+    advancedParameterLayout.addWidget(qt.QLabel(""), 2, 0) # horizontal white space
+
+    # advanced parameter spin boxes
     self.minimalRadiusText = qt.QSpinBox()
     self.minimalRadiusText.setMinimum(1)
     self.minimalRadiusText.setMaximum(99)
     self.minimalRadiusText.setSingleStep(1)
     self.minimalRadiusText.value = 3
-    advancedParameterLayout.addWidget(qt.QLabel("Minimum Erosion Radius: "), 0, 0)
-    advancedParameterLayout.addWidget(self.minimalRadiusText, 0, 1)
+    advancedParameterLayout.addWidget(qt.QLabel("Minimum Erosion Radius [voxels]: "), 3, 0)
+    advancedParameterLayout.addWidget(self.minimalRadiusText, 3, 1)
     self.dilationErosionRadiusText = qt.QSpinBox()
     self.dilationErosionRadiusText.setMinimum(1)
     self.dilationErosionRadiusText.setMaximum(99)
     self.dilationErosionRadiusText.setSingleStep(1)
     self.dilationErosionRadiusText.value = 4
-    advancedParameterLayout.addWidget(qt.QLabel("Dilate/Erode Radius: "), 0, 3)
-    advancedParameterLayout.addWidget(self.dilationErosionRadiusText, 0, 4)
+    advancedParameterLayout.addWidget(qt.QLabel("Dilate/Erode Radius [voxels]: "), 4, 0)
+    advancedParameterLayout.addWidget(self.dilationErosionRadiusText, 4, 1)
 
     # Execution layout
     executeGridLayout = qt.QGridLayout()

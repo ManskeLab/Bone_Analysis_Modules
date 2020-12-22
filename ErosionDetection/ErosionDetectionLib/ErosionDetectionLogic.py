@@ -37,39 +37,6 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     self._contourSegmentId = ""   # will be reused
     self._erosionSegmentIndex = 1 # will be incremented, used for relabeling segmentation names
 
-  def getNeighbourCoords(self, coords, imageSize):
-    """
-    Return a list that contains the seed point (x, y, z) and some neighbouring points. 
-    The additional seed points increase the chance of being connected to the 
-    erosions.
-    
-    Args: 
-      coords (list of int)
-      imageSize (list of int)
-
-    Returns:
-      list of tuple of int
-    """
-    seeds = []
-    distance = 2
-    x, y, z = coords
-    width, height, depth = imageSize
-
-    seeds.append((x, y, z))
-    if (x-distance > 0):
-      seeds.append((x-distance, y, z))
-    if (x+distance < width):
-      seeds.append((x+distance, y, z))
-    if (y-distance > 0):
-      seeds.append((x, y-distance, z))
-    if (y+distance < height):
-      seeds.append((x, y+distance, z))
-    if (z-distance > 0):
-      seeds.append((x, y, z-distance))
-    if (z-distance < depth):
-      seeds.append((x, y, z+distance))
-    return seeds
-
   def RASToIJKCoords(self, ras_3coords, ras2ijk):
     """
     Convert from RAS coordinates to SimpleITK coordinates. 
@@ -133,9 +100,8 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     seeds = []
     for i in range(fiducial_num):
       fiducialNode.GetNthFiducialPosition(i,physical_coord) # slicer coordinates
-      itk_coord = self.RASToIJKCoords(physical_coord, ras2ijk)
-      itk_coords = self.getNeighbourCoords(itk_coord, model_img.GetSize()) # itk coordinates
-      seeds += itk_coords
+      itk_coord = self.RASToIJKCoords(physical_coord, ras2ijk) # SimpleITK coordinates
+      seeds.append(itk_coord)
     self.voidVolume.setSeeds(seeds)
     
     return True
