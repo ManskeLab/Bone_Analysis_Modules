@@ -92,7 +92,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
     # instructions
     boneSeparationLayout.addWidget(qt.QLabel("This step is only necessary if the bones are close to each other."))
-    boneSeparationLayout.addWidget(qt.QLabel("Give each bone a different label using the segmentation editor below."))
+    boneSeparationLayout.addWidget(qt.QLabel("Create a rough mask for each bone using the segmentation editor below."))
     boneSeparationLayout.addWidget(qt.QLabel("")) # horizontal space
 
     # layout for input and output selectors

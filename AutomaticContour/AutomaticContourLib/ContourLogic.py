@@ -36,24 +36,11 @@ class FastContourLogic:
         self.upper_threshold = upper
         self.boneNum = boneNum             # number of bone structures to be segmented
         self._step = 0                     # number of steps done
-        self._stepNum = 5 * self.boneNum + 3 # total number of steps in the algorithm
+        self._stepNum = 5 * self.boneNum + 3 # number of steps in the algorithm
         self._dilateErodeRadius = 36       # dilate/erode radius
         self._margin = self._dilateErodeRadius + 2
         self._stats_filter = sitk.LabelStatisticsImageFilter()
         self._boundingbox = ()              # bounding box of extracted image, will be reused
-    
-    def setPhysicalSpace(self, img, origin, spacing):
-        """
-        Set the origin and spacing of the image
-
-        Args:
-            img (Image): will be modified
-            origin (list/tuple of double)
-            spacing (list/tutple of double)
-        """
-        img.SetOrigin(origin)
-        img.SetSpacing(spacing)
-        return img
     
     def binarize(self, img, lower, upper):
         thresh_img = sitk.BinaryThreshold(img,
@@ -205,10 +192,10 @@ class FastContourLogic:
 
         return dilate_img
 
-    def connect(self, img, foreground):
+    def fillHole(self, img, foreground):
         """
-        Select the outer contour of the bones that attaches to the background, 
-        and ignore the inner trabecular voids.
+        Fill holes inside the bone. 
+        The fill hole filter is applied slice by slice in each of the three directions. 
         
         Args:
             img (Image)
@@ -222,35 +209,42 @@ class FastContourLogic:
         width = img.GetWidth()
         height = img.GetHeight()
         depth = img.GetDepth()
-        origin = img.GetOrigin()
-        spacing = img.GetSpacing()
-        seed_list = [(0,0),(width-1,0),(0,height-1),(width-1,height-1)]
 
-        # connectivity filter to select the background
-        print("Applying connectivity filter")
-        connected_filter = sitk.ConnectedThresholdImageFilter()
-        connected_filter.SetSeedList(seed_list)
-        connected_filter.SetLower(0)
-        connected_filter.SetUpper(0)
-        connected_filter.SetReplaceValue(foreground)
-
+        fill_hole_filter = sitk.BinaryFillholeImageFilter()
+        fill_hole_filter.SetForegroundValue(foreground)
+        
+        print("Applying fill hole filter")
         vectorOfImages = sitk.VectorOfImage()
-        # apply connectivity slice by slice to select the background
-        # not to consider z direction
+        # apply fill hole filter slice by slice in z direction
         for i in range(depth):
             im = img[:,:,i]
-            contour = connected_filter.Execute(im)
+            contour = fill_hole_filter.Execute(im)
             vectorOfImages.push_back(contour)
-        connected_img = sitk.JoinSeries(vectorOfImages)
+        fill_hole_img = sitk.JoinSeries(vectorOfImages)
         vectorOfImages.clear()
+        fill_hole_img.CopyInformation(img)
+        # apply fill hole filter slice by slice in y direction
+        for j in range(height):
+            im = img[:,j,:]
+            contour = fill_hole_filter.Execute(im)
+            vectorOfImages.push_back(contour)
+        fill_hole_img2 = sitk.JoinSeries(vectorOfImages)
+        vectorOfImages.clear()
+        fill_hole_img2 = sitk.PermuteAxes(fill_hole_img2, (0,2,1))
+        fill_hole_img2.CopyInformation(img)
+        # apply fill hole filter slice by slice in x direction
+        for k in range(width):
+            im = img[k,:,:]
+            contour = fill_hole_filter.Execute(im)
+            vectorOfImages.push_back(contour)
+        fill_hole_img3 = sitk.JoinSeries(vectorOfImages)
+        vectorOfImages.clear()
+        fill_hole_img3 = sitk.PermuteAxes(fill_hole_img3, (2,0,1))
+        fill_hole_img3.CopyInformation(img)
 
-        # invert filter to select the bone structure
-        invert_filter = sitk.InvertIntensityImageFilter()
-        invert_filter.SetMaximum(foreground)
-        invert_img = invert_filter.Execute(connected_img)
+        fill_hole_img = fill_hole_img | fill_hole_img2 | fill_hole_img3
 
-        invert_img = self.setPhysicalSpace(invert_img, origin, spacing)
-        return invert_img
+        return fill_hole_img
 
     def erode(self, img, radius, foreground):
         """
@@ -332,7 +326,7 @@ class FastContourLogic:
             elif self._step == 5: # step 5
                 self.img = self.dilate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
             elif self._step == 6: # step 6
-                self.img = self.connect(self.img, self.boneNum)
+                self.img = self.fillHole(self.img, self.boneNum)
             elif self._step == 7: # step 7
                 self.img = self.erode(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
             elif self._step == 8: # step 8
