@@ -10,13 +10,13 @@
 #              Then, they are separated by either a connectivity filter or 
 #              a user provided label map. 
 #              Morphological closing operations (i.e. dilate, connectivity, and erode) 
-#              are applied to each bone separately to close the inner voids. 
+#              are applied to each bone separately to close the trabecular breaks. 
 #              There are 7 steps. Each bone has to run steps 2-7 separately.
 #
 #-----------------------------------------------------
 # Usage:       This module is plugged into 3D Slicer, but can
 #              run on its own. When run on its own:
-#              python Contour.py arg1 arg2
+#              python ContourLogic.py arg1 arg2
 #
 # Param:       arg1 = The input greyscale image to be contoured
 #              arg2 = The output image to store the contour
@@ -24,7 +24,7 @@
 #-----------------------------------------------------
 import SimpleITK as sitk
 
-class FastContourLogic:
+class ContourLogic:
     """This class provides methods for automatic contouring"""
 
     def __init__(self, img=None, lower=3000, upper=10000, boneNum=1):
@@ -179,7 +179,7 @@ class FastContourLogic:
         Args:
             img (Image)
             radius (Int): dilate steps, in voxels
-            foreground (int): Only voxels with the foreground value are dilated.
+            foreground (int): Only voxels with the foreground value are considered.
         Returns:
             Image
         """
@@ -253,7 +253,7 @@ class FastContourLogic:
         Args:
             img (Image)
             radius (Int): erode steps, in voxels
-            foreground (int): Only voxels with the foreground value are eroded.
+            foreground (int): Only voxels with the foreground value are considered.
         
         Returns:
             Image
@@ -405,7 +405,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 3:
         # invalid arguments, print usage
-        print("Usage: Contour.py [input filename] [output filename]")
+        print("Usage: ContourLogic.py [input filename] [output filename]")
 
     else:
         input_dir = sys.argv[1]
@@ -415,7 +415,7 @@ if __name__ == "__main__":
         img = sitk.ReadImage(input_dir)
 
         # create contour object
-        contour = FastContourLogic(img)
+        contour = ContourLogic(img)
 
         # create contour
         while (contour.execute()):
