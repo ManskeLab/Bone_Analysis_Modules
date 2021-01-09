@@ -193,10 +193,10 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
 
     # advanced parameter instructions
     advancedParameterLayout.addWidget(qt.QLabel(
-      "Increase the values for less leakage into the trabecular structure."
+      "Larger values for less leakage into the trabecular structure;"
       ), 0, 0, 1, 2)
     advancedParameterLayout.addWidget(qt.QLabel(
-      "Decrease the values for more small erosions to be labeled."
+      "smaller values for more cortical breaks to be labeled."
       ), 1, 0, 1, 2)
     advancedParameterLayout.addWidget(qt.QLabel(""), 2, 0) # horizontal white space
 
