@@ -36,7 +36,8 @@ class SegmentEditor:
     import qSlicerSegmentationsModuleWidgetsPythonQt
     self.editor = qSlicerSegmentationsModuleWidgetsPythonQt.qMRMLSegmentEditorWidget()
     self.editor.setMaximumNumberOfUndoStates(10)
-    self.editor.setEffectNameOrder(('Paint', 'Draw', 'Erase', 'Grow from seeds', 'Fill between slices'))
+    self.editor.setEffectNameOrder(('Paint', 'Draw', 'Erase', 'Threshold', 
+                                    'Grow from seeds', 'Fill between slices'))
     self.editor.unorderedEffectsVisible = False
     self.editor.switchToSegmentationsButtonVisible = False
     self.editor.segmentationNodeSelectorVisible = False
@@ -79,6 +80,16 @@ class SegmentEditor:
 
   def setMasterVolumeNode(self, masterVolumeNode):
     self.editor.setMasterVolumeNode(masterVolumeNode)
+
+  def setSegmentationGeometry(self, segmentNode, masterVolumeNode, oversamplingFactor):
+    segmentationGeometryWidget = slicer.qMRMLSegmentationGeometryWidget()
+    segmentationGeometryWidget.setMRMLScene(slicer.mrmlScene)
+    segmentationGeometryWidget.setParent(self.editor)
+    segmentationGeometryWidget.setEditEnabled(True)
+    segmentationGeometryWidget.setSegmentationNode(segmentNode)
+    segmentationGeometryWidget.setSourceNode(masterVolumeNode)
+    segmentationGeometryWidget.setOversamplingFactor(oversamplingFactor)
+    segmentationGeometryWidget.setReferenceImageGeometryForSegmentationNode()
 
   def setMasterVolumeIntensityMask(self, isIntensityMask, lower=0, upper=3600):
     if isIntensityMask:
