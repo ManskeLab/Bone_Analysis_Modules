@@ -14,8 +14,8 @@ import vtk
 import SimpleITK as sitk
 import sitkUtils
 import logging
-from AutomaticContourLib.FastContourLogic import FastContourLogic
-from AutomaticContourLib.SegmentEditor import SegmentEditor
+from .ContourLogic import ContourLogic
+from .SegmentEditor import SegmentEditor
 
 #
 # AutomaticContourLogic
@@ -30,7 +30,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     # initialize call back object for updating progrss bar
     self.progressCallBack = None
     # initialize contour object containing logics from contour module
-    self.contour = FastContourLogic()
+    self.contour = ContourLogic()
     self._segmentNodeId = ""
   
   def enterSegmentEditor(self, segmentEditor):
@@ -75,9 +75,9 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def initBoneSeparation(self, segmentEditor, separateInputNode):
+  def initRoughMask(self, segmentEditor, separateInputNode):
     """
-    Set up the segmentation editor for manual bone separation. 
+    Set up the segmentation editor for manual bone separation/rough mask. 
     Create new segmentation node if not created.  
 
     Args:
@@ -96,15 +96,17 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       # set segmentation node and master volume node in segmentation editor
       segmentEditor.setSegmentationNode(segmentNode)
       segmentEditor.setMasterVolumeNode(separateInputNode)
+      # reduce segmentation resolution for performance
+      segmentEditor.setSegmentationGeometry(segmentNode, separateInputNode, oversamplingFactor=0.5)
       # update viewer windows and widgets
       slicer.util.setSliceViewerLayers(background=separateInputNode)
 
       return True
     return False
 
-  def cancelBoneSeparation(self, separateInputNode):
+  def cancelRoughMask(self, separateInputNode):
     """
-    Cancel the segmentation for in manual bone separation. 
+    Cancel the segmentation for in manual bone separation/rough mask. 
     Remove the segmentation node in the segmentation editor. 
 
     Args:
@@ -123,9 +125,9 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     
     return (segmentNode and separateInputNode)
 
-  def applyBoneSeparation(self, separateInputNode, separateOutputNode):
+  def applyRoughMask(self, separateInputNode, separateOutputNode):
     """
-    Apply the segmentation in manual bone separation. 
+    Apply the segmentation in manual bone separation/rough mask. 
     Load the segmentation to the output node.
     Remove the segmentation node in the segmentation editor.
 
@@ -181,10 +183,10 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     self.contour.setBoneNum(boneNum)
 
     if (separateMapNode is None):
-      self.contour.setSeparateMap(None)
+      self.contour.setRoughMask(None)
     else:
       separate_map = sitkUtils.PullVolumeFromSlicer(separateMapNode.GetName())
-      self.contour.setSeparateMap(sitk.Cast(separate_map, sitk.sitkUInt8))
+      self.contour.setRoughMask(sitk.Cast(separate_map, sitk.sitkUInt8))
 
     return True
 
