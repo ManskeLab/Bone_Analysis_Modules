@@ -83,7 +83,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
   def setupBoneSeparation(self):
     """Set up widgets in step 1 bone separation"""
     # set text on collapsible button, and add collapsible button to layout
-    self.boneSeparationCollapsibleButton.text = "Step 1 - Bone Separation"
+    self.boneSeparationCollapsibleButton.text = "Step 1 - Rough Mask"
     self.boneSeparationCollapsibleButton.collapsed = True
     self.layout.addWidget(self.boneSeparationCollapsibleButton)
 
@@ -92,7 +92,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
     # instructions
     boneSeparationLayout.addWidget(qt.QLabel("This step is only necessary if the bones are close to each other."))
-    boneSeparationLayout.addWidget(qt.QLabel("Create a rough mask for each bone using the segmentation editor below."))
+    boneSeparationLayout.addWidget(qt.QLabel("Create a rough mask for each bone to assist contouring."))
     boneSeparationLayout.addWidget(qt.QLabel("")) # horizontal space
 
     # layout for input and output selectors
@@ -109,8 +109,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.separateInputSelector.showHidden = False
     self.separateInputSelector.showChildNodeTypes = False
     self.separateInputSelector.setMRMLScene(slicer.mrmlScene)
-    self.separateInputSelector.setToolTip("Select the volume to be separated")
-    selectorFormLayout.addRow("Volume to be separated: ", self.separateInputSelector)
+    self.separateInputSelector.setToolTip("Select the input scan")
+    selectorFormLayout.addRow("Input Volume: ", self.separateInputSelector)
 
     # frame with selectors
     selectorFrame = qt.QFrame()
@@ -197,13 +197,13 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
     self.lowerThresholdText.value = 3000
-    automaticContourLayout.addRow("Lower threshold: ", self.lowerThresholdText)
+    automaticContourLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(0)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
     self.upperThresholdText.value = 10000
-    automaticContourLayout.addRow("Upper threshold: ", self.upperThresholdText)
+    automaticContourLayout.addRow("Upper Threshold: ", self.upperThresholdText)
 
     # bone number spin box
     self.boneNumSpinBox = qt.QSpinBox()
@@ -211,8 +211,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.boneNumSpinBox.setMaximum(9)
     self.boneNumSpinBox.setSingleStep(1)
     self.boneNumSpinBox.value = 1
-    self.boneNumSpinBox.setToolTip("Enter the number of separate bones in the image")
-    automaticContourLayout.addRow("Number of bones: ", self.boneNumSpinBox)
+    self.boneNumSpinBox.setToolTip("Enter the number of separate bone structures in the scan")
+    automaticContourLayout.addRow("Number of Bones: ", self.boneNumSpinBox)
 
     # output volume selector
     self.separateMapSelector = slicer.qMRMLNodeComboBox()
@@ -225,8 +225,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.separateMapSelector.showHidden = False
     self.separateMapSelector.showChildNodeTypes = False
     self.separateMapSelector.setMRMLScene( slicer.mrmlScene )
-    self.separateMapSelector.setToolTip( "Select the label map from the manual bone separation step" )
-    automaticContourLayout.addRow("Bone Separation Map: ", self.separateMapSelector)
+    self.separateMapSelector.setToolTip( "Select the rough mask from Step 1" )
+    automaticContourLayout.addRow("Rough Mask(Optional): ", self.separateMapSelector)
 
     # Execution layout
     executeGridLayout = qt.QGridLayout()
@@ -294,7 +294,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.masterVolumeSelector.showHidden = False
     self.masterVolumeSelector.showChildNodeTypes = False
     self.masterVolumeSelector.setMRMLScene( slicer.mrmlScene )
-    self.masterVolumeSelector.setToolTip("Select the master volume associated with the contour")
+    self.masterVolumeSelector.setToolTip("Select the scan associated with the contour")
     selectorFormLayout.addRow("Master Volume: ", self.masterVolumeSelector)
 
     # frame with selectors
@@ -385,7 +385,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     """Run this whenever the initialize button in step 1 is clicked"""
     separateInputNode = self.separateInputSelector.currentNode()
 
-    success = self._logic.initBoneSeparation(self.segmentEditor, separateInputNode)
+    success = self._logic.initRoughMask(self.segmentEditor, separateInputNode)
 
     if success:
       # update widgets
@@ -396,7 +396,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     if slicer.util.confirmOkCancelDisplay('Do you want to discard the segmentation?'):
       separateInputNode = self.separateInputSelector.currentNode()
       
-      self._logic.cancelBoneSeparation(separateInputNode)
+      self._logic.cancelRoughMask(separateInputNode)
 
       # update widgets
       self.disableBoneSeparationWidgets()
@@ -408,7 +408,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     separateOutputName = slicer.mrmlScene.GenerateUniqueName(separateInputNode.GetName()+"_separated")
     separateOutputNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", separateOutputName)
 
-    self._logic.applyBoneSeparation(separateInputNode, separateOutputNode)
+    self._logic.applyRoughMask(separateInputNode, separateOutputNode)
 
     # update widgets
     if separateOutputNode:

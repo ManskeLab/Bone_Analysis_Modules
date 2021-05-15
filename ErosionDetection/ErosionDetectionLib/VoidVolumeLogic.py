@@ -10,35 +10,42 @@
 #              Next, a distance transformation and morphological opening operations
 #              (i.e. erode, connectivity, dilate) are applied 
 #              to select the large void volumes. 
-#              Then, the above steps are repeated with more aggressive parameters. 
+#              Then, the above steps are repeated with more 'aggressive' parameters. 
 #              Lastly, the two void volumes obtained are combined to yield the final output. 
 #              There are 8 steps.
 #
 #-----------------------------------------------------
-# Usage:       This module is plugged into 3D Slicer, but can
-#              run on its own. When run on its own:
-#              python VoidVolume.py arg1 arg2 arg3
+# Usage:       This module is plugged into 3D Slicer, but can run on its own. 
+#              When running on its own, call:
+#              python VoidVolume.py inputImage inputMask outputImage seeds
+#                                   lowerThreshold upperThreshold
+#                                   [minimalRadius] [morphologicalRadius]
 #
-# Where:       arg1 = The input greyscale image to be segmented
-#              arg2 = The contour of the input greyscale image
-#              arg3 = The output image to store the erosions
+# Param:       inputImage: The input image file path
+#              inputMask: The input mask file path
+#              outputImage: The output image file path
+#              seeds: The seed points csv file path
+#              lowerThreshold
+#              upperThreshold
+#              minimalRadius: Minimal erosion radius in voxels, default=3
+#              morphologicalRadius: Morphological kernel radius in voxels, default=4
 #
 #-----------------------------------------------------
 import SimpleITK as sitk
 
 class VoidVolumeLogic:
-    def __init__(self, model_img=None, contour_img=None, lower_thresh=3000, upper_thresh=10000, seeds=None,
-    minimalRadius=3, dilationErosionRadius=5):
-        self.model_img = model_img            # greyscale scan
-        self.contour_img = contour_img        # outer contour, periosteal boundary
+    def __init__(self, img=None, mask=None, lower=3000, upper=10000, seeds=None,
+    minimalRadius=3, morphologicalRadius=4):
+        self.model_img = img                  # greyscale scan
+        self.contour_img = mask               # outer contour, periosteal boundary
         self.seeds_img = None                 # distance transformation of the seed points
         self.ero1_img = None                  # erosions with less trabecular leakage
         self.ero2_img = None                  # erosions with more trabecular leakage
         self.output_img = None
-        self.lower_threshold = lower_thresh
-        self.upper_threshold = upper_thresh
+        self.lower_threshold = lower
+        self.upper_threshold = upper
         self.ero1_distance = minimalRadius       # for distance transformation
-        self.ero1_radius = dilationErosionRadius # for morphological opening operations
+        self.ero1_radius = morphologicalRadius # for morphological opening operations
         self.seeds = seeds         # seed points indicate the locations of erosions
         self.stepNum = 8           # number of steps in the algorithm
         self._step = 0             # number of steps done
@@ -116,7 +123,7 @@ class VoidVolumeLogic:
         # invert to select background and voids in the bone
         invert_filter = sitk.InvertIntensityImageFilter()
         invert_filter.SetMaximum(1)
-        void_volume_img = invert_filter.Execute(self.model_img)
+        void_volume_img = invert_filter.Execute(thresh_img)
 
         void_volume_img = roi_mask * void_volume_img
 
@@ -124,7 +131,7 @@ class VoidVolumeLogic:
 
     def distanceVoidVolume(self, void_volume_img, radius):
         """
-        Select voids with a large radius. 
+        Select voids of large diameter. 
 
         Args:
             void_volume_img (Image)
@@ -326,7 +333,6 @@ class VoidVolumeLogic:
         # threshhold to binarize contour
         thresh_img = sitk.BinaryThreshold(contour_img,
                                           lowerThreshold=1,
-                                          upperThreshold=10000,
                                           insideValue=1)
         self.contour_img = thresh_img
 
@@ -346,14 +352,14 @@ class VoidVolumeLogic:
         """
         self.seeds = seeds
 
-    def setRadii(self, minimalRadius, dilationErosionRadius):
+    def setRadii(self, minimalRadius, morphologicalRadius):
         """
         Args:
             minimalRadius (int): used in the distance map filter
-            dilationErosionRadius (int): used in the dilate/erode filters
+            morphologicalRadius (int): used in the dilate/erode filters
         """
         self.ero1_distance = minimalRadius
-        self.ero1_radius = dilationErosionRadius
+        self.ero1_radius = morphologicalRadius
     
     def _cleanup(self):
         """
@@ -365,41 +371,61 @@ class VoidVolumeLogic:
         return self.output_img
 
 
+# execute this script on command line
 if __name__ == "__main__":
-    # execute the algorithm
-    import sys
+    import argparse
 
-    if len(sys.argv) < 4:
-        # invalid arguments, print usage
-        print("Usage: VoidVolume.py [input filename] [contour filename] [output filename]")
+    # Read the input arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('inputImage', help='The input image file path')
+    parser.add_argument('inputMask', help='The input mask file path')
+    parser.add_argument('outputImage', help='The output image file path')
+    parser.add_argument('seeds', help='The seed points csv file path')
+    parser.add_argument('lowerThreshold', type=int)
+    parser.add_argument('upperThreshold', type=int)
+    parser.add_argument('minimalRadius', type=int, nargs='?', default=3, 
+                        help='Minimal erosion radius in voxels, default=3')
+    parser.add_argument('morphologicalRadius', type=int, nargs='?', default=4,
+                        help='Morphological kernel radius in voxels, default=4')
+    args = parser.parse_args()
 
-    else:
-        input_dir = sys.argv[1]
-        contour_dir = sys.argv[2]
-        output_dir = sys.argv[3]
+    input_dir = args.inputImage
+    mask_dir = args.inputMask
+    output_dir = args.outputImage
+    seeds_dir = args.seeds
+    lower = args.lowerThreshold
+    upper = args.upperThreshold
+    minimalRadius = args.minimalRadius
+    morphologicalRadius = args.morphologicalRadius
 
-        # read images
-        img = sitk.ReadImage(input_dir)
-        contour_img = sitk.ReadImage(contour_dir)
+    # read images
+    img = sitk.ReadImage(input_dir)
+    mask = sitk.ReadImage(mask_dir)
+    # read seadpoints
+    seeds = []
+    HEADER = 3
+    lineCount = 0
+    with open(seeds_dir) as fcsv:
+        for line in fcsv:
+            # line = 'id,x,y,z,ow,ox,oy,oz,vis,sel,lock,label,desc,associatedNodeID'
+            if lineCount >= HEADER:
+                seed = line.split(',')
+                x = int(float(seed[1]))
+                y = int(float(seed[2]))
+                z = int(float(seed[3]))
+                seeds.append((x,y,z))
+            lineCount += 1
 
-        # get lower and upper thresholds
-        lower_threshold = int(input("Lower threshold: "))
-        upper_threshold = int(input("Upper threshold: "))        
+    # create erosion object
+    erosion = VoidVolumeLogic(img, mask, lower, upper, seeds, 
+                              minimalRadius, morphologicalRadius)
 
-        # get seed point
-        seed_x = int(input("Seed point x coordinate: "))
-        seed_y = int(input("Seed point y coordinate: "))
-        seed_z = int(input("Seed point z coordinate: "))
-        seed = [(seed_x, seed_y, seed_z)]
+    # identify erosions
+    print("Running erosion detection script")
+    while (erosion.execute()):
+        pass
+    erosion_img = erosion.getOutput()
 
-        # create erosion object
-        erosion = VoidVolumeLogic(img, contour_img, lower_threshold, upper_threshold, seed)
-
-        # identify erosions
-        while (erosion.execute()):
-            pass
-        erosion_img = erosion.getOutput()
-
-        # store erosions
-        print("Storing image in {}".format(output_dir))
-        sitk.WriteImage(erosion_img, output_dir)
+    # store erosions
+    print("Storing image in {}".format(output_dir))
+    sitk.WriteImage(erosion_img, output_dir)
