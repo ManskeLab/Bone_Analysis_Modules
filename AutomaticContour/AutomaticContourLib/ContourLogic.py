@@ -5,21 +5,26 @@
 # Created on:  09-10-2020
 #
 # Description: This module draws the contours of the input bones 
-#              and saves them in one label mask. Each bone will have a different label. 
-#              The bones are first smoothened by a Gaussian filter. 
+#              and saves them in one labeled mask. Each bone will have a different label. 
+#              The bones are first smoothened by a Gaussian filter.
 #              Then, they are separated by either a connectivity filter or 
-#              a user provided label map. 
-#              Morphological closing operations (i.e. dilate, connectivity, and erode) 
-#              are applied to each bone separately to close the trabecular breaks. 
-#              There are 7 steps. Each bone has to run steps 2-7 separately.
+#              a user provided rough mask.
+#              Maurer distance map is used to inflate and deflate each bone. 
+#              Holes are filled inside each bone.
+#              There are 8 steps. Each bone has to run Steps 4-8 separately.
 #
 #-----------------------------------------------------
-# Usage:       This module is plugged into 3D Slicer, but can
-#              run on its own. When run on its own:
-#              python ContourLogic.py arg1 arg2
+# Usage:       This module is plugged into 3D Slicer, but can run on its own. 
+#              When running on its own:
+#              python ContourLogic.py inputImage outputImage lowerThreshold upperThreshold
+#                                     boneNum [roughMask]
 #
-# Param:       arg1 = The input greyscale image to be contoured
-#              arg2 = The output image to store the contour
+# Param:       inputImage: The input greyscale image to be contoured
+#              outputImage: The output image to store the contour
+#              lowerThreshold
+#              upperThreshold
+#              boneNum: Number of separate bone structures
+#              roughMask: The file path of optional rough mask that helps separate bones
 #
 #-----------------------------------------------------
 import SimpleITK as sitk
@@ -27,17 +32,17 @@ import SimpleITK as sitk
 class ContourLogic:
     """This class provides methods for automatic contouring"""
 
-    def __init__(self, img=None, lower=3000, upper=10000, boneNum=1):
+    def __init__(self, img=None, lower=3000, upper=10000, boneNum=1, roughMask=None):
         self.img = img                     # bone model, will be reused
         self.output_img = None             # output image
         self.label_img = None              # image with each connected bone structures relabeled
-        self.separate_map = None           # rough manual separation map
+        self.roughMask = roughMask         # rough mask
         self.lower_threshold = lower
         self.upper_threshold = upper
         self.boneNum = boneNum             # number of bone structures to be segmented
         self._step = 0                     # number of steps done
         self._stepNum = 5 * self.boneNum + 3 # number of steps in the algorithm
-        self._dilateErodeRadius = 36       # dilate/erode radius
+        self._dilateErodeRadius = 38       # dilate/erode radius
         self._margin = self._dilateErodeRadius + 2
         self._stats_filter = sitk.LabelStatisticsImageFilter()
         self._boundingbox = ()              # bounding box of extracted image, will be reused
@@ -50,7 +55,7 @@ class ContourLogic:
 
         return thresh_img
 
-    def denoise(self, img, sigma):
+    def denoise(self, img, sigma, foreground=1):
         """
         De-noise the image with a Gaussian filter.
 
@@ -58,6 +63,7 @@ class ContourLogic:
             img (Image)
             sigma (double): will be internally scaled by spacing. 
                             SimpleITK Gaussian filters take sigma with respect to spacing.
+            foreground (int)
         
         Returns:
             Image
@@ -66,9 +72,14 @@ class ContourLogic:
         inside_value = 250
         max_inside_value = 255
 
-        thresh_img = sitk.BinaryThreshold(img, 
-                                          lowerThreshold=1, 
-                                          upperThreshold=1, 
+        opening_filter = sitk.BinaryMorphologicalOpeningImageFilter()
+        opening_filter.SetForegroundValue(foreground)
+        opening_filter.SetKernelRadius(1)
+        opening_img = opening_filter.Execute(img)
+
+        thresh_img = sitk.BinaryThreshold(opening_img,
+                                          lowerThreshold=foreground,
+                                          upperThreshold=foreground,
                                           insideValue=inside_value)
 
         # gaussian smoothing filter
@@ -80,27 +91,25 @@ class ContourLogic:
         thresh_img = sitk.BinaryThreshold(gaussian_img,
                                           lowerThreshold=inside_value/2,
                                           upperThreshold=max_inside_value,
-                                          insideValue=1)
+                                          insideValue=foreground)
 
         return thresh_img
 
-    def relabelWithMap(self, thresh_img, smooth_img, separate_map):
+    def relabelWithMap(self, thresh_img, rough_mask):
         """
-        Relabel each bone with the input manual bone separation map.
+        Relabel each bone based on the rough mask.
         
         Args:
-            img (Image)
-            labelMap (Image): rough mask that indicates how the bones are separated 
-                              from one another. 
-                              The labels should go from 1, 2,..., to N, without any skips.
+            thresh_img (Image)
+            rough_mask (Image): rough mask that indicates how to separate the bones.
+                                The labels should go from 1, 2,..., to N, without any skips.
         
         Returns:
             Image
         """
-        label_img = thresh_img * separate_map
-        label_img = label_img * smooth_img
+        label_img = thresh_img * rough_mask
 
-        self._stats_filter.Execute(smooth_img, label_img)
+        self._stats_filter.Execute(rough_mask, label_img)
         boneNum = self._stats_filter.GetNumberOfLabels() - 1
         self.setBoneNum(boneNum)
 
@@ -192,6 +201,33 @@ class ContourLogic:
 
         return dilate_img
 
+    def inflate(self, img, radius, foreground):
+        """
+        Inflate the bone in the image using Maurer distance map.
+
+        Args:
+            img (Image)
+            radius (Int): Inflate steps, in voxels
+            foreground (int): Only voxels with the foreground value are considered.
+
+        Returns:
+            Image
+        """
+        # inflate with Maurer distance map filter
+        print("Applying distance map filter")
+        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+        distance_filter.SetSquaredDistance(False)
+        distance_filter.SetBackgroundValue(0)
+        distance_img = distance_filter.Execute(img)
+
+        distance_img = sitk.BinaryThreshold(distance_img, 
+                                          lowerThreshold=1,
+                                          upperThreshold=radius,
+                                          insideValue=foreground)
+        inflate_img = distance_img + img
+
+        return inflate_img
+
     def fillHole(self, img, foreground):
         """
         Fill holes inside the bone. 
@@ -267,6 +303,34 @@ class ContourLogic:
 
         return contour_img
 
+    def deflate(self, img, radius, foreground):
+        """
+        Deflate the bone in the image to its original size using Maurer distance map. 
+        
+        Args:
+            img (Image)
+            radius (Int): deflate steps, in voxels
+            foreground (int): Only voxels with the foreground value are considered.
+        
+        Returns:
+            Image
+        """
+        # deflate with Maurer distance map filter
+        print("Applying distance map filter")
+        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+        distance_filter.SetSquaredDistance(False)
+        distance_filter.SetBackgroundValue(foreground)
+        distance_img = distance_filter.Execute(img)
+
+        distance_img = sitk.BinaryThreshold(distance_img, 
+                                          lowerThreshold=1,
+                                          upperThreshold=radius,
+                                          insideValue=foreground)
+
+        deflate_img = img - distance_img
+
+        return deflate_img
+
     def pasteBack(self, extract_img):
         """
         Paste the extracted bone back to the original image. Refer to extract().
@@ -315,20 +379,25 @@ class ContourLogic:
                 self._cleanup()
                 self.img = self.binarize(self.img, self.lower_threshold, self.upper_threshold)
             elif self._step == 2: # step 2
-                self.label_img = self.denoise(self.img, sigma=2)
+                if (self.roughMask is None):
+                    self.img = self.denoise(self.img, sigma=2)
             elif self._step == 3: # step 3
-                if (self.separate_map is None): # separate bones with connectivity filter
-                    self.label_img = self.relabelWithConnect(self.label_img)
-                else:                           # separate bones with manual map
-                    self.label_img = self.relabelWithMap(self.img, self.label_img, self.separate_map)
+                if (self.roughMask is None): # separate bones with connectivity filter
+                    self.label_img = self.relabelWithConnect(self.img)
+                else:                        # separate bones with rough mask
+                    self.label_img = self.relabelWithMap(self.img, self.roughMask)
             elif self._step == 4: # step 4
-                self.img = self.extract(self.label_img, self.boneNum)
+                self.img = self.extract(self.label_img, foreground=self.boneNum)
+                if (self.roughMask is not None): # denoise the rough mask, may not be neccessary
+                    self.img = self.denoise(self.img, sigma=2, foreground=self.boneNum)
             elif self._step == 5: # step 5
-                self.img = self.dilate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
+                #self.img = self.dilate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
+                self.img = self.inflate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
             elif self._step == 6: # step 6
                 self.img = self.fillHole(self.img, self.boneNum)
             elif self._step == 7: # step 7
-                self.img = self.erode(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
+                #self.img = self.erode(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
+                self.img = self.deflate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
             elif self._step == 8: # step 8
                 if (self.output_img is None): # store first bone in output_img
                     self.output_img = self.pasteBack(self.img)
@@ -358,12 +427,12 @@ class ContourLogic:
         """
         self.img = img
     
-    def setSeparateMap(self, separate_map):
+    def setRoughMask(self, roughMask):
         """
         Args:
-            separate_map (Image)
+            roughMask (Image)
         """
-        self.separate_map = separate_map
+        self.roughMask = roughMask
     
     def setThreshold(self, lower_threshold, upper_threshold):
         """
@@ -379,7 +448,10 @@ class ContourLogic:
         Args:
             boneNum (int)
         """
-        self.boneNum = boneNum
+        if boneNum < 1:
+            self.boneNum = 1
+        else:
+            self.boneNum = boneNum
         self.stepNum = 5 * boneNum + 3
     
     def _cleanup(self):
@@ -398,30 +470,44 @@ class ContourLogic:
     def getOutput(self):
         return self.output_img
 
-# run this program on its own
+
+# execute this script on command line
 if __name__ == "__main__":
-    # execute the algorithm
-    import sys
+    import argparse
 
-    if len(sys.argv) < 3:
-        # invalid arguments, print usage
-        print("Usage: ContourLogic.py [input filename] [output filename]")
+    # Read the input arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('inputImage', help='The input image file path')
+    parser.add_argument('outputImage', help='The output image file path')
+    parser.add_argument('lowerThreshold', type=int)
+    parser.add_argument('upperThreshold', type=int)
+    parser.add_argument('boneNum', type=int, default=1, help='Number of separate bone structures')
+    parser.add_argument('roughMask', nargs='?', default="", 
+                         help='The file path of optional rough mask that helps separate bones')
+    args = parser.parse_args()
 
-    else:
-        input_dir = sys.argv[1]
-        output_dir = sys.argv[2]
+    input_dir = args.inputImage
+    output_dir = args.outputImage
+    lower = args.lowerThreshold
+    upper = args.upperThreshold
+    boneNum = args.boneNum
+    roughMask_dir = args.roughMask
 
-        # read image
-        img = sitk.ReadImage(input_dir)
+    # read images
+    img = sitk.ReadImage(input_dir)
+    roughMask = None
+    if (roughMask_dir != ""):
+        roughMask = sitk.ReadImage(roughMask_dir)
 
-        # create contour object
-        contour = ContourLogic(img)
+    # create contour object
+    contour = ContourLogic(img, lower, upper, boneNum, roughMask)
 
-        # create contour
-        while (contour.execute()):
-            pass
-        contour_img = contour.getOutput()
+    # run contour algorithm
+    print("Running contour script")
+    while (contour.execute()):
+        pass
+    contour_img = contour.getOutput()
 
-        # store contour
-        print("Storing image in {}".format(output_dir))
-        sitk.WriteImage(contour_img, output_dir)
+    # store contour
+    print("Storing image in {}".format(output_dir))
+    sitk.WriteImage(contour_img, output_dir)
