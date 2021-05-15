@@ -107,7 +107,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
 
     # input contour selector
     self.inputContourSelector = slicer.qMRMLNodeComboBox()
-    self.inputContourSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+    self.inputContourSelector.nodeTypes = ["vtkMRMLScalarVolumeNode","vtkMRMLLabelMapVolumeNode"]
     self.inputContourSelector.selectNodeUponCreation = False
     self.inputContourSelector.addEnabled = False
     self.inputContourSelector.renameEnabled = True
@@ -130,7 +130,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.showHidden = False
     self.outputVolumeSelector.showChildNodeTypes = False
     self.outputVolumeSelector.setMRMLScene(slicer.mrmlScene)
-    self.outputVolumeSelector.baseName = "ERO"
+    self.outputVolumeSelector.baseName = "ER"
     self.outputVolumeSelector.setToolTip( "Pick the output volume to store the erosions" )
     erosionsLayout.addRow("Output Volume: ", self.outputVolumeSelector)
 
@@ -159,7 +159,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     self.fiducialSelector.showHidden = False
     self.fiducialSelector.showChildNodeTypes = False
     self.fiducialSelector.setMRMLScene(slicer.mrmlScene)
-    self.fiducialSelector.baseName = "Seed"
+    self.fiducialSelector.baseName = "SEEDS"
     self.fiducialSelector.setToolTip( "Pick the seed points" )
     erosionsLayout.addRow("Seed Points: ", self.fiducialSelector)
 
@@ -466,12 +466,14 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
       inputVolumeNode.GetIJKToRASMatrix(ijk2ras)
       self.markupsTableWidget.setCoordsMatrices(ras2ijk, ijk2ras)
       # update the default output base name
-      self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_ERO")
+      self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_ER")
+      self.fiducialSelector.baseName = (inputVolumeNode.GetName()+"_SEEDS")
       # update the viewer window
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
     else:
-      self.outputVolumeSelector.baseName = "ERO"
+      self.outputVolumeSelector.baseName = "ER"
+      self.fiducialSelector.baseName = "SEEDS"
 
   def onSelectSeed(self):
     """Run this whenever the seed point selector in step 4 changes"""
