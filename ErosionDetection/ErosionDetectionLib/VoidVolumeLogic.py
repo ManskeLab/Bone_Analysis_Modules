@@ -21,36 +21,37 @@
 #                                   lowerThreshold upperThreshold
 #                                   [minimalRadius] [morphologicalRadius]
 #
-# Param:       inputImage: The input image file path
+# Param:       inputImage: The input scan file path
 #              inputMask: The input mask file path
 #              outputImage: The output image file path
 #              seeds: The seed points csv file path
 #              lowerThreshold
 #              upperThreshold
 #              minimalRadius: Minimal erosion radius in voxels, default=3
-#              morphologicalRadius: Morphological kernel radius in voxels, default=4
+#              morphologicalRadius: Morphological kernel radius in voxels, default=5
 #
 #-----------------------------------------------------
 import SimpleITK as sitk
 
 class VoidVolumeLogic:
     def __init__(self, img=None, mask=None, lower=3000, upper=10000, seeds=None,
-    minimalRadius=3, morphologicalRadius=4):
+    minimalRadius=3, morphologicalRadius=5):
         self.model_img = img                  # greyscale scan
-        self.contour_img = mask               # outer contour, periosteal boundary
-        self.seeds_img = None                 # distance transformation of the seed points
+        self.contour_img = None               # mask, periosteal boundary
+        if ((self.model_img is not None) and (mask is not None)):
+            self.setContourImage(mask)
         self.ero1_img = None                  # erosions with less trabecular leakage
         self.ero2_img = None                  # erosions with more trabecular leakage
         self.output_img = None
         self.lower_threshold = lower
         self.upper_threshold = upper
-        self.ero1_distance = minimalRadius       # for distance transformation
-        self.ero1_radius = morphologicalRadius # for morphological opening operations
-        self.seeds = seeds         # seed points indicate the locations of erosions
+        self.minimalRadius = minimalRadius               # for distance transformation
+        self.morphologicalRadius = morphologicalRadius   # for morphological operations
+        self.seeds = seeds         # list of seed point coordinates (x,y,z)
         self.stepNum = 8           # number of steps in the algorithm
         self._step = 0             # number of steps done
     
-    def binarize(self, img, lower, upper):
+    def smoothen(self, img, lower, upper):
         """
         Binarize the bone with global thresholds, denoise with a Gaussian filter, 
         and remove small bone particles less than 420 voxels (0.094 mm3). 
@@ -88,7 +89,7 @@ class VoidVolumeLogic:
 
     def createROI(self, thresh_img):
         """
-        Dilate seed points by 63 voxels to get ROI, and mask ROI onto the bone. 
+        Label voids in the bone and background as ROI.
 
         Args:
             thresh_img (Image)
@@ -97,35 +98,13 @@ class VoidVolumeLogic:
             Image: All voids inside ROI are marked with the value 1, 
                    and all other regions are marked with 0.  
         """
-        void_volume_img = sitk.Image(self.contour_img.GetSize(), sitk.sitkUInt8)
-        void_volume_img.CopyInformation(self.contour_img)
-        for seed in self.seeds:
-            void_volume_img[seed] = 1
-
-        # inflate breaks by 63 voxels to get ROI
-        print("Applying distance map filter")
-        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
-        distance_filter.SetSquaredDistance(False)
-        distance_filter.SetBackgroundValue(0)
-        inflate_img = distance_filter.Execute(void_volume_img)
-        self.seeds_img = inflate_img # store for later use
-
-        radius = 63
-        inflate_img = sitk.BinaryThreshold(inflate_img, 
-                                          lowerThreshold=1,
-                                          upperThreshold=radius,
-                                          insideValue=1)
-        inflate_img = inflate_img + void_volume_img
-
-        # apply contour mask to ROI to remove region outside the bone
-        roi_mask = inflate_img * self.contour_img
 
         # invert to select background and voids in the bone
         invert_filter = sitk.InvertIntensityImageFilter()
         invert_filter.SetMaximum(1)
         void_volume_img = invert_filter.Execute(thresh_img)
 
-        void_volume_img = roi_mask * void_volume_img
+        void_volume_img = self.contour_img * void_volume_img
 
         return void_volume_img
 
@@ -164,8 +143,8 @@ class VoidVolumeLogic:
 
     def erodeVoidVolume(self, void_volume_img, radius):
         """
-        Erode void volumes to lose connections and to
-        prevent leaking into the trabecular voids.
+        Morphologically erode voids to remove connections and to
+        prevent erosions from leaking into the trabecular region.
 
         Args:
             void_volume_img (Image)
@@ -184,20 +163,33 @@ class VoidVolumeLogic:
 
     def connectVoidVolume(self, erode_img):
         """
-        Label void volumes attached to seed points.
+        Label voids that are connected to seed points.
 
         Args:
             erode_img (Image)
         Returns:
             Image
-        """        
+        """
+        seeds_img = sitk.Image(self.contour_img.GetSize(), sitk.sitkUInt8)
+        seeds_img.CopyInformation(self.contour_img)
+        for seed in self.seeds:
+            seeds_img[seed] = 1
+
+        # apply distance transformation to the seed points
+        print("Applying distance map filter")
+        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+        distance_filter.SetSquaredDistance(False)
+        distance_filter.SetBackgroundValue(0)
+        distance_img = distance_filter.Execute(seeds_img)
+
+        # inflate seed points by 5 voxels
         radius = 5
-        seeds_img = sitk.BinaryThreshold(self.seeds_img, 
+        seeds_img = sitk.BinaryThreshold(distance_img, 
                                          lowerThreshold=0, 
                                          upperThreshold=radius, 
                                          insideValue=1)
 
-        # combine seed points and voids
+        # combine inflated seed points and voids in the bone
         void_seeds_img = seeds_img | erode_img
 
         # connected threshold filter to select voids connected to seed points
@@ -208,14 +200,14 @@ class VoidVolumeLogic:
         connected_filter.SetReplaceValue(1)
         connected_img = connected_filter.Execute(void_seeds_img)
         
-        # remove dilated seed points from the voids
+        # remove inflated seed points from the voids
         connected_img = erode_img * connected_img
 
         return connected_img
 
     def dilateVoidVolume(self, connect_img, radius):
         """
-        Dilate void volumes back to original size.
+        Morphologically dilate voids back to their original size.
 
         Args:
             connect_img (Image)
@@ -224,22 +216,21 @@ class VoidVolumeLogic:
         Returns:
             Image
         """
-        # dilate void volumes by 3 voxels to original size
         print("Applying dilate filter")
         dilate_filter = sitk.BinaryDilateImageFilter()
         dilate_filter.SetForegroundValue(1)
         dilate_filter.SetKernelRadius([radius,radius,radius])
         dilate_img = dilate_filter.Execute(connect_img)
 
-        # apply mask to dilated void volumes to get volumes only in the 
-        # trabecular region
+        # apply mask to dilated voids to get volumes only inside the 
+        #  endosteal boundary
         void_volume_img = dilate_img * self.contour_img
 
         return void_volume_img
 
     def combineVoidVolume(self, ero1_img, ero2_img, radius):
         """
-        Combines two erosion labels by dilating the first one and masking it onto the second one.
+        Combine two erosion labels by dilating the first one and masking it with the second one.
 
         Args:
             ero1_img (Image)
@@ -268,7 +259,7 @@ class VoidVolumeLogic:
 
     def labelVoidVolume(self, void_volume_img):
         """
-        Label separate objects with different labels. Small objects are removed. 
+        Label separate erosions with different labels. Small particles are removed. 
 
         Args:
             void_volume_img (Image)
@@ -284,7 +275,7 @@ class VoidVolumeLogic:
 
     def execute(self):
         """
-        Executes the next step in the algorithm.
+        Execute the next step in the algorithm.
 
         Returns:
             bool: False if reached the end of the algorithm, True otherwise. 
@@ -293,19 +284,19 @@ class VoidVolumeLogic:
         try:
             if self._step == 1:
                 self._cleanup()
-                self.model_img = self.binarize(self.model_img, self.lower_threshold, self.upper_threshold)
+                self.model_img = self.smoothen(self.model_img, self.lower_threshold, self.upper_threshold)
             elif self._step == 2:
                 self.ero2_img = self.createROI(self.model_img)
             elif self._step == 3:
-                self.ero1_img = self.distanceVoidVolume(self.ero2_img, self.ero1_distance)
+                self.ero1_img = self.distanceVoidVolume(self.ero2_img, self.minimalRadius)
             elif self._step == 4:
-                self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.ero1_radius)
+                self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.morphologicalRadius)
             elif self._step == 5:
                 self.ero1_img = self.connectVoidVolume(self.ero1_img)
             elif self._step == 6:
-                self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.ero1_radius)
+                self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.morphologicalRadius)
             elif self._step == 7:
-                radius = 3 if self.ero1_radius > 5 else 5
+                radius = 3 if self.morphologicalRadius > 5 else 5
                 self.output_img = self.combineVoidVolume(self.ero1_img, self.ero2_img, radius)
             elif self._step == 8:
                 self.output_img = self.labelVoidVolume(self.output_img)
@@ -330,11 +321,27 @@ class VoidVolumeLogic:
         Args:
             contour_img (Image)
         """
-        # threshhold to binarize contour
+        # threshhold to binarize mask
         thresh_img = sitk.BinaryThreshold(contour_img,
                                           lowerThreshold=1,
                                           insideValue=1)
-        self.contour_img = thresh_img
+        
+        # paste mask to a blank image that matches the size of the scan
+        #  this step is to make sure mask lies in the same physical space as the scan
+        img_width = self.model_img.GetWidth()
+        img_height = self.model_img.GetHeight()
+        img_depth = self.model_img.GetDepth()
+        img_spacing = self.model_img.GetSpacing()[0]
+        self.contour_img = sitk.Image(img_width, img_height, img_depth, sitk.sitkUInt8)
+        self.contour_img.CopyInformation(self.model_img)
+        destination_index = (int(thresh_img.GetOrigin()[0]/img_spacing),
+                             int(thresh_img.GetOrigin()[1]/img_spacing),
+                             int(thresh_img.GetOrigin()[2]/img_spacing))
+        source_size = thresh_img.GetSize()
+        paste_filter = sitk.PasteImageFilter()
+        paste_filter.SetDestinationIndex(destination_index)
+        paste_filter.SetSourceSize(source_size)
+        self.contour_img = paste_filter.Execute(self.contour_img, thresh_img)
 
     def setThresholds(self, lower_threshold, upper_threshold):
         """
@@ -355,11 +362,11 @@ class VoidVolumeLogic:
     def setRadii(self, minimalRadius, morphologicalRadius):
         """
         Args:
-            minimalRadius (int): used in the distance map filter
-            morphologicalRadius (int): used in the dilate/erode filters
+            minimalRadius (int): minimum erosion radius, used in the distance map filter
+            morphologicalRadius (int): kernel radius for dilate/erode filters
         """
-        self.ero1_distance = minimalRadius
-        self.ero1_radius = morphologicalRadius
+        self.minimalRadius = minimalRadius
+        self.morphologicalRadius = morphologicalRadius
     
     def _cleanup(self):
         """
@@ -377,7 +384,7 @@ if __name__ == "__main__":
 
     # Read the input arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('inputImage', help='The input image file path')
+    parser.add_argument('inputImage', help='The input scan file path')
     parser.add_argument('inputMask', help='The input mask file path')
     parser.add_argument('outputImage', help='The output image file path')
     parser.add_argument('seeds', help='The seed points csv file path')
@@ -385,8 +392,8 @@ if __name__ == "__main__":
     parser.add_argument('upperThreshold', type=int)
     parser.add_argument('minimalRadius', type=int, nargs='?', default=3, 
                         help='Minimal erosion radius in voxels, default=3')
-    parser.add_argument('morphologicalRadius', type=int, nargs='?', default=4,
-                        help='Morphological kernel radius in voxels, default=4')
+    parser.add_argument('morphologicalRadius', type=int, nargs='?', default=5,
+                        help='Morphological kernel radius in voxels, default=5')
     args = parser.parse_args()
 
     input_dir = args.inputImage
@@ -416,7 +423,7 @@ if __name__ == "__main__":
                 seeds.append((x,y,z))
             lineCount += 1
 
-    # create erosion object
+    # create erosion logic object
     erosion = VoidVolumeLogic(img, mask, lower, upper, seeds, 
                               minimalRadius, morphologicalRadius)
 
