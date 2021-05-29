@@ -16,6 +16,7 @@ import sitkUtils
 import logging
 from ErosionDetectionLib.SegmentEditor import SegmentEditor
 from ErosionDetectionLib.VoidVolumeLogic import VoidVolumeLogic
+from ErosionDetectionLib.ErosionStatisticsLogic import ErosionStatisticsLogic
 
 #
 # ErosionDetectionLogic
@@ -32,6 +33,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     self.progressCallBack = None
 
     self.voidVolume = VoidVolumeLogic()
+    self.erosionStatistics = ErosionStatisticsLogic()
     self.voxelSize = 0.0607
     self._segmentNodeId = ""      # will be reused
     self._contourSegmentId = ""   # will be reused
@@ -354,66 +356,11 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       return True
     return False
 
-  def _getStatisticsTable(self, segmentNode, inputErosionNode, outputTableNode):
-    """
-    Get statistics from the segmentation and store them in the output table. 
-    Supported statistics include volume, surface area, sphericity, and location. 
-
-    Args:
-      sementNode (vtkMRMLSegmentationNode)
-      inputErosionNode (vtkMRMLLabelMapVolumeNode)
-      outputTableNode (vtkMRMLTableNode): will be modified
-    """
-    import SegmentStatistics
-    # set parameters in segmentation statistics module
-    segStatsLogic = SegmentStatistics.SegmentStatisticsLogic()
-    segStatsLogic.getParameterNode().SetParameter("Segmentation", segmentNode.GetID())
-    segStatsLogic.getParameterNode().SetParameter("ScalarVolumeSegmentStatisticsPlugin.enabled","False")
-    segStatsLogic.getParameterNode().SetParameter("ClosedSurfaceSegmentStatisticsPlugin.enabled","False")
-    segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.voxel_count.enabled","True")
-    segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.volume_mm3.enabled","True")
-    segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.volume_cm3.enabled","False")
-    segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.surface_area_mm2.enabled","True")
-    segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.roundness.enabled","True")
-    segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.centroid_ras.enabled", "True")
-    segStatsLogic.computeStatistics()
-    segStatsLogic.exportToTable(outputTableNode)
-
-    # table info
-    ras2ijk = vtk.vtkMatrix4x4()
-    inputErosionNode.GetRASToIJKMatrix(ras2ijk)
-    real_scale = self.voxelSize / inputErosionNode.GetSpacing()[0]
-    row_num = outputTableNode.GetNumberOfRows()
-    volume_mm3_col = outputTableNode.GetColumnIndex("Volume [mm3]")
-    surface_area_mm2_col = outputTableNode.GetColumnIndex("Surface area [mm2]")
-    centroid_col = outputTableNode.GetColumnIndex("Centroid")
-    outputTableNode.SetColumnProperty(centroid_col, "componentNames", "L|P|S")
-    outputTableNode.SetColumnDescription("Centroid", "Location of the centroid in LPS")
-
-    # convert data in table
-    for row in range(0, row_num):
-      # convert volume to mm3
-      volume = float(outputTableNode.GetCellText(row, volume_mm3_col)) * (real_scale**3)
-      outputTableNode.SetCellText(row, volume_mm3_col, str(volume))
-      # convert surface area to mm2
-      surface_area = float(outputTableNode.GetCellText(row, surface_area_mm2_col)) * (real_scale**2)
-      outputTableNode.SetCellText(row, surface_area_mm2_col, str(surface_area))
-      # convert coordinates to ITK coordinates
-      ras_coord = [float(num) for num in (outputTableNode.GetCellText(row, centroid_col)).split(' ')]
-      itk_coord = self.RASToIJKCoords(ras_coord, ras2ijk)
-      outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 0, itk_coord[0])
-      outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 1, itk_coord[1])
-      outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 2, itk_coord[2])
-      outputTableNode.Modified()
-
-    # display table
-    segStatsLogic.showTable(outputTableNode)
-
   def getStatistics(self, inputErosionNode, outputTableNode):
     """
     Get erosion statistics from the label map volume and store them in the 
-    output table. Each erosion will be labeled 'erosion_XXX' in both the label image 
-    and the table. 
+    output table. Each erosion will be labeled 'erosion_XXX' in the table. 
+    Supported statistics include volume, surface area, sphericity, and location. 
 
     Args:
       inputErosionNode (vtkMRMLLabelMapVolumeNode)
@@ -427,8 +374,15 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       segment = segmentNode.GetSegmentation().GetNthSegment(segmentIndex)
       segment.SetName("erosion_%03d" % (segmentIndex+1))
 
-    self._getStatisticsTable(segmentNode, inputErosionNode, outputTableNode)
+    # display statistics table and connect signals
+    #  erosions are centred in the viewer windows upon selection
+    self.erosionStatistics.setSegmentNode(segmentNode)
+    self.erosionStatistics.setInputErosionNode(inputErosionNode)
+    self.erosionStatistics.setOutputTableNode(outputTableNode)
+    self.erosionStatistics.displayErosionStatistics()
     
-    # updated widgets
+    # update widgets
     self.segmentationNodeToLabelmap(segmentNode, inputErosionNode, inputErosionNode)
+    slicer.util.setSliceViewerLayers(label=inputErosionNode, 
+                                     labelOpacity=0.5)
     slicer.mrmlScene.RemoveNode(segmentNode)
