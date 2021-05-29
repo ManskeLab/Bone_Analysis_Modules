@@ -494,9 +494,11 @@ if __name__ == "__main__":
     roughMask_dir = args.roughMask
 
     # read images
+    print("Reading image in {}".format(input_dir))
     img = sitk.ReadImage(input_dir)
     roughMask = None
     if (roughMask_dir != ""):
+        print("Reading rough mask in {}".format(roughMask_dir))
         roughMask = sitk.ReadImage(roughMask_dir)
 
     # create contour object
