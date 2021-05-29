@@ -90,6 +90,7 @@ class SegmentEditor:
     segmentationGeometryWidget.setSourceNode(masterVolumeNode)
     segmentationGeometryWidget.setOversamplingFactor(oversamplingFactor)
     segmentationGeometryWidget.setReferenceImageGeometryForSegmentationNode()
+    segmentationGeometryWidget.hide()
 
   def setMasterVolumeIntensityMask(self, isIntensityMask, lower=0, upper=3600):
     if isIntensityMask:
