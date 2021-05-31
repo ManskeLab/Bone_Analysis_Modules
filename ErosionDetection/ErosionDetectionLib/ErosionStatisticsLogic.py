@@ -25,7 +25,9 @@ class ErosionStatisticsLogic:
     self._mrmlScene = slicer.mrmlScene
     self._ras2ijk = vtk.vtkMatrix4x4()
     self._ijk2ras = vtk.vtkMatrix4x4()
+    self.spacing = 1
     if inputErosionNode is not None:
+      self.spacing = inputErosionNode.GetSpacing()[0]
       inputErosionNode.GetRASToIJKMatrix(self._ras2ijk)
       inputErosionNode.GetIJKToRASMatrix(self._ijk2ras)
   
@@ -57,17 +59,17 @@ class ErosionStatisticsLogic:
     # connect signals, centre erosions in viewer windows upon selection
     self.connectErosionSelection()
   
-  def RASToIJKCoords(self, ras_3coords, ras2ijk):
+  def RASToIJKCoords(self, ras_3coords):
     ras_4coords = ras_3coords + [1]
-    return tuple((int(i) for i in ras2ijk.MultiplyPoint(ras_4coords)[:3]))
+    return tuple((int(i) for i in self._ras2ijk.MultiplyPoint(ras_4coords)[:3]))
 
-  def IJKToRASCoords(self, ijk_3coords, ijk2ras):
+  def IJKToRASCoords(self, ijk_3coords):
     ijk_4coords = ijk_3coords + [1]
-    return [i for i in ijk2ras.MultiplyPoint(ijk_4coords)[:3]]
+    return [i for i in self._ijk2ras.MultiplyPoint(ijk_4coords)[:3]]
 
   def _convertData(self):
     # table info
-    voxel_scale = self.voxelSize / self.inputErosionNode.GetSpacing()[0]
+    voxel_scale = self.voxelSize / self.spacing
     row_num = self.outputTableNode.GetNumberOfRows()
     volume_mm3_col = self.outputTableNode.GetColumnIndex("Volume [mm3]")
     surface_area_mm2_col = self.outputTableNode.GetColumnIndex("Surface area [mm2]")
@@ -85,7 +87,7 @@ class ErosionStatisticsLogic:
       self.outputTableNode.SetCellText(row, surface_area_mm2_col, str(surface_area))
       # convert coordinates to ITK coordinates
       ras_coord = [float(num) for num in (self.outputTableNode.GetCellText(row, centroid_col)).split(' ')]
-      itk_coord = self.RASToIJKCoords(ras_coord, self._ras2ijk)
+      itk_coord = self.RASToIJKCoords(ras_coord)
       self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 0, itk_coord[0])
       self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 1, itk_coord[1])
       self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 2, itk_coord[2])
@@ -116,8 +118,8 @@ class ErosionStatisticsLogic:
     selectedRow = itemSelection.indexes()[0].row()-1 if len(itemSelection.indexes()) else None
     if ((selectedRow is not None) and (selectedRow >= 0)):
       print("Coords: "+self.outputTableNode.GetCellText(selectedRow, centroid_col))
-      itk_coord = [int(float(num)) for num in (self.outputTableNode.GetCellText(selectedRow, centroid_col)).split(' ')]
-      ras_coord = self.IJKToRASCoords(itk_coord, self._ras2ijk)
+      itk_coord = [float(num) for num in (self.outputTableNode.GetCellText(selectedRow, centroid_col)).split(' ')]
+      ras_coord = self.IJKToRASCoords(itk_coord)
       self.jumpSlicesToLocation(self._mrmlScene, ras_coord[0], ras_coord[1], ras_coord[2], False, self.viewGroup)
   
   def setViewGroup(self, newViewGroup):
@@ -137,6 +139,7 @@ class ErosionStatisticsLogic:
 
   def setInputErosionNode(self, inputErosionNode):
     self.inputErosionNode = inputErosionNode
+    self.spacing = inputErosionNode.GetSpacing()[0]
     inputErosionNode.GetRASToIJKMatrix(self._ras2ijk)
     inputErosionNode.GetIJKToRASMatrix(self._ijk2ras)
     
