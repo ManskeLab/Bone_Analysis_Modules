@@ -45,16 +45,18 @@ class VoidVolumeLogic:
         self.output_img = None
         self.lower_threshold = lower
         self.upper_threshold = upper
-        self.minimalRadius = minimalRadius               # for distance transformation
-        self.morphologicalRadius = morphologicalRadius   # for morphological operations
+        self.minimalRadius = minimalRadius               # for distance transformation, default=3
+        self.morphologicalRadius = morphologicalRadius   # for morphological operations, default=5
         self.seeds = seeds         # list of seed point coordinates (x,y,z)
+        self.erosionIds = []       # erosion ids decide which value each erosion is labeled with
+        if seeds is not None:      #  default = [1, 2, ..., len(seeds)+1]
+            self.erosionIds = list(range(1, len(seeds)+1))
         self.stepNum = 8           # number of steps in the algorithm
         self._step = 0             # number of steps done
     
     def smoothen(self, img, lower, upper):
         """
-        Binarize the bone with global thresholds, denoise with a Gaussian filter, 
-        and remove small bone particles less than 420 voxels (0.094 mm3). 
+        Binarize the bone with global thresholds and denoise with a Gaussian filter.
 
         Args:
             img (Image)
@@ -64,27 +66,24 @@ class VoidVolumeLogic:
         Returns:
             Image
         """
+        max_intensity = 250
         sigma_over_spacing = img.GetSpacing()[0]
+        thresh_img = sitk.BinaryThreshold(img, 
+                                          lowerThreshold=lower, 
+                                          upperThreshold=upper, 
+                                          insideValue=max_intensity)
 
         # gaussian smoothing filter
         print("Applying Gaussian filter")
         gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
         gaussian_filter.SetSigma(sigma_over_spacing)
-        gaussian_img = gaussian_filter.Execute(img)
+        gaussian_img = gaussian_filter.Execute(thresh_img)
 
         thresh_img = sitk.BinaryThreshold(gaussian_img, 
-                                          lowerThreshold=lower,
-                                          upperThreshold=upper,
+                                          lowerThreshold=max_intensity/2,
+                                          upperThreshold=max_intensity+1,
                                           insideValue=1)
 
-        # remove bone particles less than 420 voxels in size
-        connected_filter = sitk.ConnectedComponentImageFilter()
-        connect_img = connected_filter.Execute(thresh_img)
-        label_img = sitk.RelabelComponent(connect_img, minimumObjectSize=420)
-        thresh_img = sitk.BinaryThreshold(label_img,
-                                          lowerThreshold=1,
-                                          upperThreshold=10000,
-                                          insideValue=1)
         return thresh_img
 
     def createROI(self, thresh_img):
@@ -110,7 +109,7 @@ class VoidVolumeLogic:
 
     def distanceVoidVolume(self, void_volume_img, radius):
         """
-        Select voids of large diameter. 
+        Label voids in the bone that are larger than the specified value in diameter. 
 
         Args:
             void_volume_img (Image)
@@ -230,7 +229,8 @@ class VoidVolumeLogic:
 
     def combineVoidVolume(self, ero1_img, ero2_img, radius):
         """
-        Combine two erosion labels by dilating the first one and masking it with the second one.
+        Combine two erosion label images by dilating the first label image
+        and masking it with the second label image.
 
         Args:
             ero1_img (Image)
@@ -259,7 +259,7 @@ class VoidVolumeLogic:
 
     def labelVoidVolume(self, void_volume_img):
         """
-        Label separate erosions with different labels. Small particles are removed. 
+        Label erosions with values that match the corresponding seed point numbers.
 
         Args:
             void_volume_img (Image)
@@ -267,11 +267,21 @@ class VoidVolumeLogic:
         Returns:
             Image
         """
-        # connected component filter and relabel filter
-        connected_cmp_filter = sitk.ConnectedComponentImageFilter()
-        connected_cmp_img = connected_cmp_filter.Execute(void_volume_img)
-        label_img = sitk.RelabelComponent(connected_cmp_img, minimumObjectSize=927)
-        return label_img
+        relabeled_img = void_volume_img
+
+        # connected threshold filter to relabel erosions based on erosion ids
+        connected_filter = sitk.ConnectedThresholdImageFilter()
+        connected_filter.SetUpper(1)
+        connected_filter.SetLower(1)
+        connected_filter.SetReplaceValue(1)
+        seeds_num = len(self.seeds)
+        for i in range(seeds_num):
+            connected_filter.SetSeedList([self.seeds[i]])
+            connected_img = connected_filter.Execute(void_volume_img)
+            relabeled_img = sitk.Mask(relabeled_img, connected_img, 
+                                      outsideValue=self.erosionIds[i], maskingValue=1)
+                                      
+        return relabeled_img
 
     def execute(self):
         """
@@ -326,7 +336,7 @@ class VoidVolumeLogic:
                                           lowerThreshold=1,
                                           insideValue=1)
         
-        # paste mask to a blank image that matches the size of the scan
+        # paste mask to a blank image that matches the physical property of the scan
         #  this step is to make sure mask lies in the same physical space as the scan
         img_width = self.model_img.GetWidth()
         img_height = self.model_img.GetHeight()
@@ -334,9 +344,11 @@ class VoidVolumeLogic:
         img_spacing = self.model_img.GetSpacing()[0]
         self.contour_img = sitk.Image(img_width, img_height, img_depth, sitk.sitkUInt8)
         self.contour_img.CopyInformation(self.model_img)
-        destination_index = (int(thresh_img.GetOrigin()[0]/img_spacing),
-                             int(thresh_img.GetOrigin()[1]/img_spacing),
-                             int(thresh_img.GetOrigin()[2]/img_spacing))
+        source_origin = thresh_img.GetOrigin()
+        destination_origin = self.contour_img.GetOrigin()
+        destination_index = (int((source_origin[0]-destination_origin[0])/img_spacing),
+                             int((source_origin[1]-destination_origin[1])/img_spacing),
+                             int((source_origin[2]-destination_origin[2])/img_spacing))
         source_size = thresh_img.GetSize()
         paste_filter = sitk.PasteImageFilter()
         paste_filter.SetDestinationIndex(destination_index)
@@ -358,6 +370,7 @@ class VoidVolumeLogic:
             seeds (list of list/tuple of int)
         """
         self.seeds = seeds
+        self.erosionIds = list(range(1, len(seeds)+1))
 
     def setRadii(self, minimalRadius, morphologicalRadius):
         """
@@ -368,6 +381,17 @@ class VoidVolumeLogic:
         self.minimalRadius = minimalRadius
         self.morphologicalRadius = morphologicalRadius
     
+    def setErosionIds(self, erosion_ids):
+        """
+        Args:
+            erosionIds (list of int): list of seed point ids extracted from the seed point names, 
+                                      the nth int in the list is the nth seed point id. This 
+                                      decides which value the erosion corresponding with that seed
+                                      point gets labeled.
+        """
+        if len(erosion_ids) == len(self.seeds):
+            self.erosionIds = erosion_ids
+
     def _cleanup(self):
         """
         Reset internal parameters.
