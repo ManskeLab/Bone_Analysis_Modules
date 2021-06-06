@@ -31,15 +31,16 @@ class ErosionDetection(ScriptedLoadableModule):
     self.parent.dependencies = []
     self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-This module contains steps 4-6 of erosion analysis. It takes an image and its contour. 
-Erosions are then identified by placing seed points in each of them. 
-Step 4 is to detect erosions.
-Step 5 is to manually correct erosions and combine them to a single output.
-Step 6 is to compute erosion statistics, i.e. volume, surface area, and roundness.
+Updated on June 5, 2021. 
+This module contains steps 4-6 of erosion analysis. It requires a greyscale scan and a mask.
+Erosions are identified by placing seed points in each of them. 
+Step 4 is to detect erosions. 
+Step 5 is to manually correct erosions and combine them into a single output. 
+Step 6 is to compute erosion statistics, including volume, surface area, and roundness.
 """
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = """
-Acknowledgement Text
+Updated on June 5, 2021.
 """ # replace with organization, grant and thanks.
 
 #
@@ -212,7 +213,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     self.dilationErosionRadiusText.setMinimum(1)
     self.dilationErosionRadiusText.setMaximum(99)
     self.dilationErosionRadiusText.setSingleStep(1)
-    self.dilationErosionRadiusText.value = 4
+    self.dilationErosionRadiusText.value = 5
     advancedParameterLayout.addWidget(qt.QLabel("Dilate/Erode Radius [voxels]: "), 4, 0)
     advancedParameterLayout.addWidget(self.dilationErosionRadiusText, 4, 1)
 
