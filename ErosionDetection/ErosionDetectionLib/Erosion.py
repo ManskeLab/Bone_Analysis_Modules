@@ -5,8 +5,8 @@
 # Created on:  26-05-2021
 #
 # Description: This script implements the automatic erosion detection script
-#              by Michael Peters. It denoises the scan first, labels all the
-#              cortical breaks, then labels all the underlying trabecular
+#              by Michael Peters et al. It denoises the scan first, labels all 
+#              the cortical breaks, then labels all the underlying trabecular
 #              voids connected to those cortical breaks, and lastly combine
 #              the cortical breaks and the trabecular voids. Only those cortical
 #              breaks attached to both the periosteal and endosteal boundaries
@@ -16,23 +16,24 @@
 #
 #-----------------------------------------------------
 # Usage:       python Erosion.py inputImage inputContour outputImage 
-#                                lowerThreshold upperThreshold
-#                                [minimalRadius] [morphologicalRadius]
+#                                voxelSize lowerThreshold upperThreshold
+#                                [minimalRadius] [minimalRadius]
 #
 # Param:       inputImage: The input image file path
 #              inputContour: The input contour file path
 #              outputImage: The output image file path
+#              voxelSize: Isotropic voxel size in micrometres
 #              lowerThreshold
 #              upperThreshold
-#              boneNum: Minimal erosion radius in voxels, default=3
-#              roughMask: Morphological kernel radius in voxels, default=5
+#              minimalRadius: Minimal erosion radius in voxels, default=3
+#              minimalRadius: Morphological kernel radius in voxels, default=5
 #
 #-----------------------------------------------------
 
 import SimpleITK as sitk
 
 class Erosion:
-    def __init__(self, img=None, contour_img=None, lower=2900, upper=10000, 
+    def __init__(self, img=None, contour_img=None, voxelSize=61, lower=2900, upper=10000, 
                  minimalRadius=3, morphologicalRadius=5):
         self.model_img = img                   # greyscale scan
         self.peri_contour = None               # periosteal boundary
@@ -44,17 +45,18 @@ class Erosion:
         self.background_img = None            # region outside of outer contour
         self.breaks_img = None                # cortical breaks
         self.output_img = None
+        self.voxelSize = voxelSize            # isotropic voxel size in micrometres
         self.lower_threshold = lower
         self.upper_threshold = upper
         self.minimalRadius = minimalRadius               # for distance transformation
         self.morphologicalRadius = morphologicalRadius   # for morphological operations
-        self._corticalThickness = morphologicalRadius    # thickness cortical shell
+        self._corticalThickness = morphologicalRadius+1  # thickness of cortical shell
         self._step = 0
     
     def smoothen(self, img, lower, upper):
         """
         Binarize the bone with global thresholds, denoise with a Gaussian filter, 
-        and remove small bone particles less than 420 voxels (0.094 mm3). 
+        and remove small noise particles. 
 
         Args:
             img (Image)
@@ -64,7 +66,7 @@ class Erosion:
         Returns:
             Image: bone is labeled with 1, and background is labeled with 0.
         """
-        sigma_over_spacing = img.GetSpacing()[0]
+        sigma_over_spacing = img.GetSpacing()[0] # sigma = 1
 
         # gaussian smoothing filter
         print("Applying Gaussian filter")
@@ -77,10 +79,11 @@ class Erosion:
                                           upperThreshold=upper,
                                           insideValue=1)
 
-        # remove bone particles less than 420 voxels in size
+        # remove unconnected noise particles less than 19*0.061^3 mm3 in size
         connected_filter = sitk.ConnectedComponentImageFilter()
         connect_img = connected_filter.Execute(thresh_img)
-        label_img = sitk.RelabelComponent(connect_img, minimumObjectSize=420)
+        minimumObjectSize = int(19 * (82**3) / (self.voxelSize**3))
+        label_img = sitk.RelabelComponent(connect_img, minimumObjectSize=minimumObjectSize)
         thresh_img = sitk.BinaryThreshold(label_img,
                                           lowerThreshold=1,
                                           upperThreshold=10000)
@@ -97,9 +100,9 @@ class Erosion:
         Returns:
             Image
         """
-        # erode by [5] voxels to get endosteal boundary, 
-        #  so that it is [5] voxels away from the periosteal boundary/mask
-        #  default thickness is 5
+        # erode by [6] voxels to get endosteal boundary, 
+        #  so that it is [6] voxels away from the periosteal boundary/mask
+        #  default thickness is 6 (6 * 0.061mm = 0.366mm)
         print("Applying erode filter")
         erode_filter = sitk.BinaryErodeImageFilter()
         erode_filter.SetForegroundValue(1)
@@ -121,7 +124,7 @@ class Erosion:
 
     def erodeBreaks(self, breaks_img): # step 3
         """
-        Erode cortical breaks by 1 voxel (0.061mm) to remove small gaps.
+        Morphologically erode cortical breaks to remove small gaps.
 
         Args:
             breaks_img (Image)
@@ -129,14 +132,16 @@ class Erosion:
         Returns:
             Image
         """
-        # erode breaks by 1 voxel to remove small gaps
+        # dilate bone by [1] voxel to remove small gaps
+        #  default kernel radius is 1 (1 * 0.061mm = 0.061mm)
         print("Applying dilate filter")
         dilate_filter = sitk.BinaryDilateImageFilter()
         dilate_filter.SetForegroundValue(1)
-        dilate_filter.SetKernelRadius([1,1,1])
+        dilateRadius = int(81/self.voxelSize)
+        dilate_filter.SetKernelRadius(dilateRadius)
         breaks_img = dilate_filter.Execute(breaks_img)
 
-        # apply cortical_mask to breaks
+        # apply cortical_mask to bone
         breaks_img = breaks_img * self.cortical_mask
 
         return breaks_img
@@ -177,7 +182,7 @@ class Erosion:
         breaks_trabecular = connected_filter.Execute(breaks_trabecular)
         breaks_trabecular = sitk.RelabelComponent(breaks_trabecular)
         breaks_trabecular = sitk.BinaryThreshold(breaks_trabecular, 
-                                                 lowerThreshold=1, upperThreshold=self.boneNum)
+                                                 lowerThreshold=1, upperThreshold=self._boneNum)
 
         # label cortical breaks only
         breaks_img = breaks_trabecular - self.endo_contour
@@ -186,8 +191,8 @@ class Erosion:
 
     def dilateBreaks(self, breaks_img): # step 5
         """
-        Dilates cortical breaks by 1 voxel to their original size,
-        and filters out breaks less than 48 voxels in size.
+        Morphologically dilates cortical breaks back to their original size,
+        and filters out tiny breaks.
 
         Args:
             breaks_img (Image)
@@ -195,11 +200,14 @@ class Erosion:
         Returns:
             Image
         """
-        # dilate breaks by 1 voxel to original size
+        # dilate cortical breaks by [1] voxel to original size
+        #  default kernel radius is 1 (1 * 0.061mm = 0.061mm)
+        #  kernel radius should be the same as the one in step 3
         print("Applying dilate filter")
         dilate_filter = sitk.BinaryDilateImageFilter()
         dilate_filter.SetForegroundValue(1)
-        dilate_filter.SetKernelRadius([1,1,1])
+        dilateRadius = int(81/self.voxelSize)
+        dilate_filter.SetKernelRadius(dilateRadius)
         breaks_img = dilate_filter.Execute(breaks_img)
 
         # apply cortical_mask to breaks
@@ -227,6 +235,7 @@ class Erosion:
         invert_filter.SetMaximum(1)
         void_volume_img = invert_filter.Execute(thresh_img)
 
+        # apply periosteal mask to the inverted image
         void_volume_img = self.peri_contour * void_volume_img
 
         return void_volume_img
@@ -237,7 +246,7 @@ class Erosion:
 
         Args:
             void_volume_img (Image)
-            radius (int): minimum radius of the erosions to be selected, in voxels
+            radius (int): minimum radius of the erosions to be labeled, in voxels
 
         Returns:
             Image
@@ -272,7 +281,7 @@ class Erosion:
 
         Args:
             void_volume_img (Image)
-            radius (int): erode steps, in voxels
+            radius (int): erode kernel radius in voxels
         
         Returns:
             Image
@@ -323,7 +332,7 @@ class Erosion:
 
         Args:
             connect_img (Image)
-            radius (Image): dilate steps, in voxels
+            radius (int): dilate kernel radius in voxels
 
         Returns:
             Image
@@ -340,7 +349,7 @@ class Erosion:
 
         return void_volume_img
 
-    def combineVoidVolume(self, void_volume_img, breaks_img, thresh_img, radius):
+    def combineVoidVolume(self, void_volume_img, breaks_img):
         """
         Combine dilated voids and cortical breaks, dilate the result,
         and mask ROI with it in order to capture small erosions;
@@ -349,8 +358,6 @@ class Erosion:
         Args:
             void_volume_img (Image): voids inside the endosteal boundary
             breaks_img (Image): cortical breaks
-            thresh_img (Image): bone
-            radius (int): dilate steps, in voxels
 
         Returns:
             Image
@@ -377,7 +384,7 @@ class Erosion:
             self.breaks_img = self.connectBreaks(self.breaks_img)
         elif self._step == 5:
             self.breaks_img = self.dilateBreaks(self.breaks_img)
-            # so far, breaks_img contains cortical breaks only
+            # so far, breaks_img contains cortical breaks only and no trabecular bone loss
         elif self._step == 6:
             self.output_img = self.createROI(self.model_img)
         elif self._step == 7:
@@ -389,10 +396,8 @@ class Erosion:
         elif self._step == 10:
             self.output_img = self.dilateVoidVolume(self.output_img, self.morphologicalRadius)
         elif self._step == 11:
-            radius = 2
-            self.output_img = self.combineVoidVolume(self.output_img, self.breaks_img, 
-                                                     self.model_img, radius)
-            # output_img contains cortical breaks and voids
+            self.output_img = self.combineVoidVolume(self.output_img, self.breaks_img)
+            # output_img contains cortical breaks and trabecular bone loss
         else:
             self._step = 0
             return False
@@ -425,20 +430,22 @@ class Erosion:
         img_spacing = self.model_img.GetSpacing()[0]
         self.peri_contour = sitk.Image(img_width, img_height, img_depth, sitk.sitkUInt8)
         self.peri_contour.CopyInformation(self.model_img)
-        destination_index = (int(thresh_img.GetOrigin()[0]/img_spacing),
-                             int(thresh_img.GetOrigin()[1]/img_spacing),
-                             int(thresh_img.GetOrigin()[2]/img_spacing))
+        source_origin = thresh_img.GetOrigin()
+        destination_origin = self.peri_contour.GetOrigin()
+        destination_index = (int((source_origin[0]-destination_origin[0])/img_spacing),
+                             int((source_origin[1]-destination_origin[1])/img_spacing),
+                             int((source_origin[2]-destination_origin[2])/img_spacing))
         source_size = thresh_img.GetSize()
         paste_filter = sitk.PasteImageFilter()
         paste_filter.SetDestinationIndex(destination_index)
         paste_filter.SetSourceSize(source_size)
         self.peri_contour = paste_filter.Execute(self.peri_contour, thresh_img)
 
-        # update boneNum
+        # update _boneNum, which is the number of separate bones in the scan
         label_img = sitk.ConnectedComponent(contour)
         label_stat_filter = sitk.LabelStatisticsImageFilter()
         label_stat_filter.Execute(contour, label_img)
-        self.boneNum = label_stat_filter.GetNumberOfLabels()
+        self._boneNum = label_stat_filter.GetNumberOfLabels()
 
     def setThreshold(self, lower_threshold, upper_threshold):
         """
@@ -462,6 +469,7 @@ class Erosion:
         return self.output_img
 
 
+# run this script on command line
 if __name__ == "__main__":
     import argparse
 
@@ -470,6 +478,7 @@ if __name__ == "__main__":
     parser.add_argument('inputImage', help='The input scan file path')
     parser.add_argument('inputContour', help='The input contour file path')
     parser.add_argument('outputImage', help='The output image file path')
+    parser.add_argument('voxelSize', type=int, help='Isotropic voxel size in micrometres')
     parser.add_argument('lowerThreshold', type=int)
     parser.add_argument('upperThreshold', type=int)
     parser.add_argument('minimalRadius', type=int, nargs='?', default=3, 
@@ -481,6 +490,7 @@ if __name__ == "__main__":
     input_dir = args.inputImage
     contour_dir = args.inputContour
     output_dir = args.outputImage
+    voxelSize = args.voxelSize
     lower = args.lowerThreshold
     upper = args.upperThreshold
     minimalRadius = args.minimalRadius
@@ -491,7 +501,7 @@ if __name__ == "__main__":
     contour = sitk.ReadImage(contour_dir)
 
     # create erosion logic object
-    erosion = Erosion(img, contour, lower, upper, 
+    erosion = Erosion(img, contour, voxelSize, lower, upper, 
                       minimalRadius, morphologicalRadius)
 
     # identify erosions
