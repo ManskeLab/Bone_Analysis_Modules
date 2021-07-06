@@ -14,7 +14,7 @@ import vtk
 import SimpleITK as sitk
 import sitkUtils
 from numpy import copy
-import logging
+import logging, os
 from ErosionDetectionLib.SegmentEditor import SegmentEditor
 from ErosionDetectionLib.VoidVolumeLogic import VoidVolumeLogic
 from ErosionDetectionLib.ErosionStatisticsLogic import ErosionStatisticsLogic
@@ -35,10 +35,6 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
 
     self.voidVolume = VoidVolumeLogic()
     self.erosionStatistics = ErosionStatisticsLogic()
-    self.voxelSize = 0.0607
-    self._segmentNodeId = ""      # temporary segment node in the segment editor
-    self._contourSegmentId = ""   # temporary contour segment in the segment editor
-    self._erosionSegmentIndex = 1 # will be incremented, used for relabeling segmentation names
 
   def RASToIJKCoords(self, ras_3coords, ras2ijk):
     """
@@ -54,43 +50,51 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       tuple of int
     """
     ras_4coords = ras_3coords + [1]
-    return tuple((int(i) for i in ras2ijk.MultiplyPoint(ras_4coords)[:3]))
+    return tuple((round(i) for i in ras2ijk.MultiplyPoint(ras_4coords)[:3]))
 
-  def setErosionParameters(self, inputVolumeNode, inputContourNode, outputVolumeNode,
-    lower, upper, fiducialNode, minimalRadius, dilationErosionRadius):
+  def setDefaultDirectory(self, inputVolumeNode):
     """
-    Set parameters to be used by the erosion detection algorithm. 
+    Set the default directory to be the same as where the inputVolumeNode is stored.
+    Files created after this method is called will be saved in that directory.
+
+    Args:
+      inputVolumeNode (vtkMRMLScalarVolumeNode)
+    """
+    storageNode = inputVolumeNode.GetStorageNode()
+    if storageNode:
+      dir = os.path.dirname(storageNode.GetFullNameFromFileName())
+      slicer.mrmlScene.SetRootDirectory(dir)
+
+  def setErosionParameters(self, inputVolumeNode, inputContourNode,
+    lower, upper, fiducialNode, minimalRadius, dilateErodeDistance):
+    """
+    Set parameters used by the erosion detection algorithm. 
 
     Args:
       inputVolumeNode (vtkMRMLScalarVolumeNode)
       inputContourNode (vtkMRMLLabelMapVolumeNode)
-      outputVolumeNode (vtkMRMLLabelMapVolumeNode)
       lower (int)
       upper (int)
       fiducialNode (vtkMRMLFiducialNode)
       minimalRadius (int) : used in the SimpleITK Distance Transformation filter.
-      dilationErosionRadius (int) : used in the SimpleITK Dilate/Erode filters.
+      dilateErodeDistance (int) : used in the SimpleITK Dilate/Erode filters.
 
     Returns:
       bool: True for success, False if inputs are not valid.
     """
     # check input validity
-    if (inputContourNode.GetID() == outputVolumeNode.GetID()):
-      slicer.util.errorDisplay('Input contour is the same as output volume. Choose a different output volume.')
-      return False
-
     if (lower > upper):
       slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
       return False
     
-    fiducial_num = fiducialNode.GetNumberOfFiducials()
-    if (fiducial_num == 0):
+    fiducialNum = fiducialNode.GetNumberOfFiducials()
+    if (fiducialNum == 0):
       slicer.util.errorDisplay('No seed points have been plotted.')
       return False
 
     # segmentation parameters
     self.voidVolume.setThresholds(lower, upper)
-    self.voidVolume.setRadii(minimalRadius, dilationErosionRadius)
+    self.voidVolume.setRadii(minimalRadius, dilateErodeDistance)
 
     # images
     model_img = sitkUtils.PullVolumeFromSlicer(inputVolumeNode.GetName())
@@ -104,12 +108,12 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     inputVolumeNode.GetRASToIJKMatrix(ras2ijk)
     seeds = []
     erosion_ids = []
-    for i in range(fiducial_num):
+    for i in range(fiducialNum):
       # store seed point coordinates in the variable seeds
       fiducialNode.GetNthFiducialPosition(i,physical_coord) # slicer seed coordinates
       itk_coord = self.RASToIJKCoords(physical_coord, ras2ijk) # SimpleITK coordinates
       seeds.append(itk_coord)
-      # store seed point number in the variable erosion_ids
+      # store seed point numbers in the variable erosion_ids
       seed_id = fiducialNode.GetNthFiducialLabel(i).split('-')[-1] # seed name postfix
       erosion_id_max = 0
       try:
@@ -124,26 +128,26 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     
     return True
 
-  def getErosions(self, inputVolumeNode, outputVolumeNode):
+  def getErosions(self, inputVolumeNode, inputContourNode, outputErosionNode):
     """
-    Run the erosion detection algorithm and store the result in the output volume. 
-    Return False if fail, and return true if successful.
+    Run the erosion detection algorithm and store the result in the output erosion node. 
     The erosions will have label values that match the seed point postfixes
 
     Args:
       inputVolumeNode (vtkMRMLScalarVolumeNode)
-      outputVolumeNode (vtkMRMLLabelMapVolumeNode): will be modified.
+      inputContourNode (ctkMRMLLabelMapVolumeNode)
+      outputErosionNode (vtkMRMLSegmentationNode): will be modified.
 
     Returns:
       bool: True for success, False otherwise.
     """
-    # initialize progress value
+    # initialize progress bar
     progress = 0
     self.progressCallBack(progress)
     increment = 100 // self.voidVolume.stepNum # progress bar increment value
     logging.info('Processing started')
     
-    # run the erosion detection algorithm
+    # run erosion detection algorithm
     try:
       while (self.voidVolume.execute()): # execute the next step
         progress += increment
@@ -152,25 +156,21 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       slicer.util.errorDisplay('Error')
       print(e)
       return False
+    erosion_img = self.voidVolume.getOutput()
 
-    # push result to outputVolumeNode
-    void_volume_img = self.voidVolume.getOutput()
-    sitkUtils.PushVolumeToSlicer(void_volume_img, outputVolumeNode)
+    # move mask and erosion segments to output erosion node
+    self._initOutputErosionNode(erosion_img, inputVolumeNode, inputContourNode, outputErosionNode)
+    # record the seed points, source, and advanced parameters for each erosion
+    self._setErosionInfo(outputErosionNode)
+
     logging.info('Processing completed')
-
-    # update viewer windows
-    slicer.util.setSliceViewerLayers(background=inputVolumeNode,
-                                     label=outputVolumeNode, 
-                                     labelOpacity=0.5)
-    outputVolumeNode.GetDisplayNode().SetAndObserveColorNodeID(
-      'vtkMRMLColorTableNodeFileGenericColors.txt')
 
     return True
 
   def labelmapToSegmentationNode(self, labelMapNode, segmentNode):
     """
-    Load the label map volume to the segmentations, with each label to a different 
-    segmentation. 
+    Import the label map volume to the segmentation, with each label to a different 
+    segment. 
 
     Args:
       labelMapNode(vtkMRMLLabelMapVolume)
@@ -178,23 +178,67 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     """
     slicer.vtkSlicerSegmentationsModuleLogic.ImportLabelmapToSegmentationNode(labelMapNode, segmentNode, "")
   
-  def segmentationNodeToLabelmap(self, segmentNode, labelMapNode, referenceVolumeNode):
+  def segmentationNodeToLabelmap(self, segmentNode, labelMapNode):
     """
-    Load the segmentations to the label map volume. Labels go from 1, 2,..., to N. 
-    Order of the segmentations are maintained. 
+    Export the segmentation to the label map volume. Labels go from 1, 2,..., to N
+    based on the order of the segments. Only visible segmentations will be exported.
 
     Args:
       segmentNode (vtkMRMLSegmentationNode)
       labelMapNode (vtkMRMLLabelMapVolumeNode): will be modified.
-      referenceVolumeNode (vtkMRMLScalarVolumeNode): decides the size of the 
-      resulting label map volume. 
     """
     visibleSegmentIds = vtk.vtkStringArray()
     segmentNode.GetDisplayNode().GetVisibleSegmentIDs(visibleSegmentIds)
+    referenceVolumeNode = segmentNode.GetNodeReference(
+      slicer.vtkMRMLSegmentationNode.GetReferenceImageGeometryReferenceRole())
     slicer.vtkSlicerSegmentationsModuleLogic.ExportSegmentsToLabelmapNode(segmentNode, 
                                                                           visibleSegmentIds,
                                                                           labelMapNode, 
                                                                           referenceVolumeNode)
+
+  def exportErosionsToLabelmap(self, segmentNode, labelMapNode):
+    """
+    Export the erosion segmentations to the label map volume. 
+    Labels will be consistent with the names of the erosion segments.
+    For example, the segment with id 'Erosion_2' will be labeled 2 in the label map volume.
+
+    Args:
+      segmentNode (vtkMRMLSegmentationNode)
+      labelMapNode (vtkMRMLLabelMapVolumeNode): will be modified
+    """
+    # create a list that decides which value each erosion will be labeled with;
+    #  the ith element of the list stores the label value for the ith visible segment
+    visibleSegmentIds = vtk.vtkStringArray()
+    segmentNode.GetDisplayNode().GetVisibleSegmentIDs(visibleSegmentIds)
+    segmentNum = visibleSegmentIds.GetNumberOfValues()
+    label_ids = []
+    for i in range(segmentNum):
+      segmentId = visibleSegmentIds.GetValue(i)
+      try:
+        label = int(segmentId.split('_')[-1])
+        label_ids.append(label)
+      except ValueError:
+        label_ids.append(i)
+
+    # export erosion segmentation to label map
+    self.segmentationNodeToLabelmap(segmentNode, labelMapNode)
+
+    # relabel erosions
+    erosionVolumeArray = slicer.util.arrayFromVolume(labelMapNode)
+    copyArray = copy(erosionVolumeArray)
+    for key, value in enumerate(label_ids):
+      erosionVolumeArray[copyArray==key+1] = value
+    slicer.util.arrayFromVolumeModified(labelMapNode)
+
+    # update label map display
+    labelMapNode.GetDisplayNode().SetAndObserveColorNodeID(
+      'vtkMRMLColorTableNodeFileGenericColors.txt')
+
+  def importErosionsToSegmentationNode(self, labelMapNode, SegmentNode):
+    """
+    Import the erosion label map to the segmentation. 
+    The names of the eroison segments will be prefixed with the name of the label map.
+    """
 
   def enterSegmentEditor(self, segmentEditor):
     """
@@ -203,26 +247,14 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     Set segmentation node in the segmentation editor, if node has been created. 
     The intensity mask is on, voxels with low intensities is editable. 
     The overwrite mode is set to overwrite visible segments. 
-    The mask mode is set to paint allowed inside the contour. 
+    #The mask mode is set to paint allowed inside the contour. 
 
     Args:
       segmentEditor (SegmentEditor): will be modified
-
-    Returns:
-      bool: True if segmentation has previously been created, False otherwise.
     """
-    segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
-
     segmentEditor.enter()
     segmentEditor.setMasterVolumeIntensityMask(True)
     segmentEditor.setOverWriteMode(slicer.vtkMRMLSegmentEditorNode.OverwriteVisibleSegments)
-    if segmentNode: # if the segmentation node exists, switch to it
-      segmentEditor.setSegmentationNode(segmentNode)
-      segmentEditor.setMaskMode(slicer.vtkMRMLSegmentEditorNode.PaintAllowedInsideSingleSegment,
-                                self._contourSegmentId)
-                                     
-      return True
-    return False
 
   def exitSegmentEditor(self, segmentEditor):
     """
@@ -231,179 +263,112 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
 
     Args:
       segmentEditor (SegmentEditor): will be modified
-
-    Returns:
-      bool: True always.
     """
     segmentEditor.exit()
-    
-    return True
 
-  def initManualCorrection(self, segmentEditor, erosionVolumeNode, 
-                           masterVolumeNode, contourVolumeNode):
+  def _initOutputErosionNode(self, erosion_img, inputVolumeNode, 
+                            inputContourNode, outputErosionNode):
     """
-    Set up the segmentation editor for manual correction of erosions. 
-    Create new temporary segmentation node if not created. 
-    Load contour to the segmentation editor if not loaded.
-    Load erosions to the segmentation editor. 
-    The mask mode is set to paint allowed inside the contour. 
+    Set the parent of the output erosion node. 
+    Move the mask to the output erosion node.
+    Import the itk erosion results into the output erosion node.
 
     Args:
-      segmentEditor (SegmentEditor): will be modified
-      erosionVolumeNode (vtkMRMLLabelMapVolumeNode)
-      masterVolumeNode (vtkMRMLScalarVolumeNode)
-      contourVolumeNode (vtkMRMLLabelMapVolumeNode)
-
-    Returns:
-      bool: True for success, False otherwise.
+      erosion_img (Image): itk erosion mask
+      inputVolumeNode (vtkMRMLScalarVolumeNode)
+      inputContourNode (vtkMRMLLabelMapVolumeNode)
+      outputErosionNode (vtkMRMLSegmentationNode)
     """
-    segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
+    # clear output erosion node and set its parent to be greyscale scan
+    outputErosionNode.GetSegmentation().RemoveAllSegments()
+    outputErosionNode.SetReferenceImageGeometryParameterFromVolumeNode(inputVolumeNode)
 
-    if (erosionVolumeNode and masterVolumeNode and contourVolumeNode):
-      if not segmentNode:
-        # create new segmentation node
-        segmentNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", 
-                                                         "TemporarySegmentationNode")
-        segmentNode.SetReferenceImageGeometryParameterFromVolumeNode(masterVolumeNode)
-        # binarize contour
-        tempLabelVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode",
-                                                                 "MASK_Dont_Modify")
-        slicer.vtkSlicerVolumesLogic().CreateLabelVolumeFromVolume(slicer.mrmlScene, 
-                                                                   tempLabelVolumeNode, 
-                                                                   contourVolumeNode)
-        contourArray = slicer.util.arrayFromVolume(contourVolumeNode)
-        tempLabelArray = slicer.util.arrayFromVolume(tempLabelVolumeNode)
-        tempLabelArray[contourArray > 0] = 1
-        slicer.util.arrayFromVolumeModified(tempLabelVolumeNode)
-        # push contour to segmentation node
-        self.labelmapToSegmentationNode(tempLabelVolumeNode, segmentNode)
-        self._contourSegmentId = segmentNode.GetSegmentation().GetNthSegmentID(0) # first segment ID
-        segmentNode.GetDisplayNode().SetSegmentVisibility(self._contourSegmentId, False)
-        # store current widget info
-        #self._erosionSegmentIndex = 1
-        self._segmentNodeId = segmentNode.GetID()
-        slicer.mrmlScene.RemoveNode(tempLabelVolumeNode)
-      # load erosions
-      self.labelmapToSegmentationNode(erosionVolumeNode, segmentNode)
-      # set parameters in segmentation editor
-      segmentEditor.setSegmentationNode(segmentNode)
-      segmentEditor.setMasterVolumeNode(masterVolumeNode)
-      segmentEditor.setMaskMode(slicer.vtkMRMLSegmentEditorNode.PaintAllowedInsideSingleSegment,
-                                     self._contourSegmentId)
-      # update viewer windows
-      slicer.util.setSliceViewerLayers(background=masterVolumeNode)
+    # binarize contour
+    tempLabelMap = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode",
+                                                      "MASK_Keep_Invisible")
+    slicer.vtkSlicerVolumesLogic().CreateLabelVolumeFromVolume(slicer.mrmlScene, 
+                                                               tempLabelMap, 
+                                                               inputContourNode)
+    contourArray = slicer.util.arrayFromVolume(inputContourNode)
+    tempLabelArray = slicer.util.arrayFromVolume(tempLabelMap)
+    tempLabelArray[contourArray > 0] = 1
+    slicer.util.arrayFromVolumeModified(tempLabelMap)
+    # push contour to output erosion node
+    self.labelmapToSegmentationNode(tempLabelMap, outputErosionNode)
+    contourSegmentId = outputErosionNode.GetSegmentation().GetNthSegmentID(0) # first segment ID
+    outputErosionNode.GetDisplayNode().SetSegmentVisibility(contourSegmentId, False)
+    # remove temporary label map
+    slicer.mrmlScene.RemoveNode(tempLabelMap)
 
-      return True
-    return False
+    # create temporary label map to hold erosions
+    tempLabelMap = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", 
+                                                      "TemporaryErosionNode")
+    tempLabelMap.CreateDefaultDisplayNodes()
+    tempLabelMap.GetDisplayNode().SetAndObserveColorNodeID(
+      'vtkMRMLColorTableNodeFileGenericColors.txt')
+    tempLabelMap.GetDisplayNode()
+    # push result to temporary label map
+    sitkUtils.PushVolumeToSlicer(erosion_img, tempLabelMap)
+    # push erosions from temporary label map to output erosion node
+    self.labelmapToSegmentationNode(tempLabelMap, outputErosionNode)
+    # remove temporary label map
+    slicer.mrmlScene.RemoveNode(tempLabelMap)
 
-  def cancelManualCorrection(self, erosionVolumeNode, masterVolumeNode):
+  def _setErosionInfo(self, outputErosionNode):
     """
-    Cancel the manual correction. 
-    Remove the temporary segmentation node in the segmentation editor. 
-    
-    Args:
-      erosionVolumeNode (vtkMRMLLabelMapVolumeNode)
-      masterVolumeNode (vtkMRMLScalarVolumeNode)
-
-    Returns:
-      bool: True for success, False if nodes are missing. 
-    """
-    segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
-
-    if segmentNode:
-      # remove the current segmentation node
-      slicer.mrmlScene.RemoveNode(segmentNode)
-    if (erosionVolumeNode and masterVolumeNode):
-      # update viewer windows
-      slicer.util.setSliceViewerLayers(background=masterVolumeNode,
-                                       label=erosionVolumeNode, 
-                                       labelOpacity=0.5)
-
-    return (segmentNode and erosionVolumeNode and masterVolumeNode)
-
-  def applyManualCorrection(self, erosionVolumeNode, masterVolumeNode):
-    """
-    Apply the manual correction. 
-    Load the manual correction back to the input node. 
-    Remove the temporary segmentation node in the segmentation editor.
+    Store the corresponding seed point, advanced parameters and name of the source node
+    in the tag of each erosion segment.
 
     Args:
-      erosionVolumeNode (vtkMRMLLabelMapVolumeNode): will be modified
-      masterVolumeNode (vtkMRMLScalarVolumeNode)
-    
-    Returns:
-      bool: True for success, False otherwise.
+      outputErosionNode (vtkMRMLSegmentationNode)
     """
-    segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
+    minimalRadius = self.voidVolume.minimalRadius
+    dilateErodeDistance = self.voidVolume.dilateErodeDistance
+    seeds = self.voidVolume.seeds
+    # erosionIds is a list that indicates which erosion each seed is in
+    erosionIdsEnum = tuple(enumerate(self.voidVolume.erosionIds))
+    segmentation = outputErosionNode.GetSegmentation()
+    segmentNum = segmentation.GetNumberOfSegments()
+    erosionSource = outputErosionNode.GetName()
 
-    if (erosionVolumeNode and masterVolumeNode and segmentNode):
-      segmentation = segmentNode.GetSegmentation()
+    for i in range(1,segmentNum): # skip the first segment, the mask
+      segment = segmentation.GetNthSegment(i)
+      try:
+        # record corresponding seed point(s) in each erosion
+        erosionIndexStr = segment.GetName().split('_')[-1]
+        segment.SetName(erosionSource+'| Erosion_'+erosionIndexStr)
+        erosionIndex = int(erosionIndexStr) # erosion index matches seed point name
+        separator = '; '
+        seedStr = separator.join([str(seeds[i]) for i, erosionId in erosionIdsEnum
+                                  if erosionId == erosionIndex]) # string of seed points separated by '; '
+        segment.SetTag("Seed", seedStr)
+      except ValueError:
+        pass
+      # record advanced parameters
+      segment.SetTag("MinimalRadius", minimalRadius)
+      segment.SetTag("DilateErodeDistance", dilateErodeDistance)
+      # record name of erosion source node
+      segment.SetTag("Source", erosionSource)
 
-      # remove mask/contour from segment node
-      segmentation.RemoveSegment(self._contourSegmentId)
-
-      # create a mapping that decides which value each erosion will be labeled with.
-      #  the keys are the erosion segment indices in the segment node, 
-      #  and the values are the erosion label values, which match the seed point numbers
-      label_ids = {}
-      seg_num = segmentation.GetNumberOfSegments()
-      for i in range(seg_num):
-        segment_name = segmentation.GetNthSegment(i).GetName()
-        try: # obtain the label value from the segment name
-          label_id = int(segment_name.split('_')[-1])
-          label_ids[i+1] = label_id
-        except ValueError:
-          pass
-      self.segmentationNodeToLabelmap(segmentNode, erosionVolumeNode, masterVolumeNode)
-
-      # relabel erosions
-      erosionVolumeArray = slicer.util.arrayFromVolume(erosionVolumeNode)
-      copyArray = copy(erosionVolumeArray)
-      print(label_ids)
-      for key, value in label_ids.items():
-        erosionVolumeArray[copyArray==key] = value
-      slicer.util.arrayFromVolumeModified(erosionVolumeNode)
-
-      # remove the temporary segmentation node
-      slicer.mrmlScene.RemoveNode(segmentNode)
-
-      # update viewer windows
-      slicer.util.setSliceViewerLayers(background=masterVolumeNode,
-                                       label=erosionVolumeNode, 
-                                       labelOpacity=0.5)
-      erosionVolumeNode.GetDisplayNode().SetAndObserveColorNodeID(
-        'vtkMRMLColorTableNodeFileGenericColors.txt')
-
-      return True
-    return False
-
-  def getStatistics(self, inputErosionNode, outputTableNode):
+  def getStatistics(self, inputErosionNode, masterVolumeNode, voxelSize, outputTableNode):
     """
-    Get erosion statistics from the label map volume and store them in the 
-    output table. Each erosion will be labeled 'Erosion_XXX' in the table. 
+    Get erosion statistics from the erosion segmentation. 
+    Store the numeric data in the output table. 
+    Each erosion will be named 'Erosion_XXX' in the table. 
     Supported statistics include volume, surface area, sphericity, and location. 
 
     Args:
-      inputErosionNode (vtkMRMLLabelMapVolumeNode)
+      inputErosionNode (vtkMRMLSegmentationNode)
+      masterVolumeNode (vtkMRMLScalarVolumeNode)
+      voxelSize (double)
       outputTableNode (vtkMRMLTableNode): will be modified
     """
-    # initialize node, each erosion is labeled 'erosion_XXX'
-    segmentNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode", 
-                                                     "TemporarySegmentationNode")
-    self.labelmapToSegmentationNode(inputErosionNode, segmentNode)
-    for segmentIndex in range(segmentNode.GetSegmentation().GetNumberOfSegments()):
-      segment = segmentNode.GetSegmentation().GetNthSegment(segmentIndex)
-      label_id = segment.GetName()
-      segment.SetName("Erosion-"+label_id)
+    # set parameters
+    self.erosionStatistics.setSegmentationNode(inputErosionNode)
+    self.erosionStatistics.setMasterVolumeNode(masterVolumeNode)
+    self.erosionStatistics.setVoxelSize(voxelSize)
+    self.erosionStatistics.setOutputTableNode(outputTableNode)
 
     # display statistics table and connect signals,
     #  erosions are centred in the viewer windows upon selection
-    self.erosionStatistics.setSegmentNode(segmentNode)
-    self.erosionStatistics.setInputErosionNode(inputErosionNode)
-    self.erosionStatistics.setOutputTableNode(outputTableNode)
     self.erosionStatistics.displayErosionStatistics()
-    
-    # update widgets
-    slicer.util.setSliceViewerLayers(label=inputErosionNode, 
-                                     labelOpacity=0.5)
-    slicer.mrmlScene.RemoveNode(segmentNode)
