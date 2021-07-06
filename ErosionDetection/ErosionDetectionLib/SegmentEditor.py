@@ -4,9 +4,9 @@
 # Created by:  Mingjie Zhao
 # Created on:  04-11-2020
 #
-# Description: This program simplifies the 3D Slicer built-in segmention editor
+# Description: This module contains a customized 3D Slicer built-in segmention editor
 #              to contain only the paint, draw and erase effects. 
-#              It then adds the sementation editor to a given qt layout.
+#              The segmentation editor will be added to the given qt layout
 #
 #-----------------------------------------------------
 import vtk, qt, ctk, slicer
@@ -41,8 +41,14 @@ class SegmentEditor:
                                     'Grow from seeds', 'Fill between slices'))
     self.editor.unorderedEffectsVisible = False
     self.editor.switchToSegmentationsButtonVisible = False
-    self.editor.segmentationNodeSelectorVisible = False
-    self.editor.masterVolumeNodeSelectorVisible = False
+    self.editor.segmentationNodeSelectorVisible = True
+    self.editor.masterVolumeNodeSelectorVisible = True
+
+    # connections
+    self.editor.connect('segmentationNodeChanged(vtkMRMLSegmentationNode *)', self.onSegmentationNodeChanged)
+    self.editor.connect('segmentationNodeChanged(vtkMRMLSegmentationNode *)', self.onMasterVolumeNodeChanged)
+    self.editor.connect('currentSegmentIDChanged(const QString &)', 
+                         lambda segmentId: self.onCurrentSegmentIDChanged(segmentId))
 
     # Set parameter node first so that the automatic selections made when the scene is set are saved
     self.selectParameterNode()
@@ -76,17 +82,23 @@ class SegmentEditor:
     self.parameterSetNode = segmentEditorNode
     self.editor.setMRMLSegmentEditorNode(self.parameterSetNode)
 
-  def setVolumeNode(self, segmentationNode, masterVolumeNode):
-    self.editor.setSegmentationNode(segmentationNode)
-    self.editor.setMasterVolumeNode(masterVolumeNode)
-
   def setSegmentationNode(self, segmentationNode):
+    currSegmentationNode = self.editor.segmentationNode()
+    if (currSegmentationNode == segmentationNode): # the same segmentation node has been selected
+      # clear selection, and reselect the same segmentation node
+      self.editor.setSegmentationNode(None)
     self.editor.setSegmentationNode(segmentationNode)
+    self.onSegmentationNodeChanged()
 
   def setMasterVolumeNode(self, masterVolumeNode):
     self.editor.setMasterVolumeNode(masterVolumeNode)
+    self.onMasterVolumeNodeChanged()
 
   def setMasterVolumeIntensityMask(self, isIntensityMask, lower=0, upper=3600):
+    """
+    Set the segmentation editor mask intensity range. 
+    Only area with intensity that falls in the range is editable.
+    """
     if isIntensityMask:
       self.parameterSetNode.SetMasterVolumeIntensityMask(True)
       self.parameterSetNode.SetMasterVolumeIntensityMaskRange(lower, upper)
@@ -94,18 +106,93 @@ class SegmentEditor:
       self.parameterSetNode.SetMasterVolumeIntensityMask(False)
 
   def setMaskMode(self, mode, segId=""):
+    """
+    Set the segmentation editor mask mode. 
+    Mode options are:
+      - PaintAllowedEverywhere 
+      - PaintAllowedInsideAllSegments
+      - PaintAllowedInsideVisibleSegments
+      - PaintAllowedOutsideAllSegments
+      - PaintAllowedOutsideVisibleSegments 
+      - PaintAllowedInsideSingleSegment
+
+    Args:
+      mode (slicer.vtkMRMLSegmentEditorNode Enum): eg. slicer.vtkMRMLSegmentEditorNode.PaintAllowedEverywhere
+      segId (Str): must be provided if and only if mode is PaintAllowedInsideSingleSegment
+    """
     insideSingleSegment = slicer.vtkMRMLSegmentEditorNode.PaintAllowedInsideSingleSegment
-    if (mode == insideSingleSegment):
+    if mode == insideSingleSegment:
+      if segId == "":
+        return
       self.parameterSetNode.SetMaskSegmentID(segId)
       self.parameterSetNode.SetMaskMode(insideSingleSegment)
     else:
       self.parameterSetNode.SetMaskMode(mode)
 
   def setOverWriteMode(self, mode):
+    """
+    Set the segmentation editor overwrite mode.
+    Mode options are:
+      - OverwriteAllSegments
+      - OverwriteVisibleSegments
+      - OverwriteNone
+
+    Args:
+      mode (slicer.vtkMRMLSegmentEditorNode Enum): eg. slicer.vtkMRMLSegmentEditorNode.OverwriteNone
+    """
     self.parameterSetNode.SetOverwriteMode(mode)
 
+  def onSegmentationNodeChanged(self):
+    """
+    Run this whenever a different segmentation node is selected.
+    """
+    segmentationNode = self.editor.segmentationNode()
+
+    if segmentationNode:
+      # display selected segmentation node only
+      allSegmentNodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+      for segmentNode in allSegmentNodes:
+        segDisplay = segmentNode.GetDisplayNode()
+        if segDisplay:
+          segDisplay.SetVisibility(0)
+      currSegDisplay = segmentationNode.GetDisplayNode()
+      currSegDisplay.SetVisibility(1)
+
+      # set editable area to be inside the mask
+      segmentation = segmentationNode.GetSegmentation()
+      if (segmentation.GetNumberOfSegments()):
+        maskSegment = segmentation.GetNthSegment(0)   # the first segment will be the mask
+        if ('mask' in maskSegment.GetName().lower()): # the first segment is the mask
+          insideSingleSegment = slicer.vtkMRMLSegmentEditorNode.PaintAllowedInsideSingleSegment
+          self.setMaskMode(insideSingleSegment, segmentation.GetNthSegmentID(0))
+
+  def onMasterVolumeNodeChanged(self):
+    """
+    Run this whenever a different master volume is selected.
+    """
+    masterVolumeNode = self.editor.masterVolumeNode()
+    
+    if masterVolumeNode:
+      # display master volume
+      slicer.util.setSliceViewerLayers(background=masterVolumeNode, label=None)
+
+  def onCurrentSegmentIDChanged(self, segmentId):
+    """
+    Run this whenever a different segment is selected.
+
+    Args:
+      segmentId (Str)
+    """
+    if segmentId == '':
+      return
+    centroid = self.editor.segmentationNode().GetSegmentCenter(segmentId)
+    if centroid:
+      markupsLogic = slicer.modules.markups.logic()
+      markupsLogic.JumpSlicesToLocation(centroid[0], centroid[1], centroid[2], False)
+
   def enter(self):
-    """Runs whenever the module is reopened
+    """
+    Runs this whenever the module is reopened.
     """
     if self.editor.turnOffLightboxes():
       slicer.util.warningDisplay('This toolkit is not compatible with slice viewers in light box mode.'
@@ -120,10 +207,15 @@ class SegmentEditor:
     self.editor.updateWidgetFromMRML()
 
   def exit(self):
+    """
+    Run this whenever the module is closed.
+    """
     self.editor.setActiveEffect(None)
     self.editor.uninstallKeyboardShortcuts()
     self.editor.removeViewObservations()
 
   def cleanup(self):
-    #self.removeObservers()
+    """
+    Remove the segmentation editor keyboard shortcuts.
+    """
     self.effectFactorySingleton.disconnect('effectRegistered(QString)', self.editorEffectRegistered)
