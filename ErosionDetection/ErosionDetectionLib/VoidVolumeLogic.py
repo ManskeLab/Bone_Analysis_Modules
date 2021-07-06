@@ -19,7 +19,7 @@
 #              When running on its own, call:
 #              python VoidVolume.py inputImage inputMask outputImage seeds
 #                                   lowerThreshold upperThreshold
-#                                   [minimalRadius] [morphologicalRadius]
+#                                   [minimalRadius] [dilateErodeDistance]
 #
 # Param:       inputImage: The input scan file path
 #              inputMask: The input mask file path
@@ -28,14 +28,14 @@
 #              lowerThreshold
 #              upperThreshold
 #              minimalRadius: Minimal erosion radius in voxels, default=3
-#              morphologicalRadius: Morphological kernel radius in voxels, default=5
+#              dilateErodeDistance: Morphological kernel radius in voxels, default=5
 #
 #-----------------------------------------------------
 import SimpleITK as sitk
 
 class VoidVolumeLogic:
     def __init__(self, img=None, mask=None, lower=3000, upper=10000, seeds=None,
-    minimalRadius=3, morphologicalRadius=5):
+                 minimalRadius=3, dilateErodeDistance=4):
         self.model_img = img                  # greyscale scan
         self.contour_img = None               # mask, periosteal boundary
         if ((self.model_img is not None) and (mask is not None)):
@@ -46,7 +46,7 @@ class VoidVolumeLogic:
         self.lower_threshold = lower
         self.upper_threshold = upper
         self.minimalRadius = minimalRadius               # for distance transformation, default=3
-        self.morphologicalRadius = morphologicalRadius   # for morphological operations, default=5
+        self.dilateErodeDistance = dilateErodeDistance   # for morphological operations, default=4
         self.seeds = seeds         # list of seed point coordinates (x,y,z)
         self.erosionIds = []       # erosion ids decide which value each erosion is labeled with
         if seeds is not None:      #  default = [1, 2, ..., len(seeds)+1]
@@ -166,6 +166,7 @@ class VoidVolumeLogic:
 
         Args:
             erode_img (Image)
+            
         Returns:
             Image
         """
@@ -280,7 +281,10 @@ class VoidVolumeLogic:
             connected_img = connected_filter.Execute(void_volume_img)
             relabeled_img = sitk.Mask(relabeled_img, connected_img, 
                                       outsideValue=self.erosionIds[i], maskingValue=1)
-                                      
+
+        # update erosion ids to indicate which erosion each seed point is in
+        self.erosionIds = [relabeled_img[seed] for seed in self.seeds]
+
         return relabeled_img
 
     def execute(self):
@@ -300,13 +304,13 @@ class VoidVolumeLogic:
             elif self._step == 3:
                 self.ero1_img = self.distanceVoidVolume(self.ero2_img, self.minimalRadius)
             elif self._step == 4:
-                self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.morphologicalRadius)
+                self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.dilateErodeDistance)
             elif self._step == 5:
                 self.ero1_img = self.connectVoidVolume(self.ero1_img)
             elif self._step == 6:
-                self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.morphologicalRadius)
+                self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.dilateErodeDistance)
             elif self._step == 7:
-                radius = 3 if self.morphologicalRadius > 5 else 5
+                radius = 3 if self.dilateErodeDistance > 5 else 5
                 self.output_img = self.combineVoidVolume(self.ero1_img, self.ero2_img, radius)
             elif self._step == 8:
                 self.output_img = self.labelVoidVolume(self.output_img)
@@ -372,14 +376,14 @@ class VoidVolumeLogic:
         self.seeds = seeds
         self.erosionIds = list(range(1, len(seeds)+1))
 
-    def setRadii(self, minimalRadius, morphologicalRadius):
+    def setRadii(self, minimalRadius, dilateErodeDistance):
         """
         Args:
             minimalRadius (int): minimum erosion radius, used in the distance map filter
-            morphologicalRadius (int): kernel radius for dilate/erode filters
+            dilateErodeDistance (int): kernel radius for dilate/erode filters
         """
         self.minimalRadius = minimalRadius
-        self.morphologicalRadius = morphologicalRadius
+        self.dilateErodeDistance = dilateErodeDistance
     
     def setErosionIds(self, erosion_ids):
         """
@@ -416,8 +420,8 @@ if __name__ == "__main__":
     parser.add_argument('upperThreshold', type=int)
     parser.add_argument('minimalRadius', type=int, nargs='?', default=3, 
                         help='Minimal erosion radius in voxels, default=3')
-    parser.add_argument('morphologicalRadius', type=int, nargs='?', default=5,
-                        help='Morphological kernel radius in voxels, default=5')
+    parser.add_argument('dilateErodeDistance', type=int, nargs='?', default=4,
+                        help='Morphological kernel radius in voxels, default=4')
     args = parser.parse_args()
 
     input_dir = args.inputImage
@@ -427,7 +431,7 @@ if __name__ == "__main__":
     lower = args.lowerThreshold
     upper = args.upperThreshold
     minimalRadius = args.minimalRadius
-    morphologicalRadius = args.morphologicalRadius
+    dilateErodeDistance = args.dilateErodeDistance
 
     # read images
     img = sitk.ReadImage(input_dir)
@@ -449,7 +453,7 @@ if __name__ == "__main__":
 
     # create erosion logic object
     erosion = VoidVolumeLogic(img, mask, lower, upper, seeds, 
-                              minimalRadius, morphologicalRadius)
+                              minimalRadius, dilateErodeDistance)
 
     # identify erosions
     print("Running erosion detection script")
