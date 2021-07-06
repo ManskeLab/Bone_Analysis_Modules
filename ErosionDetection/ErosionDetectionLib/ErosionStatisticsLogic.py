@@ -16,9 +16,8 @@ import SimpleITK as sitk
 # ErosionStatisticsLogic
 #
 class ErosionStatisticsLogic:
-  def __init__(self, segmentNode=None, inputErosionNode=None, outputTableNode=None, voxelSize=0.0607):
-    self.segmentNode = segmentNode
-    self.inputErosionNode = inputErosionNode
+  def __init__(self, segmentationNode=None, masterVolumeNode=None, outputTableNode=None, voxelSize=0.0607):
+    self.segmentationNode = segmentationNode
     self.outputTableNode = outputTableNode
     self.voxelSize = voxelSize        # voxel size in millimetres
     self.viewGroup = -1               # for erosion visualization
@@ -26,10 +25,10 @@ class ErosionStatisticsLogic:
     self._ras2ijk = vtk.vtkMatrix4x4()
     self._ijk2ras = vtk.vtkMatrix4x4()
     self.spacing = 1
-    if inputErosionNode is not None:
-      self.spacing = inputErosionNode.GetSpacing()[0]
-      inputErosionNode.GetRASToIJKMatrix(self._ras2ijk)
-      inputErosionNode.GetIJKToRASMatrix(self._ijk2ras)
+    if masterVolumeNode is not None:
+      self.spacing = masterVolumeNode.GetSpacing()[0]
+      masterVolumeNode.GetRASToIJKMatrix(self._ras2ijk)
+      masterVolumeNode.GetIJKToRASMatrix(self._ijk2ras)
   
   def displayErosionStatistics(self):
     """
@@ -39,7 +38,7 @@ class ErosionStatisticsLogic:
     import SegmentStatistics
     # set parameters in segmentation statistics module
     segStatsLogic = SegmentStatistics.SegmentStatisticsLogic()
-    segStatsLogic.getParameterNode().SetParameter("Segmentation", self.segmentNode.GetID())
+    segStatsLogic.getParameterNode().SetParameter("Segmentation", self.segmentationNode.GetID())
     segStatsLogic.getParameterNode().SetParameter("ScalarVolumeSegmentStatisticsPlugin.enabled","False")
     segStatsLogic.getParameterNode().SetParameter("ClosedSurfaceSegmentStatisticsPlugin.enabled","False")
     segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.voxel_count.enabled","True")
@@ -68,17 +67,40 @@ class ErosionStatisticsLogic:
     return [i for i in self._ijk2ras.MultiplyPoint(ijk_4coords)[:3]]
 
   def _convertData(self):
+    # erosion segment info
+    segmentation = self.segmentationNode.GetSegmentation()
+    tag = vtk.mutable("") # will store erosion segment info
+
     # table info
     voxel_scale = self.voxelSize / self.spacing
     row_num = self.outputTableNode.GetNumberOfRows()
+    segment_col = self.outputTableNode.GetColumnIndex("Segment")
     volume_mm3_col = self.outputTableNode.GetColumnIndex("Volume [mm3]")
     surface_area_mm2_col = self.outputTableNode.GetColumnIndex("Surface area [mm2]")
     centroid_col = self.outputTableNode.GetColumnIndex("Centroid")
     self.outputTableNode.SetColumnProperty(centroid_col, "componentNames", "L|P|S")
     self.outputTableNode.SetColumnDescription("Centroid", "Location of the centroid in LPS coordinates")
+    
+    source = self.outputTableNode.AddColumn()
+    source.SetName("Source")
+    source_col = self.outputTableNode.GetColumnIndex("Source")
+    seeds = self.outputTableNode.AddColumn()
+    seeds.SetName("Seeds")
+    seeds_col = self.outputTableNode.GetColumnIndex("Seeds")
+    minimalRadius = self.outputTableNode.AddColumn()
+    minimalRadius.SetName("Minimal Radius [Voxels]")
+    minimalRadius_col = self.outputTableNode.GetColumnIndex("Minimal Radius [Voxels]")
+    dilateErodeRadius = self.outputTableNode.AddColumn()
+    dilateErodeRadius.SetName("Dilate Erode Radius [Voxels]")
+    dilateErodeRadius_col = self.outputTableNode.GetColumnIndex("Dilate Erode Radius [Voxels]")
 
-    # convert data in table according to image spacing
+    # convert erosion data in table according to image spacing
     for row in range(0, row_num):
+      # convert segment name to "Erosion_XXX"
+      old_name = self.outputTableNode.GetCellText(row, segment_col)
+      new_name = old_name.split(' ')[-1]
+      print(new_name)
+      self.outputTableNode.SetCellText(row, segment_col, new_name)
       # convert volume to mm3
       volume = float(self.outputTableNode.GetCellText(row, volume_mm3_col)) * (voxel_scale**3)
       self.outputTableNode.SetCellText(row, volume_mm3_col, str(volume))
@@ -92,6 +114,18 @@ class ErosionStatisticsLogic:
       self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 1, itk_coord[1])
       self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 2, itk_coord[2])
       self.outputTableNode.Modified()
+      # record erosion source file (which mask it is located in)
+      segment = segmentation.GetSegment(segmentation.GetSegmentIdBySegmentName(old_name))
+      if segment.GetTag("Source", tag):
+        self.outputTableNode.SetCellText(row, source_col, tag)
+      # record seed point for each erosion
+      if segment.GetTag("Seed", tag):
+        self.outputTableNode.SetCellText(row, seeds_col, tag)
+      # record advanced parameters for each erosion
+      if segment.GetTag("MinimalRadius", tag):
+        self.outputTableNode.SetCellText(row, minimalRadius_col, tag)
+      if segment.GetTag("DilateErodeDistance", tag):
+        self.outputTableNode.SetCellText(row, dilateErodeRadius_col, tag)
 
   def jumpSlicesToLocation(self, mrmlScene, x, y, z, centred, viewGroup):
     if (not mrmlScene):
@@ -115,10 +149,17 @@ class ErosionStatisticsLogic:
   
   def onSelectionChanged(self, itemSelection):
     centroid_col = self.outputTableNode.GetColumnIndex("Centroid")
+    seeds_col = self.outputTableNode.GetColumnIndex("Seeds")
     selectedRow = itemSelection.indexes()[0].row()-1 if len(itemSelection.indexes()) else None
-    if ((selectedRow is not None) and (selectedRow >= 0)):
-      print("Coords: "+self.outputTableNode.GetCellText(selectedRow, centroid_col))
-      itk_coord = [float(num) for num in (self.outputTableNode.GetCellText(selectedRow, centroid_col)).split(' ')]
+    if (selectedRow is not None) and (selectedRow >= 0):
+      seedsStr = self.outputTableNode.GetCellText(selectedRow, seeds_col)
+      seedStr = seedsStr.split('; ')[0]
+      try:
+        x, y, z = seedStr[1:-1].split(', ')
+        itk_coord = [int(x), int(y), int(z)]
+      except ValueError:
+        itk_coord = [float(num) for num in (self.outputTableNode.GetCellText(selectedRow, centroid_col)).split(' ')]
+      print("Coords: "+str(itk_coord))
       ras_coord = self.IJKToRASCoords(itk_coord)
       self.jumpSlicesToLocation(self._mrmlScene, ras_coord[0], ras_coord[1], ras_coord[2], False, self.viewGroup)
   
@@ -131,15 +172,16 @@ class ErosionStatisticsLogic:
   def setMRMLScene(self, mrmlScene):
     self._mrmlScene = mrmlScene
 
-  def setSegmentNode(self, segmentNode):
-    self.segmentNode = segmentNode
+  def setSegmentationNode(self, segmentationNode):
+    self.segmentationNode = segmentationNode
 
+  def setMasterVolumeNode(self, masterVolumeNode):
+    self.spacing = masterVolumeNode.GetSpacing()[0]
+    masterVolumeNode.GetRASToIJKMatrix(self._ras2ijk)
+    masterVolumeNode.GetIJKToRASMatrix(self._ijk2ras)
+
+  def setVoxelSize(self, voxelSize):
+    self.voxelSize = voxelSize
+    
   def setOutputTableNode(self, outputTableNode):
     self.outputTableNode = outputTableNode
-
-  def setInputErosionNode(self, inputErosionNode):
-    self.inputErosionNode = inputErosionNode
-    self.spacing = inputErosionNode.GetSpacing()[0]
-    inputErosionNode.GetRASToIJKMatrix(self._ras2ijk)
-    inputErosionNode.GetIJKToRASMatrix(self._ijk2ras)
-    
