@@ -17,12 +17,13 @@
 # Usage:       This module is plugged into 3D Slicer, but can run on its own. 
 #              When running on its own:
 #              python ContourLogic.py inputImage outputImage lowerThreshold upperThreshold
-#                                     boneNum [roughMask]
+#                                     boneNum [dilateErodeRadius] [roughMask]
 #
 # Param:       inputImage: The input greyscale image to be contoured
 #              outputImage: The output image to store the contour
 #              lowerThreshold
 #              upperThreshold
+#              dilateErodeRadius: morphological dilate/erode kernel radius in voxels
 #              boneNum: Number of separate bone structures
 #              roughMask: The file path of optional rough mask that helps separate bones
 #
@@ -32,7 +33,8 @@ import SimpleITK as sitk
 class ContourLogic:
     """This class provides methods for automatic contouring"""
 
-    def __init__(self, img=None, lower=3000, upper=10000, boneNum=1, roughMask=None):
+    def __init__(self, img=None, lower=3000, upper=10000, boneNum=1, 
+                 dilateErodeRadius=38, roughMask=None):
         self.img = img                     # bone model, will be reused
         self.output_img = None             # output image
         self.label_img = None              # image with each connected bone structures relabeled
@@ -42,8 +44,8 @@ class ContourLogic:
         self.boneNum = boneNum             # number of bone structures to be segmented
         self._step = 0                     # number of steps done
         self._stepNum = 5 * self.boneNum + 3 # number of steps in the algorithm
-        self._dilateErodeRadius = 38       # dilate/erode radius
-        self._margin = self._dilateErodeRadius + 2
+        self.dilateErodeRadius = dilateErodeRadius  # dilate/erode radius
+        self._margin = self.dilateErodeRadius + 2
         self._stats_filter = sitk.LabelStatisticsImageFilter()
         self._boundingbox = ()              # bounding box of extracted image, will be reused
     
@@ -391,13 +393,11 @@ class ContourLogic:
                 if (self.roughMask is not None): # denoise the rough mask, may not be neccessary
                     self.img = self.denoise(self.img, sigma=2, foreground=self.boneNum)
             elif self._step == 5: # step 5
-                #self.img = self.dilate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
-                self.img = self.inflate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
+                self.img = self.inflate(self.img, radius=self.dilateErodeRadius, foreground=self.boneNum)
             elif self._step == 6: # step 6
                 self.img = self.fillHole(self.img, self.boneNum)
             elif self._step == 7: # step 7
-                #self.img = self.erode(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
-                self.img = self.deflate(self.img, radius=self._dilateErodeRadius, foreground=self.boneNum)
+                self.img = self.deflate(self.img, radius=self.dilateErodeRadius, foreground=self.boneNum)
             elif self._step == 8: # step 8
                 if (self.output_img is None): # store first bone in output_img
                     self.output_img = self.pasteBack(self.img)
@@ -454,6 +454,13 @@ class ContourLogic:
             self.boneNum = boneNum
         self.stepNum = 5 * boneNum + 3
     
+    def setDilateErodeRadius(self, dilateErodeRadius):
+        """
+        Args:
+            dilateErodeRadius (int)
+        """
+        self.dilateErodeRadius = dilateErodeRadius
+
     def _cleanup(self):
         """
         Reset internal parameters.
@@ -481,8 +488,10 @@ if __name__ == "__main__":
     parser.add_argument('outputImage', help='The output image file path')
     parser.add_argument('lowerThreshold', type=int)
     parser.add_argument('upperThreshold', type=int)
-    parser.add_argument('boneNum', type=int, default=1, help='Number of separate bone structures')
-    parser.add_argument('roughMask', nargs='?', default="", 
+    parser.add_argument('boneNum', type=int, help='Number of separate bone structures')
+    parser.add_argument('dilateErodeRadius', type=int, nargs='?', default=38,
+                         help='Dilate/erode kernel radius in voxels')
+    parser.add_argument('roughMask', nargs='?', default="",
                          help='The file path of optional rough mask that helps separate bones')
     args = parser.parse_args()
 
@@ -491,6 +500,7 @@ if __name__ == "__main__":
     lower = args.lowerThreshold
     upper = args.upperThreshold
     boneNum = args.boneNum
+    dilateErodeRadius = args.dilateErodeRadius
     roughMask_dir = args.roughMask
 
     # read images
@@ -502,7 +512,7 @@ if __name__ == "__main__":
         roughMask = sitk.ReadImage(roughMask_dir)
 
     # create contour object
-    contour = ContourLogic(img, lower, upper, boneNum, roughMask)
+    contour = ContourLogic(img, lower, upper, boneNum, dilateErodeRadius, roughMask)
 
     # run contour algorithm
     print("Running contour script")
