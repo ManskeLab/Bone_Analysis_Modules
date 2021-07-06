@@ -153,7 +153,8 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       return True
     return False
 
-  def setParameters(self, inputVolumeNode, outputVolumeNode, lower, upper, boneNum, separateMapNode):
+  def setParameters(self, inputVolumeNode, outputVolumeNode, lower, upper, boneNum, 
+                    dilateErodeRadius, separateMapNode):
     """
     Set parameters to be used by the automatic contour algorithm.
 
@@ -163,6 +164,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       lower (int)
       upper (int)
       boneNum (int)
+      dilateErodeRadius (int)
       separateMapNode (vtkMRMLLabelMapVolumeNode)
 
     Returns:
@@ -181,7 +183,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
 
     self.contour.setThreshold(lower, upper)
     self.contour.setBoneNum(boneNum)
-
+    self.contour.setDilateErodeRadius(dilateErodeRadius)
     if (separateMapNode is None):
       self.contour.setRoughMask(None)
     else:

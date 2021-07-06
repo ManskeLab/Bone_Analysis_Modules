@@ -193,13 +193,13 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
     # threshold spin boxes
     self.lowerThresholdText = qt.QSpinBox()
-    self.lowerThresholdText.setMinimum(0)
+    self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
     self.lowerThresholdText.value = 3000
     automaticContourLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
-    self.upperThresholdText.setMinimum(0)
+    self.upperThresholdText.setMinimum(-9999)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
     self.upperThresholdText.value = 10000
@@ -214,7 +214,16 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.boneNumSpinBox.setToolTip("Enter the number of separate bone structures in the scan")
     automaticContourLayout.addRow("Number of Bones: ", self.boneNumSpinBox)
 
-    # output volume selector
+    #dilate/erode spin box
+    self.dilateErodeRadiusText = qt.QSpinBox()
+    self.dilateErodeRadiusText.setMinimum(1)
+    self.dilateErodeRadiusText.setMaximum(9999)
+    self.dilateErodeRadiusText.setSingleStep(1)
+    self.dilateErodeRadiusText.value = 38
+    self.dilateErodeRadiusText.setToolTip("Enter the dilate/erode kernel radius")
+    automaticContourLayout.addRow("Dilate/Erode Radius [voxels]: ", self.dilateErodeRadiusText)
+    
+    # rough mask selector
     self.separateMapSelector = slicer.qMRMLNodeComboBox()
     self.separateMapSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
     self.separateMapSelector.selectNodeUponCreation = False
@@ -443,6 +452,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
                                      self.lowerThresholdText.value,
                                      self.upperThresholdText.value,
                                      self.boneNumSpinBox.value,
+                                     self.dilateErodeRadiusText.value,
                                      separateMapNode)
     if ready:
       # run the algorithm
