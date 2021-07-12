@@ -19,7 +19,7 @@
 #              When running on its own, call:
 #              python VoidVolume.py inputImage inputMask outputImage seeds
 #                                   lowerThreshold upperThreshold
-#                                   [minimalRadius] [dilateErodeDistance]
+#                                   [minimumRadius] [dilateErodeDistance]
 #
 # Param:       inputImage: The input scan file path
 #              inputMask: The input mask file path
@@ -27,7 +27,7 @@
 #              seeds: The seed points csv file path
 #              lowerThreshold
 #              upperThreshold
-#              minimalRadius: Minimal erosion radius in voxels, default=3
+#              minimumRadius: Minimum erosion radius in voxels, default=3
 #              dilateErodeDistance: Morphological kernel radius in voxels, default=5
 #
 #-----------------------------------------------------
@@ -37,11 +37,7 @@ class VoidVolumeLogic:
     def __init__(self, img=None, mask=None, lower=3000, upper=10000, seeds=None,
                  minimalRadius=3, dilateErodeDistance=4):
         self.model_img = img                  # greyscale scan
-        self.contour_img = None               # mask, periosteal boundary
-        if ((self.model_img is not None) and (mask is not None)):
-            self.setContourImage(mask)
-        self.ero1_img = None                  # erosions with less trabecular leakage
-        self.ero2_img = None                  # erosions with more trabecular leakage
+        self.contour_img = mask               # mask, periosteal boundary
         self.output_img = None
         self.lower_threshold = lower
         self.upper_threshold = upper
@@ -54,49 +50,45 @@ class VoidVolumeLogic:
         self.stepNum = 8           # number of steps in the algorithm
         self._step = 0             # number of steps done
     
-    def smoothen(self, img, lower, upper):
+    def smoothen(self, img, sigma):
         """
-        Binarize the bone with global thresholds and denoise with a Gaussian filter.
+        Denoise the bone model with a Gaussian filter.
 
         Args:
             img (Image)
-            lower (int)
-            upper (int)
+            sigma (float)
 
         Returns:
             Image
         """
-        max_intensity = 250
-        sigma_over_spacing = img.GetSpacing()[0]
-        thresh_img = sitk.BinaryThreshold(img, 
-                                          lowerThreshold=lower, 
-                                          upperThreshold=upper, 
-                                          insideValue=max_intensity)
+        sigma_over_spacing = sigma * img.GetSpacing()[0]
 
         # gaussian smoothing filter
         print("Applying Gaussian filter")
         gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
         gaussian_filter.SetSigma(sigma_over_spacing)
-        gaussian_img = gaussian_filter.Execute(thresh_img)
+        gaussian_img = gaussian_filter.Execute(img)
 
-        thresh_img = sitk.BinaryThreshold(gaussian_img, 
-                                          lowerThreshold=max_intensity/2,
-                                          upperThreshold=max_intensity+1,
-                                          insideValue=1)
+        return gaussian_img
 
-        return thresh_img
-
-    def createROI(self, thresh_img):
+    def createROI(self, gaussian_img, lower, upper):
         """
-        Label voids in the bone and background as ROI.
+        Threshold. Label void volume in the bone and background as ROI.
 
         Args:
-            thresh_img (Image)
+            gaussian_img (Image)
+            lower (int)
+            upper (int)
 
         Returns:
             Image: All voids inside ROI are marked with the value 1, 
                    and all other regions are marked with 0.  
         """
+        # binarize the bone
+        thresh_img = sitk.BinaryThreshold(gaussian_img, 
+                                          lowerThreshold=lower,
+                                          upperThreshold=upper,
+                                          insideValue=1)
 
         # invert to select background and voids in the bone
         invert_filter = sitk.InvertIntensityImageFilter()
@@ -109,7 +101,7 @@ class VoidVolumeLogic:
 
     def distanceVoidVolume(self, void_volume_img, radius):
         """
-        Label voids in the bone that are larger than the specified value in diameter. 
+        Label voids in the bone that are larger than the specified value in separation. 
 
         Args:
             void_volume_img (Image)
@@ -172,7 +164,7 @@ class VoidVolumeLogic:
         """
         seeds_img = sitk.Image(self.contour_img.GetSize(), sitk.sitkUInt8)
         seeds_img.CopyInformation(self.contour_img)
-        for seed in self.seeds:
+        for seed in self._seeds_crop:
             seeds_img[seed] = 1
 
         # apply distance transformation to the seed points
@@ -182,11 +174,10 @@ class VoidVolumeLogic:
         distance_filter.SetBackgroundValue(0)
         distance_img = distance_filter.Execute(seeds_img)
 
-        # inflate seed points by 5 voxels
-        radius = 5
+        # inflate seed points
         seeds_img = sitk.BinaryThreshold(distance_img, 
                                          lowerThreshold=0, 
-                                         upperThreshold=radius, 
+                                         upperThreshold=self.dilateErodeDistance, 
                                          insideValue=1)
 
         # combine inflated seed points and voids in the bone
@@ -196,7 +187,7 @@ class VoidVolumeLogic:
         connected_filter = sitk.ConnectedThresholdImageFilter()
         connected_filter.SetLower(1)
         connected_filter.SetUpper(1)
-        connected_filter.SetSeedList(self.seeds)
+        connected_filter.SetSeedList(self._seeds_crop)
         connected_filter.SetReplaceValue(1)
         connected_img = connected_filter.Execute(void_seeds_img)
         
@@ -228,33 +219,48 @@ class VoidVolumeLogic:
 
         return void_volume_img
 
-    def combineVoidVolume(self, ero1_img, ero2_img, radius):
+    def growVoidVolume(self, ero1_img, iterations):
         """
-        Combine two erosion label images by dilating the first label image
-        and masking it with the second label image.
+        Apply level set region growing filter to the erosion segmentation.
 
         Args:
             ero1_img (Image)
-            ero2_img (Image): should occupy the same physical space as ero1_img
-            radius (Int): dilate steps, in voxels
+            iterations (int): number of level set iterations, which determines
+                              how much the region will expand
 
         Returns:
             Image
         """
-        dilate_filter = sitk.BinaryDilateImageFilter()
-        dilate_filter.SetForegroundValue(1)
-        dilate_filter.SetKernelRadius([radius,radius,radius])
-        dilate_img = dilate_filter.Execute(ero1_img)
+        # distance map for level set filter
+        print("Applying distance map filter")
+        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+        distance_filter.SetInsideIsPositive(True)
+        distance_filter.SetUseImageSpacing(False)
+        distance_filter.SetBackgroundValue(0)
+        distance_img = distance_filter.Execute(ero1_img)
+        
+        # level set requires spacing of [1,1,1] and float voxel type
+        distance_img.SetSpacing([1,1,1])
+        feature_img = sitk.Cast(self.model_img, sitk.sitkFloat32)
+        feature_img.SetSpacing([1,1,1])
 
-        # mask ero2 onto ero1
-        output_img = dilate_img * ero2_img
+        # level set region growing
+        print("Applying level set filter")
+        ls_filter = sitk.ThresholdSegmentationLevelSetImageFilter()
+        ls_filter.SetUpperThreshold(self.lower_threshold)
+        ls_filter.SetMaximumRMSError(0.02)
+        ls_filter.SetNumberOfIterations(iterations)
+        ls_filter.SetCurvatureScaling(1)
+        ls_filter.SetPropagationScaling(1)
+        ls_filter.SetReverseExpansionDirection(True)
+        ls_img = ls_filter.Execute(distance_img, feature_img)
 
-        connected_filter = sitk.ConnectedThresholdImageFilter()
-        connected_filter.SetReplaceValue(1)
-        connected_filter.SetUpper(1)
-        connected_filter.SetLower(1)
-        connected_filter.SetSeedList(self.seeds)
-        output_img = connected_filter.Execute(output_img)
+        # restore spacing
+        ls_img.SetSpacing(ero1_img.GetSpacing())
+
+        # mask the level set output with periosteal mask
+        output_img = sitk.BinaryThreshold(ls_img, lowerThreshold=1, insideValue=1)
+        output_img = (output_img * self.contour_img) | ero1_img
 
         return output_img
 
@@ -268,22 +274,20 @@ class VoidVolumeLogic:
         Returns:
             Image
         """
-        relabeled_img = void_volume_img
+        # connected component filter to relabel erosions
+        connected_filter = sitk.ConnectedComponentImageFilter()
+        connected_filter.SetFullyConnected(True)
+        relabeled_img = connected_filter.Execute(void_volume_img)
 
-        # connected threshold filter to relabel erosions based on erosion ids
-        connected_filter = sitk.ConnectedThresholdImageFilter()
-        connected_filter.SetUpper(1)
-        connected_filter.SetLower(1)
-        connected_filter.SetReplaceValue(1)
-        seeds_num = len(self.seeds)
-        for i in range(seeds_num):
-            connected_filter.SetSeedList([self.seeds[i]])
-            connected_img = connected_filter.Execute(void_volume_img)
-            relabeled_img = sitk.Mask(relabeled_img, connected_img, 
-                                      outsideValue=self.erosionIds[i], maskingValue=1)
-
-        # update erosion ids to indicate which erosion each seed point is in
-        self.erosionIds = [relabeled_img[seed] for seed in self.seeds]
+        relabel_map = {}
+        for seed, erosionId in zip(self._seeds_crop, self.erosionIds):
+            key = relabeled_img[seed]
+            if key > 0:
+                relabel_map[key] = erosionId
+        
+        relabel_filter = sitk.ChangeLabelImageFilter()
+        relabel_filter.SetChangeMap(relabel_map)
+        relabeled_img = relabel_filter.Execute(relabeled_img)
 
         return relabeled_img
 
@@ -297,12 +301,13 @@ class VoidVolumeLogic:
         self._step += 1
         try:
             if self._step == 1:
-                self._cleanup()
-                self.model_img = self.smoothen(self.model_img, self.lower_threshold, self.upper_threshold)
+                self._initializeParams()
+                sigma = 1
+                self.model_img = self.smoothen(self.model_img, sigma)
             elif self._step == 2:
-                self.ero2_img = self.createROI(self.model_img)
+                self.ero1_img = self.createROI(self.model_img, self.lower_threshold, self.upper_threshold)
             elif self._step == 3:
-                self.ero1_img = self.distanceVoidVolume(self.ero2_img, self.minimalRadius)
+                self.ero1_img = self.distanceVoidVolume(self.ero1_img, self.minimalRadius)
             elif self._step == 4:
                 self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.dilateErodeDistance)
             elif self._step == 5:
@@ -310,8 +315,8 @@ class VoidVolumeLogic:
             elif self._step == 6:
                 self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.dilateErodeDistance)
             elif self._step == 7:
-                radius = 3 if self.dilateErodeDistance > 5 else 5
-                self.output_img = self.combineVoidVolume(self.ero1_img, self.ero2_img, radius)
+                steps = 100
+                self.output_img = self.growVoidVolume(self.ero1_img, steps)
             elif self._step == 8:
                 self.output_img = self.labelVoidVolume(self.output_img)
             else: # the end of the algorithm
@@ -336,28 +341,58 @@ class VoidVolumeLogic:
             contour_img (Image)
         """
         # threshhold to binarize mask
-        thresh_img = sitk.BinaryThreshold(contour_img,
-                                          lowerThreshold=1,
-                                          insideValue=1)
-        
-        # paste mask to a blank image that matches the physical property of the scan
-        #  this step is to make sure mask lies in the same physical space as the scan
-        img_width = self.model_img.GetWidth()
-        img_height = self.model_img.GetHeight()
-        img_depth = self.model_img.GetDepth()
-        img_spacing = self.model_img.GetSpacing()[0]
-        self.contour_img = sitk.Image(img_width, img_height, img_depth, sitk.sitkUInt8)
-        self.contour_img.CopyInformation(self.model_img)
-        source_origin = thresh_img.GetOrigin()
-        destination_origin = self.contour_img.GetOrigin()
-        destination_index = (int((source_origin[0]-destination_origin[0])/img_spacing),
-                             int((source_origin[1]-destination_origin[1])/img_spacing),
-                             int((source_origin[2]-destination_origin[2])/img_spacing))
-        source_size = thresh_img.GetSize()
+        thresh_img = sitk.BinaryThreshold(contour_img, lowerThreshold=1, insideValue=1)
+
+        # bounding box cut
+        lss_filter = sitk.LabelShapeStatisticsImageFilter()
+        lss_filter.Execute(thresh_img)
+        bounds = lss_filter.GetBoundingBox(1)
+        xmin_crop, ymin_crop, zmin_crop, width, height, depth = bounds
+        xmin_crop = round(xmin_crop) 
+        ymin_crop = round(ymin_crop) 
+        zmin_crop = round(zmin_crop) 
+        xmax_crop = contour_img.GetWidth() - xmin_crop - width 
+        ymax_crop = contour_img.GetHeight() - ymin_crop - height 
+        zmax_crop = contour_img.GetDepth() - zmin_crop - depth 
+        self.contour_img = sitk.Crop(thresh_img, 
+                                     [xmin_crop, ymin_crop, zmin_crop],
+                                     [xmax_crop, ymax_crop, zmax_crop])
+
+    def _initializeParams(self):
+        """
+        Crop the bone model so that it occupies the same physcial space as the mask.
+        Update the seed point coordinates based on the cropped bone model, 
+        and remove seed points that are outside the periosteal mask.
+        """
+        width = self.contour_img.GetWidth()
+        height = self.contour_img.GetHeight()
+        depth = self.contour_img.GetDepth()
+        spacing = self.model_img.GetSpacing()[0]
+        contour_origin = self.contour_img.GetOrigin()
+        model_origin = self.model_img.GetOrigin()
+        model_size = self.model_img.GetSize()
+
+        # crop bone model
+        model_img = sitk.Image(width, height, depth, self.model_img.GetPixelID())
+        model_img.CopyInformation(self.contour_img)
+        destination_x = round((model_origin[0] - contour_origin[0]) / spacing)
+        destination_y = round((model_origin[1] - contour_origin[1]) / spacing)
+        destination_z = round((model_origin[2] - contour_origin[2]) / spacing)
+        destination_index = (destination_x, destination_y, destination_z)
         paste_filter = sitk.PasteImageFilter()
         paste_filter.SetDestinationIndex(destination_index)
-        paste_filter.SetSourceSize(source_size)
-        self.contour_img = paste_filter.Execute(self.contour_img, thresh_img)
+        paste_filter.SetSourceSize(model_size)
+        self.model_img = paste_filter.Execute(model_img, self.model_img)
+        
+        # update seed points
+        self._seeds_crop = [(seed[0]+destination_x, seed[1]+destination_y, seed[2]+destination_z)
+                            for seed in self.seeds]
+        for i, seed in reversed(list(enumerate(self._seeds_crop))):
+            is_in_range = ((0 <= seed[0] < width) and 
+                           (0 <= seed[1] < height) and 
+                           (0 <= seed[2] < depth))
+            if not is_in_range:
+                self._removeNthSeed(i)
 
     def setThresholds(self, lower_threshold, upper_threshold):
         """
@@ -396,6 +431,17 @@ class VoidVolumeLogic:
         if len(erosion_ids) == len(self.seeds):
             self.erosionIds = erosion_ids
 
+    def _removeNthSeed(self, n):
+        """
+        Remove the nth seed from the seeds list.
+
+        Args:
+            n (int)
+        """
+        self._seeds_crop.pop(n)
+        self.seeds.pop(n)
+        self.erosionIds.pop(n)
+
     def _cleanup(self):
         """
         Reset internal parameters.
@@ -418,8 +464,8 @@ if __name__ == "__main__":
     parser.add_argument('seeds', help='The seed points csv file path')
     parser.add_argument('lowerThreshold', type=int)
     parser.add_argument('upperThreshold', type=int)
-    parser.add_argument('minimalRadius', type=int, nargs='?', default=3, 
-                        help='Minimal erosion radius in voxels, default=3')
+    parser.add_argument('minimumRadius', type=int, nargs='?', default=3, 
+                        help='Minimum erosion radius in voxels, default=3')
     parser.add_argument('dilateErodeDistance', type=int, nargs='?', default=4,
                         help='Morphological kernel radius in voxels, default=4')
     args = parser.parse_args()
@@ -430,7 +476,7 @@ if __name__ == "__main__":
     seeds_dir = args.seeds
     lower = args.lowerThreshold
     upper = args.upperThreshold
-    minimalRadius = args.minimalRadius
+    minimumRadius = args.minimumRadius
     dilateErodeDistance = args.dilateErodeDistance
 
     # read images
