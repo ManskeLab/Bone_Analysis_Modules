@@ -30,7 +30,7 @@ class ErosionDetection(ScriptedLoadableModule):
     self.parent.dependencies = []
     self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-Updated on July 6, 2021. 
+Updated on July 12, 2021. 
 This module contains steps 4-6 of erosion analysis. It requires a greyscale scan and a mask.
 Erosions are identified by placing seed points in each of them. 
 Step 4 is to detect erosions. 
@@ -39,7 +39,7 @@ Step 6 is to compute erosion statistics, including volume, surface area, and rou
 """
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = """
-Updated on July 6, 2021.
+Updated on July 12, 2021.
 """ # replace with organization, grant and thanks.
 
 #
@@ -508,6 +508,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
       self.outputErosionSelector.baseName = erosion_baseName
       self.segmentCopier.currSegmentationSelector.baseName = erosion_baseName
       self.segmentCopier.otherSegmentationSelector.baseName = erosion_baseName
+      self.segmentationSelector.baseName = erosion_baseName
       self.fiducialSelector.baseName = seed_baseName
       # update the viewer window
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
@@ -548,6 +549,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
       self.outputTableSelector.baseName = (inputErosionNode.GetName()+"_TABLE")
     else:
       self.outputTableSelector.baseName = "_TABLE"
+    self._logic.exitStatistics() # disconnect erosion table selection signal
 
   def onGetErosionsButton(self):
     """Run this whenever the get erosions button in step 4 is clicked"""

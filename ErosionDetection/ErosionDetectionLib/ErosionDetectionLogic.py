@@ -326,7 +326,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     dilateErodeDistance = self.voidVolume.dilateErodeDistance
     seeds = self.voidVolume.seeds
     # erosionIds is a list that indicates which erosion each seed is in
-    erosionIdsEnum = tuple(enumerate(self.voidVolume.erosionIds))
+    erosionIds = self.voidVolume.erosionIds
     segmentation = outputErosionNode.GetSegmentation()
     segmentNum = segmentation.GetNumberOfSegments()
     erosionSource = outputErosionNode.GetName()
@@ -339,7 +339,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
         segment.SetName(erosionSource+'| Erosion_'+erosionIndexStr)
         erosionIndex = int(erosionIndexStr) # erosion index matches seed point name
         separator = '; '
-        seedStr = separator.join([str(seeds[i]) for i, erosionId in erosionIdsEnum
+        seedStr = separator.join([str(seeds[i]) for i, erosionId in enumerate(erosionIds)
                                   if erosionId == erosionIndex]) # string of seed points separated by '; '
         segment.SetTag("Seed", seedStr)
       except ValueError:
@@ -372,3 +372,11 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     # display statistics table and connect signals,
     #  erosions are centred in the viewer windows upon selection
     self.erosionStatistics.displayErosionStatistics()
+    self.erosionStatistics.connectErosionSelection()
+
+  def exitStatistics(self):
+    """
+    Disconnect erosion table selection signal. 
+    Erosions will not be centred in the viewer windows upon selection.
+    """
+    self.erosionStatistics.disconnectErosionSelection()

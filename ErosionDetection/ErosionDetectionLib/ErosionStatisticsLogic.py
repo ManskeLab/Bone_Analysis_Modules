@@ -55,8 +55,6 @@ class ErosionStatisticsLogic:
 
     # display table
     segStatsLogic.showTable(self.outputTableNode)
-    # connect signals, centre erosions in viewer windows upon selection
-    self.connectErosionSelection()
   
   def RASToIJKCoords(self, ras_3coords):
     ras_4coords = ras_3coords + [1]
@@ -88,11 +86,11 @@ class ErosionStatisticsLogic:
     seeds.SetName("Seeds")
     seeds_col = self.outputTableNode.GetColumnIndex("Seeds")
     minimalRadius = self.outputTableNode.AddColumn()
-    minimalRadius.SetName("Minimal Radius [Voxels]")
-    minimalRadius_col = self.outputTableNode.GetColumnIndex("Minimal Radius [Voxels]")
+    minimalRadius.SetName("Minimum Radius [Voxels]")
+    minimalRadius_col = self.outputTableNode.GetColumnIndex("Minimum Radius [Voxels]")
     dilateErodeRadius = self.outputTableNode.AddColumn()
-    dilateErodeRadius.SetName("Dilate Erode Radius [Voxels]")
-    dilateErodeRadius_col = self.outputTableNode.GetColumnIndex("Dilate Erode Radius [Voxels]")
+    dilateErodeRadius.SetName("Dilate Erode Distance [Voxels]")
+    dilateErodeRadius_col = self.outputTableNode.GetColumnIndex("Dilate Erode Distance [Voxels]")
 
     # convert erosion data in table according to image spacing
     for row in range(0, row_num):
