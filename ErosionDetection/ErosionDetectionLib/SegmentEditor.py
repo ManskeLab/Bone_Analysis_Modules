@@ -37,8 +37,9 @@ class SegmentEditor:
     import qSlicerSegmentationsModuleWidgetsPythonQt
     self.editor = qSlicerSegmentationsModuleWidgetsPythonQt.qMRMLSegmentEditorWidget()
     self.editor.setMaximumNumberOfUndoStates(10)
-    self.editor.setEffectNameOrder(('Paint', 'Draw', 'Erase', 'Threshold', 'Margin', 'Islands', 
-                                    'Grow from seeds', 'Fill between slices'))
+    self.editor.setEffectNameOrder(('Paint', 'Draw', 'Erase', 'Level tracing', 'Threshold', 'Margin', 
+                                    'Grow from seeds', 'Fill between slices', 'Smoothing', 'Islands',
+                                    'Logical operators'))
     self.editor.unorderedEffectsVisible = False
     self.editor.switchToSegmentationsButtonVisible = False
     self.editor.segmentationNodeSelectorVisible = True
