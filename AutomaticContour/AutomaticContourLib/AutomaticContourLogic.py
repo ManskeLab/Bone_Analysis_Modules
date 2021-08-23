@@ -33,6 +33,19 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     self.contour = ContourLogic()
     self._segmentNodeId = ""
   
+  def setDefaultDirectory(self, inputVolumeNode):
+    """
+    Set the default directory to be the same as where the inputVolumeNode is stored.
+    Files created after this method is called will be saved in that directory.
+
+    Args:
+      inputVolumeNode (vtkMRMLScalarVolumeNode)
+    """
+    storageNode = inputVolumeNode.GetStorageNode()
+    if storageNode:
+      dir = os.path.dirname(storageNode.GetFullNameFromFileName())
+      slicer.mrmlScene.SetRootDirectory(dir)
+      
   def enterSegmentEditor(self, segmentEditor):
     """
     Run this whenever the module is reopened. 
@@ -153,8 +166,8 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       return True
     return False
 
-  def setParameters(self, inputVolumeNode, outputVolumeNode, lower, upper, boneNum, 
-                    dilateErodeRadius, separateMapNode):
+  def setParameters(self, inputVolumeNode, outputVolumeNode, lower, upper, sigma,
+                    boneNum, dilateErodeRadius, separateMapNode):
     """
     Set parameters to be used by the automatic contour algorithm.
 
@@ -163,6 +176,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       outputVolumeNode (vtkMRMLLabelMapVolumeNode)
       lower (int)
       upper (int)
+      sigma (double)
       boneNum (int)
       dilateErodeRadius (int)
       separateMapNode (vtkMRMLLabelMapVolumeNode)
@@ -178,17 +192,20 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
       return False
 
+    # images
     model_img = sitkUtils.PullVolumeFromSlicer(inputVolumeNode.GetName())
-    self.contour.setImage(model_img)
-
-    self.contour.setThreshold(lower, upper)
-    self.contour.setBoneNum(boneNum)
-    self.contour.setDilateErodeRadius(dilateErodeRadius)
+    self.contour.setModel(model_img)
     if (separateMapNode is None):
       self.contour.setRoughMask(None)
     else:
       separate_map = sitkUtils.PullVolumeFromSlicer(separateMapNode.GetName())
       self.contour.setRoughMask(sitk.Cast(separate_map, sitk.sitkUInt8))
+
+    # numeric parameters
+    self.contour.setThreshold(lower, upper)
+    self.contour.setSigma(sigma)
+    self.contour.setBoneNum(boneNum)
+    self.contour.setDilateErodeRadius(dilateErodeRadius)
 
     return True
 
@@ -204,16 +221,18 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       bool: True for success, False otherwise.
     """
     # initialize progress value
+    increment = 100 // self.contour.getStepNum() # progress bar increment value
     progress = 0
     self.progressCallBack(progress)
     logging.info('Processing started')
 
     # run the automatic contour algorithm
     try:
-      while (self.contour.execute()): # execute the next step
-        increment = 100 // self.contour.getStepNum() # progress bar increment value
+      step = 1
+      while (self.contour.execute(step)): # execute the next step
         progress += increment
         self.progressCallBack(progress) # update progress bar
+        step += 1
     except Exception as e: 
       slicer.util.errorDisplay('Error')
       print(e)

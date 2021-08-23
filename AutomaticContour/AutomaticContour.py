@@ -29,17 +29,18 @@ class AutomaticContour(ScriptedLoadableModule):
     self.parent.dependencies = []
     self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
+Updated on August 22, 2021.
 This module contains steps 1-3 of erosion analysis. 
-Step 1 is to manually separate the bones. 
-Step 2 is to perform automatic contouring on the input image and generate a 
+Step 1 is to manually separate the bones by covering each bone with a different label. 
+Step 2 is to perform automatic contouring on the greyscale image and generate a 
 label map volume of the contour. 
-Step 3 is to manually correct the contour using the segmentation editor. 
+Step 3 is to manually correct the contour. 
 If a contour already exists and needs to be corrected, load it to slicer as a label map volume,
-and jump to step 3. 
+and jump to Step 3. 
 """
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = """
-Acknowledgement Text
+Updated on August 22, 2021.
 """ # replace with organization, grant and thanks.
 
 #
@@ -204,6 +205,14 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.upperThresholdText.setSingleStep(10)
     self.upperThresholdText.value = 10000
     automaticContourLayout.addRow("Upper Threshold: ", self.upperThresholdText)
+
+    # gaussian sigma spin box
+    self.sigmaText = qt.QDoubleSpinBox()
+    self.sigmaText.setMinimum(0.0001)
+    self.sigmaText.setDecimals(4)
+    self.sigmaText.value = 2
+    self.sigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
+    automaticContourLayout.addRow("Gaussian Sigma: ", self.sigmaText)
 
     # bone number spin box
     self.boneNumSpinBox = qt.QSpinBox()
@@ -432,6 +441,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     if inputVolumeNode:
       # update the default output base name
       self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_MASK")
+      # Update the default save directory
+      self._logic.setDefaultDirectory(inputVolumeNode)
       # update viewer windows
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
@@ -451,6 +462,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
                                      outputVolumeNode,
                                      self.lowerThresholdText.value,
                                      self.upperThresholdText.value,
+                                     self.sigmaText.value,
                                      self.boneNumSpinBox.value,
                                      self.dilateErodeRadiusText.value,
                                      separateMapNode)
