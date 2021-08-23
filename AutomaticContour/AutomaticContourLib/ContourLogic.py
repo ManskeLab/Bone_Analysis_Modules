@@ -377,7 +377,7 @@ class ContourLogic:
                 self.img = self.extract(self.label_img, self.label_img, foreground=self.boneNum)
             else:
                 self.img = self.extract(self.model_img, self.label_img, foreground=self.boneNum)
-                self.img = self.denoise(self.img, self.sigma, self.lower_threshold, self.upper_threshold,
+                self.img = self.smoothen(self.img, self.sigma, self.lower_threshold, self.upper_threshold,
                                         foreground=self.boneNum)
         elif actual_step == 4: # step 4
             self.img = self.inflate(self.img, radius=self.dilateErodeRadius, foreground=self.boneNum)

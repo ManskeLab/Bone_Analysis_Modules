@@ -4,21 +4,23 @@
 # Created by:  Mingjie Zhao
 # Created on:  16-10-2020
 #
-# Description: This module identifies cortical interruptions and 
-#              erosions on the input image. 
-#              First, the input image is binarized with a global threshold. 
-#              Next, a distance transformation and morphological opening operations
-#              (i.e. erode, connectivity, dilate) are applied 
-#              to select the large void volumes. 
-#              Then, the above steps are repeated with more 'aggressive' parameters. 
-#              Lastly, the two void volumes obtained are combined to yield the final output. 
+# Description: This module segments erosions given a greyscale image, the mask 
+#              and the seed points. 
+#              First, the greyscale image is binarized with a global threshold and 
+#              a Gaussian filter. Next, distance transformation and morphological 
+#              opening operations (i.e. erode, connectivity, dilate) are applied 
+#              to select the void volumes connected. 
+#              Then, a level set region growing filter is applied to the void volumes
+#              to obtain the final erosion segmentation. 
+#              Lastly, each erosion is relabeled with the value that matches 
+#              the seed point name. 
 #              There are 8 steps.
 #
 #-----------------------------------------------------
 # Usage:       This module is plugged into 3D Slicer, but can run on its own. 
 #              When running on its own, call:
 #              python VoidVolume.py inputImage inputMask outputImage seeds
-#                                   lowerThreshold upperThreshold
+#                                   lowerThreshold upperThreshold sigma
 #                                   [minimumRadius] [dilateErodeDistance]
 #
 # Param:       inputImage: The input scan file path
@@ -27,6 +29,7 @@
 #              seeds: The seed points csv file path
 #              lowerThreshold
 #              upperThreshold
+#              sigma: Standard deviation for the Gaussian smoothing filter
 #              minimumRadius: Minimum erosion radius in voxels, default=3
 #              dilateErodeDistance: Morphological kernel radius in voxels, default=5
 #
@@ -34,13 +37,14 @@
 import SimpleITK as sitk
 
 class VoidVolumeLogic:
-    def __init__(self, img=None, mask=None, lower=3000, upper=10000, seeds=None,
-                 minimalRadius=3, dilateErodeDistance=4):
+    def __init__(self, img=None, mask=None, lower=3000, upper=10000, sigma=1,
+                 seeds=None, minimalRadius=3, dilateErodeDistance=4):
         self.model_img = img                  # greyscale scan
         self.contour_img = mask               # mask, periosteal boundary
         self.output_img = None
         self.lower_threshold = lower
         self.upper_threshold = upper
+        self.sigma = sigma                    # Gaussian sigma
         self.minimalRadius = minimalRadius               # for distance transformation, default=3
         self.dilateErodeDistance = dilateErodeDistance   # for morphological operations, default=4
         self.seeds = seeds         # list of seed point coordinates (x,y,z)
@@ -50,7 +54,7 @@ class VoidVolumeLogic:
         self.stepNum = 8           # number of steps in the algorithm
         self._step = 0             # number of steps done
     
-    def smoothen(self, img, sigma):
+    def denoise(self, img, sigma):
         """
         Denoise the bone model with a Gaussian filter.
 
@@ -247,6 +251,7 @@ class VoidVolumeLogic:
         # level set region growing
         print("Applying level set filter")
         ls_filter = sitk.ThresholdSegmentationLevelSetImageFilter()
+        ls_filter.SetLowerThreshold(-999999)
         ls_filter.SetUpperThreshold(self.lower_threshold)
         ls_filter.SetMaximumRMSError(0.02)
         ls_filter.SetNumberOfIterations(iterations)
@@ -291,42 +296,36 @@ class VoidVolumeLogic:
 
         return relabeled_img
 
-    def execute(self):
+    def execute(self, step):
         """
-        Execute the next step in the algorithm.
+        Executes the specified step in the algorithm, 
+        returns false if reached the end of the algorithm, 
+        returns true otherwise.
 
-        Returns:
-            bool: False if reached the end of the algorithm, True otherwise. 
+        Args:
+            step(int): 1 <= step <= self.stepNum
         """
-        self._step += 1
-        try:
-            if self._step == 1:
-                self._initializeParams()
-                sigma = 1
-                self.model_img = self.smoothen(self.model_img, sigma)
-            elif self._step == 2:
-                self.ero1_img = self.createROI(self.model_img, self.lower_threshold, self.upper_threshold)
-            elif self._step == 3:
-                self.ero1_img = self.distanceVoidVolume(self.ero1_img, self.minimalRadius)
-            elif self._step == 4:
-                self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.dilateErodeDistance)
-            elif self._step == 5:
-                self.ero1_img = self.connectVoidVolume(self.ero1_img)
-            elif self._step == 6:
-                self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.dilateErodeDistance)
-            elif self._step == 7:
-                steps = 100
-                self.output_img = self.growVoidVolume(self.ero1_img, steps)
-            elif self._step == 8:
-                self.output_img = self.labelVoidVolume(self.output_img)
-            else: # the end of the algorithm
-                self._step = 0
-                return False
-
-            return True
-        except:
-            self._step = 0
-            raise   
+        if step == 1:
+            self._initializeParams()
+            self.model_img = self.denoise(self.model_img, self.sigma)
+        elif step == 2:
+            self.ero1_img = self.createROI(self.model_img, self.lower_threshold, self.upper_threshold)
+        elif step == 3:
+            self.ero1_img = self.distanceVoidVolume(self.ero1_img, self.minimalRadius)
+        elif step == 4:
+            self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.dilateErodeDistance)
+        elif step == 5:
+            self.ero1_img = self.connectVoidVolume(self.ero1_img)
+        elif step == 6:
+            self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.dilateErodeDistance)
+        elif step == 7:
+            iterations = 100
+            self.output_img = self.growVoidVolume(self.ero1_img, iterations)
+        elif step == 8:
+            self.output_img = self.labelVoidVolume(self.output_img)
+        else: # the end of the algorithm
+            return False
+        return True
 
     def setModelImage(self, img):
         """
@@ -338,22 +337,22 @@ class VoidVolumeLogic:
     def setContourImage(self, contour_img):
         """
         Args:
-            contour_img (Image)
+            contour_img (Image): Bounding box cut will be applied to it.
         """
         # threshhold to binarize mask
         thresh_img = sitk.BinaryThreshold(contour_img, lowerThreshold=1, insideValue=1)
 
         # bounding box cut
-        lss_filter = sitk.LabelShapeStatisticsImageFilter()
-        lss_filter.Execute(thresh_img)
+        lss_filter = sitk.LabelStatisticsImageFilter()
+        lss_filter.Execute(thresh_img, thresh_img)
         bounds = lss_filter.GetBoundingBox(1)
-        xmin_crop, ymin_crop, zmin_crop, width, height, depth = bounds
+        xmin_crop, xmax, ymin_crop, ymax, zmin_crop, zmax = bounds
         xmin_crop = round(xmin_crop) 
         ymin_crop = round(ymin_crop) 
         zmin_crop = round(zmin_crop) 
-        xmax_crop = contour_img.GetWidth() - xmin_crop - width 
-        ymax_crop = contour_img.GetHeight() - ymin_crop - height 
-        zmax_crop = contour_img.GetDepth() - zmin_crop - depth 
+        xmax_crop = contour_img.GetWidth() - xmax 
+        ymax_crop = contour_img.GetHeight() - ymax
+        zmax_crop = contour_img.GetDepth() - zmax
         self.contour_img = sitk.Crop(thresh_img, 
                                      [xmin_crop, ymin_crop, zmin_crop],
                                      [xmax_crop, ymax_crop, zmax_crop])
@@ -371,6 +370,7 @@ class VoidVolumeLogic:
         contour_origin = self.contour_img.GetOrigin()
         model_origin = self.model_img.GetOrigin()
         model_size = self.model_img.GetSize()
+        direction = self.model_img.GetDirection()
 
         # crop bone model
         model_img = sitk.Image(width, height, depth, self.model_img.GetPixelID())
@@ -378,7 +378,10 @@ class VoidVolumeLogic:
         destination_x = round((model_origin[0] - contour_origin[0]) / spacing)
         destination_y = round((model_origin[1] - contour_origin[1]) / spacing)
         destination_z = round((model_origin[2] - contour_origin[2]) / spacing)
-        destination_index = (destination_x, destination_y, destination_z)
+        r = sitk.VersorTransform()
+        r.SetMatrix(direction)
+        destination_index = r.TransformPoint((destination_x, destination_y, destination_z))
+        destination_index = (round(destination_index[0]), round(destination_index[1]), round(destination_index[2]))
         paste_filter = sitk.PasteImageFilter()
         paste_filter.SetDestinationIndex(destination_index)
         paste_filter.SetSourceSize(model_size)
@@ -402,6 +405,15 @@ class VoidVolumeLogic:
         """
         self.lower_threshold = lower_threshold
         self.upper_threshold = upper_threshold
+
+    def setSigma(self, sigma):
+        """
+        Args:
+            sigma (Double): Standard deviation in the Gaussian smoothing filter,
+                            not normalized by image spacing.
+        
+        """
+        self.sigma = sigma
 
     def setSeeds(self, seeds):
         """
@@ -464,6 +476,7 @@ if __name__ == "__main__":
     parser.add_argument('seeds', help='The seed points csv file path')
     parser.add_argument('lowerThreshold', type=int)
     parser.add_argument('upperThreshold', type=int)
+    parser.add_argument('sigma', type=float, help='Standard deviation for the Gaussian smoothing filter')
     parser.add_argument('minimumRadius', type=int, nargs='?', default=3, 
                         help='Minimum erosion radius in voxels, default=3')
     parser.add_argument('dilateErodeDistance', type=int, nargs='?', default=4,
@@ -476,6 +489,7 @@ if __name__ == "__main__":
     seeds_dir = args.seeds
     lower = args.lowerThreshold
     upper = args.upperThreshold
+    sigma = args.sigma
     minimumRadius = args.minimumRadius
     dilateErodeDistance = args.dilateErodeDistance
 
@@ -498,8 +512,8 @@ if __name__ == "__main__":
             lineCount += 1
 
     # create erosion logic object
-    erosion = VoidVolumeLogic(img, mask, lower, upper, seeds, 
-                              minimalRadius, dilateErodeDistance)
+    erosion = VoidVolumeLogic(img, mask, lower, upper, sigma, seeds,
+                              minimumRadius, dilateErodeDistance)
 
     # identify erosions
     print("Running erosion detection script")

@@ -23,6 +23,7 @@ add_subdirectory(LineIntensityProfile)
 add_subdirectory(AutomaticContour)
 add_subdirectory(ErosionDetection)
 
+add_subdirectory(CorticalBreak)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------
