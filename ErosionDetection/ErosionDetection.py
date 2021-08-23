@@ -4,7 +4,7 @@
 # Created by:  Mingjie Zhao
 # Created on:  23-10-2020
 #
-# Description: This module sets up the Erosion Detection 3D Slicer extension.
+# Description: This module sets up the interface for the Erosion Detection 3D Slicer extension.
 #
 #-----------------------------------------------------
 import vtk, qt, ctk, slicer
@@ -30,16 +30,16 @@ class ErosionDetection(ScriptedLoadableModule):
     self.parent.dependencies = []
     self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-Updated on July 12, 2021. 
+Updated on August 22, 2021. 
 This module contains steps 4-6 of erosion analysis. It requires a greyscale scan and a mask.
 Erosions are identified by placing seed points in each of them. 
-Step 4 is to detect erosions. 
-Step 5 is to manually correct erosions and combine them into a single output. 
-Step 6 is to compute erosion statistics, including volume, surface area, and roundness.
+Step 4 is to segment erosions given a seed point in each erosion. 
+Step 5 is to manually correct the erosion segmentations and combine them into a single segmentation. 
+Step 6 is to compute erosion statistics, such as volume, surface area, and roundness.
 """
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = """
-Updated on July 12, 2021.
+Updated on August 22, 2021.
 """ # replace with organization, grant and thanks.
 
 #
@@ -134,17 +134,25 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
 
     # threshold spin boxes
     self.lowerThresholdText = qt.QSpinBox()
-    self.lowerThresholdText.setMinimum(0)
+    self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
     self.lowerThresholdText.value = 3000
     erosionsLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
-    self.upperThresholdText.setMinimum(0)
+    self.upperThresholdText.setMinimum(-9999)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
     self.upperThresholdText.value = 10000
     erosionsLayout.addRow("Upper Threshold: ", self.upperThresholdText)
+
+    # gaussian sigma spin box
+    self.sigmaText = qt.QDoubleSpinBox()
+    self.sigmaText.setMinimum(0.0001)
+    self.sigmaText.setDecimals(4)
+    self.sigmaText.value = 1
+    self.sigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
+    erosionsLayout.addRow("Gaussian Sigma: ", self.sigmaText)
 
     # seed point selector
     self.fiducialSelector = slicer.qMRMLNodeComboBox()
@@ -207,14 +215,14 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     self.minimalRadiusText.value = 3
     advancedParameterLayout.addWidget(qt.QLabel("Minimum Erosion Radius: "), 3, 0)
     advancedParameterLayout.addWidget(self.minimalRadiusText, 3, 1)
-    self.dilationErosionRadiusText = qt.QSpinBox()
-    self.dilationErosionRadiusText.setMinimum(1)
-    self.dilationErosionRadiusText.setMaximum(99)
-    self.dilationErosionRadiusText.setSingleStep(1)
-    self.dilationErosionRadiusText.setSuffix(' voxels')
-    self.dilationErosionRadiusText.value = 4
+    self.dilateErodeDistanceText = qt.QSpinBox()
+    self.dilateErodeDistanceText.setMinimum(1)
+    self.dilateErodeDistanceText.setMaximum(99)
+    self.dilateErodeDistanceText.setSingleStep(1)
+    self.dilateErodeDistanceText.setSuffix(' voxels')
+    self.dilateErodeDistanceText.value = 4
     advancedParameterLayout.addWidget(qt.QLabel("Dilate/Erode Distance: "), 4, 0)
-    advancedParameterLayout.addWidget(self.dilationErosionRadiusText, 4, 1)
+    advancedParameterLayout.addWidget(self.dilateErodeDistanceText, 4, 1)
 
     # Execution layout
     executeGridLayout = qt.QGridLayout()
@@ -226,7 +234,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     self.progressBar.hide()
     executeGridLayout.addWidget(self.progressBar, 0, 0)
 
-    # Get Button
+    # Get Erosion Button
     self.getErosionsButton = qt.QPushButton("Get Erosions")
     self.getErosionsButton.toolTip = "Get erosions stored in a label map"
     self.getErosionsButton.enabled = False
@@ -239,15 +247,16 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
 
     # connections
     self.erosionsCollapsibleButton.connect("contentsCollapsed(bool)", self.onCollapsed4)
-    self.getErosionsButton.connect("clicked(bool)", self.onGetErosionsButton)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputVolume)
     self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputContour)
     self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
     self.outputErosionSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
+    self.outputErosionSelector.connect("nodeAddedByUser(vtkMRMLNode*)", lambda node: self.onAddOutputErosion(node))
     self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
     self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
     self.erosionCheckBox.connect("clicked(bool)", self.onLargeErosionChecked)
+    self.getErosionsButton.connect("clicked(bool)", self.onGetErosionsButton)
   
   def setupManualCorrection(self):
     """Set up widgets in step 5 manual correction"""
@@ -289,7 +298,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     # layout within the import segmentation collapsible button
     importSegmentationCollapsibleLayout = qt.QGridLayout(copySegmentationCollapsibleButton)
 
-    # segmentation importer
+    # segmentation copier
     self.segmentCopier = SegmentCopier(copySegmentationCollapsibleButton)
 
     # export label map collapsible button
@@ -510,7 +519,7 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
       self.segmentCopier.otherSegmentationSelector.baseName = erosion_baseName
       self.segmentationSelector.baseName = erosion_baseName
       self.fiducialSelector.baseName = seed_baseName
-      # update the viewer window
+      # update the viewer windows
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
     else:
@@ -526,7 +535,17 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     inputContourNode = self.inputContourSelector.currentNode()
     if inputContourNode:
       # update the default output erosion base name, which matches the mask name
-      self.outputErosionSelector.baseName = (inputContourNode.GetName()+"_ER")
+      erosion_baseName = inputContourNode.GetName()+"_ER"
+      self.outputErosionSelector.baseName = erosion_baseName
+
+  def onAddOutputErosion(self, node):
+    """Run this whenever a new erosion segmentation is created from the selector in step 4"""
+    # force the output erosion base name to have the post fix '_' plus an index
+    #  i.e. baseName_1, baseName_2, ...
+    baseName = node.GetName()
+    index_str = baseName.split('_')[-1]
+    if not index_str.isdigit(): # not postfixed with '_' plus an index
+      node.SetName(slicer.mrmlScene.GenerateUniqueName(baseName))
 
   def onSelectSeed(self):
     """Run this whenever the seed point selector in step 4 changes"""
@@ -536,10 +555,10 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
     """Run this whenever the check box for large erosions in step 4 changes"""
     if self.erosionCheckBox.checked:
       self.minimalRadiusText.value = 6
-      self.dilationErosionRadiusText.value = 6
+      self.dilateErodeDistanceText.value = 6
     else:
       self.minimalRadiusText.value = 3
-      self.dilationErosionRadiusText.value = 4
+      self.dilateErodeDistanceText.value = 4
 
   def onSelectInputErosion(self):
     """Run this whenever the input erosion selector in step 6 changes"""
@@ -564,9 +583,10 @@ class ErosionDetectionWidget(ScriptedLoadableModuleWidget):
                                             inputContourNode, 
                                             self.lowerThresholdText.value,
                                             self.upperThresholdText.value,
+                                            self.sigmaText.value,
                                             fiducialNode,
                                             self.minimalRadiusText.value,
-                                            self.dilationErosionRadiusText.value)
+                                            self.dilateErodeDistanceText.value)
     if ready:
       success = self._logic.getErosions(inputVolumeNode, inputContourNode, outputVolumeNode)
       if success:

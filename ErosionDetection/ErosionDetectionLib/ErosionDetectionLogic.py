@@ -66,7 +66,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       slicer.mrmlScene.SetRootDirectory(dir)
 
   def setErosionParameters(self, inputVolumeNode, inputContourNode,
-    lower, upper, fiducialNode, minimalRadius, dilateErodeDistance):
+    lower, upper, sigma, fiducialNode, minimalRadius, dilateErodeDistance):
     """
     Set parameters used by the erosion detection algorithm. 
 
@@ -75,6 +75,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
       inputContourNode (vtkMRMLLabelMapVolumeNode)
       lower (int)
       upper (int)
+      sigma (double): Gaussian sigma
       fiducialNode (vtkMRMLFiducialNode)
       minimalRadius (int) : used in the SimpleITK Distance Transformation filter.
       dilateErodeDistance (int) : used in the SimpleITK Dilate/Erode filters.
@@ -94,6 +95,7 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
 
     # segmentation parameters
     self.voidVolume.setThresholds(lower, upper)
+    self.voidVolume.setSigma(sigma)
     self.voidVolume.setRadii(minimalRadius, dilateErodeDistance)
 
     # images
@@ -149,9 +151,11 @@ class ErosionDetectionLogic(ScriptedLoadableModuleLogic):
     
     # run erosion detection algorithm
     try:
-      while (self.voidVolume.execute()): # execute the next step
+      step = 1
+      while (self.voidVolume.execute(step)): # execute the next step
         progress += increment
         self.progressCallBack(progress) # update progress bar
+        step += 1
     except Exception as e:
       slicer.util.errorDisplay('Error')
       print(e)
