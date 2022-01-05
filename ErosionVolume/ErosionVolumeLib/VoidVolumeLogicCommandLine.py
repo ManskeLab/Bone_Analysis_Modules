@@ -19,17 +19,17 @@
 #-----------------------------------------------------
 # Usage:       This module is plugged into 3D Slicer, but can run on its own. 
 #              When running on its own, call:
-#              python VoidVolume.py inputImage [inputMask] [outputImage] [seeds]
-#                                   [lowerThreshold] [upperThreshold] [sigma]
-#                                   [minimumRadius] [dilateErodeDistance]
+#              python VoidVolume.py inputImage [--inputMask] [--outputImage] [--seeds]
+#                                   [--lowerThreshold] [--upperThreshold] [--sigma]
+#                                   [--minimumRadius] [--dilateErodeDistance]
 #
 # Param:       inputImage: The input scan file path
-#              inputMask: The input mask file path
-#              outputImage: The output image file path
-#              seeds: The seed points csv file path
-#              lowerThreshold
-#              upperThreshold
-#              sigma: Standard deviation for the Gaussian smoothing filter
+#              inputMask: The input mask file path, default=[inputImage]_MASK
+#              outputImage: The output image file path, default=[inputImage]_ER
+#              seeds: The seed points csv file path, default=[inputImage]_SEEDS
+#              lowerThreshold, default=3000
+#              upperThreshold, default=10000
+#              sigma: Standard deviation for the Gaussian smoothing filter, default=1
 #              minimumRadius: Minimum erosion radius in voxels, default=3
 #              dilateErodeDistance: Morphological kernel radius in voxels, default=5
 #
