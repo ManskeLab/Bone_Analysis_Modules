@@ -22,8 +22,8 @@
 # Param:       inputImage: The input greyscale image to be contoured
 #              outputImage: The output image to store the contour, default=[filename]_MASK
 #              sigma, default=2
-#              lowerThreshold, default=3000
-#              upperThreshold, default=10000
+#              lowerThreshold, default=900
+#              upperThreshold, default=4000
 #              dilateErodeRadius: morphological dilate/erode kernel radius in voxels, default=38
 #              boneNum: Number of separate bone structures, default=1
 #              roughMask: The file path of optional rough mask that helps separate bones
@@ -34,7 +34,7 @@ import SimpleITK as sitk
 class ContourLogic:
     """This class provides methods for automatic contouring"""
 
-    def __init__(self, model_img=None, lower=3000, upper=10000, sigma=2, 
+    def __init__(self, model_img=None, lower=900, upper=4000, sigma=2, 
                  boneNum=1, dilateErodeRadius=38, roughMask=None):
         self.model_img = model_img         # bone model, will be reused
         self.output_img = None             # output image
@@ -477,8 +477,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('inputImage', help='The input image file path')
     parser.add_argument('-oi', '--outputImage', help='The output image file path, default=[inputImage]_MASK', default="_MASK.mha", metavar='')
-    parser.add_argument('-lt', '--lowerThreshold', help='default=3000', type=int, default=3000, metavar='')
-    parser.add_argument('-ut', '--upperThreshold', help='default=10000', type=int, default=10000, metavar='')
+    parser.add_argument('-lt', '--lowerThreshold', help='default=900', type=int, default=900, metavar='')
+    parser.add_argument('-ut', '--upperThreshold', help='default=4000', type=int, default=4000, metavar='')
     parser.add_argument('-sg', '--sigma', type=float, help='Standard deviation for the Gaussian smoothing filter, default=2', default=2, metavar='')
     parser.add_argument('-bn', '--boneNum', type=int, help='Number of separate bone structures, default=1', default=1, metavar='')
     parser.add_argument('-ded', '--dilateErodeRadius', type=int, default=38,

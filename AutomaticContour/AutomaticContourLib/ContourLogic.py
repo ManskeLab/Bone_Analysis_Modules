@@ -34,7 +34,7 @@ import SimpleITK as sitk
 class ContourLogic:
     """This class provides methods for automatic contouring"""
 
-    def __init__(self, model_img=None, lower=3000, upper=10000, sigma=2, 
+    def __init__(self, model_img=None, lower=900, upper=4000, sigma=2, 
                  boneNum=1, dilateErodeRadius=38, roughMask=None):
         self.model_img = model_img         # bone model, will be reused
         self.output_img = None             # output image

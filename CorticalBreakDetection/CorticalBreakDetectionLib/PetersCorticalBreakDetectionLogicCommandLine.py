@@ -21,8 +21,8 @@
 #              outputImage: The output image file path, default=[inputImage]_BREAKS
 #              outputSeeds: The output seeds csv file path, default=[inputImage]_SEEDS
 #              voxelSize: Isotropic voxel size in micrometres, default=82
-#              lowerThreshold: default=3000
-#              upperThreshold: default=10000
+#              lowerThreshold: default=686
+#              upperThreshold: default=15000
 #              sigma: Standard deviation for the Gaussian smoothing filter, default=0.8
 #              corticaThickness: Distance from the periosteal boundary
 #                                to the endosteal boundary, only erosions connected
@@ -37,7 +37,7 @@ import pdb
 import csv
 
 class PetersCorticalBreakDetectionLogic:
-    def __init__(self, img=None, contour_img=None, voxelSize=82, lower=3000, upper=10000,
+    def __init__(self, img=None, contour_img=None, voxelSize=82, lower=686, upper=15000,
                  sigma=0.8, corticaThickness=4, dilateErodeDistance=1):
         self.model_img = img                   # greyscale scan
         self.peri_contour = None               # periosteal boundary
@@ -616,8 +616,8 @@ if __name__ == "__main__":
     parser.add_argument('-oi', '--outputImage', help='The output image file path, default=[inputImage]_BREAKS', default="_BREAKS.nrrd", metavar='')
     parser.add_argument('-os', '--outputSeeds', help='The output seeds csv file path, default=[inputImage]_SEEDS', default="_SEEDS.csv", metavar='')
     parser.add_argument('-vs', '--voxelSize', type=float, help='Isotropic voxel size in micrometres, default=82', default=82, metavar='')
-    parser.add_argument('-lt', '--lowerThreshold', help='default=3000', type=int, default=3000, metavar='')
-    parser.add_argument('-ut', '--upperThreshold', help='default=10000', type=int, default=10000, metavar='')
+    parser.add_argument('-lt', '--lowerThreshold', help='default=686', type=int, default=686, metavar='')
+    parser.add_argument('-ut', '--upperThreshold', help='default=15000', type=int, default=15000, metavar='')
     parser.add_argument('-sg', '--sigma', type=float, help='Standard deviation for the Gaussian smoothing filter, default=0.8', default=0.8, metavar='')
     parser.add_argument('-ct', '--corticalThickness', type=int, default=4,
                         help='Distance from the periosteal boundary to the endosteal boundary, only erosions connected to both the periosteal and the endosteal boundaries are labeled, default=4', metavar='')

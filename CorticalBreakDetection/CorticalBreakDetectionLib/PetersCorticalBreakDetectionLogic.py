@@ -32,7 +32,7 @@
 import SimpleITK as sitk
 
 class PetersCorticalBreakDetectionLogic:
-    def __init__(self, img=None, contour_img=None, voxelSize=61, lower=2900, upper=10000, 
+    def __init__(self, img=None, contour_img=None, voxelSize=61, lower=686, upper=15000, 
                  sigma=0.8, corticaThickness=4, dilateErodeDistance=1):
         self.model_img = img                   # greyscale scan
         self.peri_contour = None               # periosteal boundary

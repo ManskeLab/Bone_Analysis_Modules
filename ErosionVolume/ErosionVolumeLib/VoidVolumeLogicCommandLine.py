@@ -27,8 +27,8 @@
 #              inputMask: The input mask file path, default=[inputImage]_MASK
 #              outputImage: The output image file path, default=[inputImage]_ER
 #              seeds: The seed points csv file path, default=[inputImage]_SEEDS
-#              lowerThreshold, default=3000
-#              upperThreshold, default=10000
+#              lowerThreshold, default=686
+#              upperThreshold, default=15000
 #              sigma: Standard deviation for the Gaussian smoothing filter, default=1
 #              minimumRadius: Minimum erosion radius in voxels, default=3
 #              dilateErodeDistance: Morphological kernel radius in voxels, default=5
@@ -37,7 +37,7 @@
 import SimpleITK as sitk
 
 class VoidVolumeLogic:
-    def __init__(self, img=None, mask=None, lower=3000, upper=10000, sigma=1,
+    def __init__(self, img=None, mask=None, lower=686, upper=15000, sigma=1,
                  seeds=None, minimalRadius=3, dilateErodeDistance=4):
         self.model_img = img                  # greyscale scan
         self.contour_img = mask               # mask, periosteal boundary
@@ -474,8 +474,8 @@ if __name__ == "__main__":
     parser.add_argument('-im', '--inputMask', help='The input mask file path, default=[inputImage]_MASK', default="_MASK.mha", metavar='')
     parser.add_argument('-oi', '--outputImage', help='The output image file path, default=[inputImage]_ER', default="_ER.nrrd", metavar='')
     parser.add_argument('-sd', '--seeds', help='The seed points csv file path, default=[inputImage]_SEEDS', default="_SEEDS.csv", metavar='')
-    parser.add_argument('-lt', '--lowerThreshold', help='default=3000', type=int, default=3000, metavar='')
-    parser.add_argument('-ut', '--upperThreshold', help='default=10000', type=int, default=10000, metavar='')
+    parser.add_argument('-lt', '--lowerThreshold', help='default=686', type=int, default=686, metavar='')
+    parser.add_argument('-ut', '--upperThreshold', help='default=15000', type=int, default=15000, metavar='')
     parser.add_argument('-sg', '--sigma', type=float, help='Standard deviation for the Gaussian smoothing filter, default=1', default=1, metavar='')
     parser.add_argument('-mr', '--minimumRadius', type=int, default=3, 
                         help='Minimum erosion radius in voxels, default=3', metavar='')
