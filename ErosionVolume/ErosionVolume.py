@@ -132,19 +132,19 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.setToolTip( "Pick the output segmentation to store the erosions in" )
     erosionsLayout.addRow("Output Erosions: ", self.outputErosionSelector)
 
-    # threshold spin boxes
+    # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
     self.lowerThresholdText.value = 686
-    erosionsLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
+    erosionsLayout.addRow("Lower Threshold [HU]: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
-    self.upperThresholdText.value = 15000
-    erosionsLayout.addRow("Upper Threshold: ", self.upperThresholdText)
+    self.upperThresholdText.value = 4000
+    erosionsLayout.addRow("Upper Threshold [HU]: ", self.upperThresholdText)
 
     # gaussian sigma spin box
     self.sigmaText = qt.QDoubleSpinBox()

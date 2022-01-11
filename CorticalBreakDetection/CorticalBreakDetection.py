@@ -120,19 +120,19 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.setToolTip( "Select the node to store the preprocessed image in" )
     CorticalBreakDetectionLayout.addRow("Output Volume: ", self.outputVolumeSelector)
 
-    # threshold spin boxes
+    # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
     self.lowerThresholdText.value = 686
-    CorticalBreakDetectionLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
+    CorticalBreakDetectionLayout.addRow("Lower Threshold [HU]: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
-    self.upperThresholdText.value = 15000
-    CorticalBreakDetectionLayout.addRow("Upper Threshold: ", self.upperThresholdText)
+    self.upperThresholdText.value = 4000
+    CorticalBreakDetectionLayout.addRow("Upper Threshold [HU]: ", self.upperThresholdText)
 
     # gaussian sigma spin box
     self.sigmaText = qt.QDoubleSpinBox()
@@ -259,7 +259,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     # voxel size spin box
     self.voxelSizeText = qt.QDoubleSpinBox()
     self.voxelSizeText.setMinimum(0)
-    self.voxelSizeText.setSuffix('mm')
+    self.voxelSizeText.setSuffix(' mm')
     self.voxelSizeText.setDecimals(4)
     self.voxelSizeText.value = 0.082
     self.voxelSizeText.setToolTip("Voxel size of the greyscale scan in millimetres")

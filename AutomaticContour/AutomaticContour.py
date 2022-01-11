@@ -192,19 +192,19 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.setToolTip( "Select the output volume to store the contour" )
     automaticContourLayout.addRow("Output Contour: ", self.outputVolumeSelector)
 
-    # threshold spin boxes
+    # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
     self.lowerThresholdText.value = 900
-    automaticContourLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
+    automaticContourLayout.addRow("Lower Threshold [HU]: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
     self.upperThresholdText.value = 4000
-    automaticContourLayout.addRow("Upper Threshold: ", self.upperThresholdText)
+    automaticContourLayout.addRow("Upper Threshold [HU]: ", self.upperThresholdText)
 
     # gaussian sigma spin box
     self.sigmaText = qt.QDoubleSpinBox()

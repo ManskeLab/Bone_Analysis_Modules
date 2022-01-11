@@ -24,7 +24,9 @@ class AIMConverter(ScriptedLoadableModule):
     self.parent.dependencies = []
     self.parent.contributors = ["Ryan Yan, Michael Kuczynski"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-    Updated 2022-01-07. Converts an AIM file to a viewable slicer volume node. Note: Unresolved intensity unit conversion issue.
+    Updated 2022-01-07. Converts an AIM file to a viewable slicer volume node. 
+    IMPORTANT: Requires ITK package installed in Slicer. 
+    Follow instructions at https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/AIM-File-Converter-Module to install.
     """
     self.parent.acknowledgementText = """
     Placeholder Text
@@ -64,6 +66,7 @@ class AIMConverterWidget(ScriptedLoadableModuleWidget):
 
     self.fileTextList = qt.QTextEdit("None Selected")
     self.fileTextList.setReadOnly(True)
+    self.fileTextList.setFixedHeight(45)
 
     self.fileSelect = qt.QGridLayout()
     self.fileSelect.addWidget(self.fileButton)
@@ -106,15 +109,29 @@ class AIMConverterWidget(ScriptedLoadableModuleWidget):
     #
     # Apply Button
     #
+    executeGridLayout = qt.QGridLayout()
+    executeGridLayout.setRowMinimumHeight(0,20)
+    executeGridLayout.setRowMinimumHeight(1,20)
+
     self.applyButton = qt.QPushButton("Convert")
     self.applyButton.toolTip = "Convert AIM File."
-    self.applyButton.enabled = True
-    parametersFormLayout.addRow(self.applyButton)
+    self.applyButton.enabled = False
+    executeGridLayout.addWidget(self.applyButton, 1, 0)
+
+    parametersFormLayout.addRow(executeGridLayout)
+
+    #
+    # Output Calibrations
+    # Update to output recommended thresholds once we figure out calculations
+    self.calibrationOutput = qt.QTextEdit()
+    self.calibrationOutput.setReadOnly(True)
+    self.calibrationOutput.setFixedHeight(90)
+    parametersFormLayout.addRow("Calibrations: ", self.calibrationOutput)
 
     # connections
     self.fileButton.clicked.connect(self.onFileSelect)
     self.applyButton.connect('clicked(bool)', self.onApplyButton)
-    self.outputVolumeSelector.connect("currentNodeChanged(vtkMRMLScalarVolumeNode*)", self.onNodeSelect)
+    self.outputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onNodeSelect)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -145,7 +162,17 @@ class AIMConverterWidget(ScriptedLoadableModuleWidget):
     else:
       outFormat = ".mha"
     print(self.outputVolumeSelector.currentNodeID)
-    logic.convert(self.filename, self.outputVolumeSelector.currentNode())
+    meta = logic.convert(self.filename, self.outputVolumeSelector.currentNode())
+
+    #find recommended thresholds in HU (3000/10000 in native units)
+    mu_water = meta["MuWater"]
+    mu_scaling = meta["MuScaling"]
+    thresholds = logic.getThreshold(mu_water, mu_scaling)
+
+    #formula: HU = 1000 * (native / mu_scaling - mu_water) / mu_water
+    line1 = "Recommended lower threshold: " + str(thresholds[0])
+    line2 = "Recommended upper threshold: " + str(thresholds[1])
+    self.calibrationOutput.setText(line1 + "\n" + line2)
 
 
 #
@@ -217,6 +244,7 @@ class AIMConverterLogic(ScriptedLoadableModuleLogic):
 
   def convert(self, fileName, outputVolumeNode):
     #Conversion script from https://github.com/ManskeLab/Manskelab/blob/master/scripts/fileConverter.py
+
     print("Converting", fileName, "to Volume")
     ImageType = itk.Image[itk.ctype('signed short'), 3]
     reader = itk.ImageFileReader[ImageType].New()
@@ -226,50 +254,23 @@ class AIMConverterLogic(ScriptedLoadableModuleLogic):
     reader.Update()
 
     outputImage = itk2sitk(reader.GetOutput())
-    #print(outputImage)
+
+    #get metadata
+    metadata = dict(reader.GetOutput()) 
 
     #push to slicer and display
     sitkUtils.PushVolumeToSlicer(outputImage, targetNode=outputVolumeNode)
     slicer.util.setSliceViewerLayers(background=outputVolumeNode, fit=True)
-    return
+    return metadata
 
-  def run(self,volumeNode1, volumeNode2, rulerNode):
-    """
-    Run the actual algorithm
-    """
-    print("AIMConverterLogic run() called")
+  def getThreshold(self, mu_water, mu_scaling):
+    lower = self.roundNearest(1000 * (3000 / mu_scaling / mu_water - 1), 10)
+    upper = self.roundNearest(1000 * (10000 / mu_scaling / mu_water - 1), 100)
+    return (lower, upper)
 
-    """
-    1. get the list(s) of intensity samples along the ruler
-    2. set up quantitative layout
-    3. use the chart view to plot the intensity samples
-    """
-
-    """
-    1. get the list of samples
-    """
-    if not rulerNode or (not volumeNode1 and not volumeNode2):
-      print("Inputs are not initialized!")
-      return
-    
-    volumeSamples1 = None
-    volumeSamples2 = None
-
-    if volumeNode1:
-      volumeSamples1 = self.probeVolume(volumeNode1, rulerNode)
-    if volumeNode2:
-      volumeSamples2 = self.probeVolume(volumeNode2, rulerNode)
-    
-    print("volumeSamples1 = "+str(volumeSamples1))
-    print("volumeSamples2 = "+str(volumeSamples2))
-
-    imageSamples = [volumeSamples1, volumeSamples2]
-    legendNames = [volumeNode1.GetName()+' - '+rulerNode.GetName(),
-                   volumeNode2.GetName()+' - '+rulerNode.GetName()]
-    self.showChart(imageSamples, legendNames)
-
-    return True
-
+  #rounding function for thesholds
+  def roundNearest(self, num, roundTo):
+    return int(num - num % roundTo + round(num % roundTo / roundTo) * roundTo)
 
 class AIMConverterTest(ScriptedLoadableModuleTest):
   """
