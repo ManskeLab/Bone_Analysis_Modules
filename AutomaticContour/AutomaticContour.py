@@ -27,7 +27,7 @@ class AutomaticContour(ScriptedLoadableModule):
     self.parent.title = "Automatic Contour" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []
-    self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["Mingjie Zhao and Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
 Updated on August 22, 2021.
 This module contains steps 1-3 of erosion analysis. 
@@ -169,12 +169,14 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.inputVolumeSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
     self.inputVolumeSelector.selectNodeUponCreation = False
     self.inputVolumeSelector.addEnabled = False
-    self.inputVolumeSelector.removeEnabled = False
+    self.inputVolumeSelector.removeEnabled = True
+    self.inputVolumeSelector.renameEnabled = True
     self.inputVolumeSelector.noneEnabled = False
     self.inputVolumeSelector.showHidden = False
     self.inputVolumeSelector.showChildNodeTypes = False
     self.inputVolumeSelector.setMRMLScene( slicer.mrmlScene )
     self.inputVolumeSelector.setToolTip("Select the input volume to get the contour from")
+    self.inputVolumeSelector.setCurrentNode(None)
     automaticContourLayout.addRow("Input Volume: ", self.inputVolumeSelector)
 
     # output volume selector
@@ -190,6 +192,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.setMRMLScene( slicer.mrmlScene )
     self.outputVolumeSelector.baseName = "MASK"
     self.outputVolumeSelector.setToolTip( "Select the output volume to store the contour" )
+    self.outputVolumeSelector.setCurrentNode(None)
     automaticContourLayout.addRow("Output Contour: ", self.outputVolumeSelector)
 
     # threshold spin boxes (default unit is HU)
@@ -441,6 +444,9 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     if inputVolumeNode:
       # update the default output base name
       self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_MASK")
+      # set default node
+      if not self.outputVolumeSelector.currentNode():
+        self.outputVolumeSelector.addNode()
       # Update the default save directory
       self._logic.setDefaultDirectory(inputVolumeNode)
       # update viewer windows

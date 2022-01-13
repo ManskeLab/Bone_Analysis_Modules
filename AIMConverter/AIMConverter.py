@@ -104,6 +104,7 @@ class AIMConverterWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.setMRMLScene(slicer.mrmlScene)
     self.outputVolumeSelector.setToolTip( "Select the node to converted image in" )
     self.outputVolumeSelector.baseName = "_CONVERTED"
+    self.outputVolumeSelector.setCurrentNode(None)
     parametersFormLayout.addRow("Output Volume: ", self.outputVolumeSelector)
 
     #
@@ -141,13 +142,15 @@ class AIMConverterWidget(ScriptedLoadableModuleWidget):
   
   #Open file explorer and update file
   def onFileSelect(self):
-    if self.inputFileSelect.exec_():
+    if self.inputFileSelect.exec_("Open .AIM File"):
       self.filename = self.inputFileSelect.selectedFiles()[0]
       self.fileTextList.setText(self.filename)
       self.outputVolumeSelector.baseName = (self.filename[self.filename.rfind('/') + 1:self.filename.rfind('.')] +"_CONVERTED")
+      if not self.outputVolumeSelector.currentNode():
+        self.outputVolumeSelector.addNode()
 
   def onNodeSelect(self):
-    self.applyButton.enabled = (self.outputVolumeSelector.currentNode())
+    self.applyButton.enabled = self.outputVolumeSelector.currentNode()
   
   #
   #Conversion Button Pressed

@@ -28,7 +28,7 @@ class ErosionVolume(ScriptedLoadableModule):
     self.parent.title = "Erosion Volume" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []
-    self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["Mingjie Zhao and Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
 Updated on August 22, 2021. 
 This module contains steps 4-6 of erosion analysis. It requires a greyscale scan and a mask.
@@ -101,6 +101,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.inputVolumeSelector.showChildNodeTypes = False
     self.inputVolumeSelector.setMRMLScene(slicer.mrmlScene)
     self.inputVolumeSelector.setToolTip( "Pick the greyscale scan" )
+    self.inputVolumeSelector.setCurrentNode(None)
     erosionsLayout.addRow("Input Volume: ", self.inputVolumeSelector)
 
     # input contour selector
@@ -115,6 +116,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.inputContourSelector.showChildNodeTypes = False
     self.inputContourSelector.setMRMLScene(slicer.mrmlScene)
     self.inputContourSelector.setToolTip( "Pick the mask label map" )
+    self.inputContourSelector.setCurrentNode(None)
     erosionsLayout.addRow("Input Contour: ", self.inputContourSelector)
 
     # output volume selector
@@ -130,6 +132,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.setMRMLScene(slicer.mrmlScene)
     self.outputErosionSelector.baseName = "ER"
     self.outputErosionSelector.setToolTip( "Pick the output segmentation to store the erosions in" )
+    self.outputErosionSelector.setCurrentNode(None)
     erosionsLayout.addRow("Output Erosions: ", self.outputErosionSelector)
 
     # threshold spin boxes (default unit is HU)
@@ -511,14 +514,6 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       inputVolumeNode.GetRASToIJKMatrix(ras2ijk)
       inputVolumeNode.GetIJKToRASMatrix(ijk2ras)
       self.markupsTableWidget.setCoordsMatrices(ras2ijk, ijk2ras)
-      # update the default output base name
-      erosion_baseName = inputVolumeNode.GetName()+"_ER"
-      seed_baseName = inputVolumeNode.GetName()+"_SEEDS"
-      self.outputErosionSelector.baseName = erosion_baseName
-      self.segmentCopier.currSegmentationSelector.baseName = erosion_baseName
-      self.segmentCopier.otherSegmentationSelector.baseName = erosion_baseName
-      self.segmentationSelector.baseName = erosion_baseName
-      self.fiducialSelector.baseName = seed_baseName
       # update the viewer windows
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
@@ -527,8 +522,19 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       self.fiducialSelector.baseName = "SEEDS"
       
     if inputContourNode:
-      # update the default output erosion base name, which matches the mask name
-      self.outputErosionSelector.baseName = (inputContourNode.GetName()+"_ER")
+      # update the default output erosion and seeds basename
+      erosion_baseName = inputContourNode.GetName()+"_ER"
+      self.outputErosionSelector.baseName = erosion_baseName
+      self.segmentCopier.currSegmentationSelector.baseName = erosion_baseName
+      self.segmentCopier.otherSegmentationSelector.baseName = erosion_baseName
+      self.segmentationSelector.baseName = erosion_baseName
+      seed_baseName = inputContourNode.GetName()+"_SEEDS"
+      self.fiducialSelector.baseName = seed_baseName
+      # create default nodes
+      if not self.outputErosionSelector.currentNode():
+        self.outputErosionSelector.addNode()
+      if not self.fiducialSelector.currentNode():
+        self.fiducialSelector.addNode(seed_baseName)
 
   def onSelectInputContour(self):
     """Run this whenever the input contour selector in step 4 changes"""

@@ -14,6 +14,7 @@ import vtk
 import SimpleITK as sitk
 import sitkUtils
 import logging
+import os
 from .ContourLogic import ContourLogic
 from .SegmentEditor import SegmentEditor
 

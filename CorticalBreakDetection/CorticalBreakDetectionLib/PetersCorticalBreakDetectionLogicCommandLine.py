@@ -14,7 +14,7 @@
 #-----------------------------------------------------
 # Usage:       python PetersCorticalBreakDetectionLogicCommandLine.py inputImage [--inputContour] [--outputImage]
 #                                                 [--voxelSize] [--lowerThreshold] [--upperThreshold]
-#                                                 [--corticalThickness] [--dilateErodeDistance]
+#                                                 [--corticalThickness] [--dilateErodeDistance] [--preset]
 #
 # Param:       inputImage: The input image file path
 #              inputContour: The input contour file path, default=[inputImage]_MASK
@@ -22,7 +22,7 @@
 #              outputSeeds: The output seeds csv file path, default=[inputImage]_SEEDS
 #              voxelSize: Isotropic voxel size in micrometres, default=82
 #              lowerThreshold: default=686
-#              upperThreshold: default=15000
+#              upperThreshold: default=4000
 #              sigma: Standard deviation for the Gaussian smoothing filter, default=0.8
 #              corticaThickness: Distance from the periosteal boundary
 #                                to the endosteal boundary, only erosions connected
@@ -30,6 +30,7 @@
 #                                are labeled, default=4
 #              dilateErodeDistance: kernel radius for morphological dilation and
 #                                   erosion, default=1
+#              preset: Preset configuration for scanners: 1 - XCT I, 2 - XCT II
 #
 #-----------------------------------------------------
 import SimpleITK as sitk
@@ -37,7 +38,7 @@ import pdb
 import csv
 
 class PetersCorticalBreakDetectionLogic:
-    def __init__(self, img=None, contour_img=None, voxelSize=82, lower=686, upper=15000,
+    def __init__(self, img=None, contour_img=None, voxelSize=82, lower=686, upper=4000,
                  sigma=0.8, corticaThickness=4, dilateErodeDistance=1):
         self.model_img = img                   # greyscale scan
         self.peri_contour = None               # periosteal boundary
@@ -617,12 +618,13 @@ if __name__ == "__main__":
     parser.add_argument('-os', '--outputSeeds', help='The output seeds csv file path, default=[inputImage]_SEEDS', default="_SEEDS.csv", metavar='')
     parser.add_argument('-vs', '--voxelSize', type=float, help='Isotropic voxel size in micrometres, default=82', default=82, metavar='')
     parser.add_argument('-lt', '--lowerThreshold', help='default=686', type=int, default=686, metavar='')
-    parser.add_argument('-ut', '--upperThreshold', help='default=15000', type=int, default=15000, metavar='')
+    parser.add_argument('-ut', '--upperThreshold', help='default=15000', type=int, default=4000, metavar='')
     parser.add_argument('-sg', '--sigma', type=float, help='Standard deviation for the Gaussian smoothing filter, default=0.8', default=0.8, metavar='')
     parser.add_argument('-ct', '--corticalThickness', type=int, default=4,
                         help='Distance from the periosteal boundary to the endosteal boundary, only erosions connected to both the periosteal and the endosteal boundaries are labeled, default=4', metavar='')
     parser.add_argument('-ded', '--dilateErodeDistance', type=int, default=1,
                         help='kernel radius for morphological dilation and erosion, default=1', metavar='')
+    parser.add_argument('-p', '--preset', type=int, help='Preset configuration for scanners: 1 - XCT I, 2 - XCT II', metavar='')
     args = parser.parse_args()
 
     input_dir = args.inputImage
@@ -635,6 +637,7 @@ if __name__ == "__main__":
     sigma = args.sigma
     corticalThickness = args.corticalThickness
     dilateErodeDistance = args.dilateErodeDistance
+    preset = args.preset
 
     #correct file directiories (default or incorrect file extension)
     if contour_dir == "_MASK.mha":
@@ -647,6 +650,16 @@ if __name__ == "__main__":
         seeds_dir = input_dir[:input_dir.index('.')] + seeds_dir
     elif seeds_dir[-4] != ".csv":
         seeds_dir += ".csv"
+
+    #settings based on preset
+    if preset == 1:
+        voxelSize = 82
+        corticalThickness = 4
+        dilateErodeDistance = 1
+    elif preset == 2:
+        voxelSize = 60.7
+        corticalThickness = 5
+        dilateErodeDistance = 2
 
     # read images
     img = sitk.ReadImage(input_dir)

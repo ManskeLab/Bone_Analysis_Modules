@@ -26,7 +26,7 @@ class CorticalBreakDetection(ScriptedLoadableModule):
     self.parent.title = "Cortical Break Detection"
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-    self.parent.contributors = ["Mingjie Zhao"]
+    self.parent.contributors = ["Mingjie Zhao and Ryan Yan"]
     # TODO: update with short description of the module and a link to online module documentation
     self.parent.helpText = """
 Updated on August 22, 2021.
@@ -104,6 +104,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.inputVolumeSelector.showChildNodeTypes = False
     self.inputVolumeSelector.setMRMLScene(slicer.mrmlScene)
     self.inputVolumeSelector.setToolTip( "Select the greyscale image" )
+    self.inputVolumeSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Input Volume: ", self.inputVolumeSelector)
 
     # Preprocessed output selector
@@ -118,6 +119,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.showChildNodeTypes = False
     self.outputVolumeSelector.setMRMLScene(slicer.mrmlScene)
     self.outputVolumeSelector.setToolTip( "Select the node to store the preprocessed image in" )
+    self.outputVolumeSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Output Volume: ", self.outputVolumeSelector)
 
     # threshold spin boxes (default unit is HU)
@@ -173,11 +175,12 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.masterVolumeSelector.addEnabled = False
     self.masterVolumeSelector.removeEnabled = True
     self.masterVolumeSelector.renameEnabled = True
-    self.masterVolumeSelector.noneEnabled = True
+    self.masterVolumeSelector.noneEnabled = False
     self.masterVolumeSelector.showHidden = False
     self.masterVolumeSelector.showChildNodeTypes = False
     self.masterVolumeSelector.setMRMLScene(slicer.mrmlScene)
     self.masterVolumeSelector.setToolTip( "Select the greyscale image" )
+    self.masterVolumeSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Input Volume: ", self.masterVolumeSelector)
 
     # Input bone selector
@@ -193,6 +196,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.inputBoneSelector.setMRMLScene(slicer.mrmlScene)
     self.inputBoneSelector.baseName = "ER"
     self.inputBoneSelector.setToolTip( "Select the preprocessed image" )
+    self.inputBoneSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Preprocessed Volume: ", self.inputBoneSelector)
 
     # bone mask
@@ -207,6 +211,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.maskSelector.showChildNodeTypes = False
     self.maskSelector.setMRMLScene(slicer.mrmlScene)
     self.maskSelector.setToolTip( "Select the mask label map" )
+    self.maskSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Contour: ", self.maskSelector)
 
     # output Cortical Breaks selector
@@ -221,6 +226,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputCorticalBreakDetectionsSelector.showChildNodeTypes = False
     self.outputCorticalBreakDetectionsSelector.setMRMLScene(slicer.mrmlScene)
     self.outputCorticalBreakDetectionsSelector.setToolTip( "Select the node to store the Cortical Breaks in" )
+    self.outputCorticalBreakDetectionsSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Output Cortical Breaks: ", self.outputCorticalBreakDetectionsSelector)
 
     # output seed point selector
@@ -236,6 +242,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputFiducialSelector.setMRMLScene(slicer.mrmlScene)
     self.outputFiducialSelector.baseName = "SEEDS"
     self.outputFiducialSelector.setToolTip( "Select the node to store the output seed points" )
+    self.outputFiducialSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Output Seed Points: ", self.outputFiducialSelector)
 
     # cortical thickness spin box
@@ -355,9 +362,18 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.markupsTableWidget.setDeleteAllButtonVisible(True)
     self.markupsTableWidget.setJumpToSliceEnabled(True)
 
+    # seed point file save button
+    self.seedSaveFile = qt.QFileDialog()
+    self.seedSaveFile.setNameFilter("*.csv")
+    self.seedExportButton = qt.QPushButton("Export")
+    self.seedExportButton.enabled = False
+    seedPointsLayout.addRow("", self.seedExportButton)
+    
+
     # connection
     self.seedPointsCollapsibleButton.connect("contentsCollapsed(bool)", self.onCollapsed2)
     self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
+    self.seedExportButton.clicked.connect(self.onExportSelect)
 
   def enter(self):
     """
@@ -393,6 +409,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
   def onSelectSeed(self):
     """Run this whenever the seed point selected in the seed point step changes state."""
     self.markupsTableWidget.setCurrentNode(self.fiducialSelector.currentNode())
+    self.seedExportButton.enabled = self.fiducialSelector.currentNode()
 
   def onSelectInputVolume(self):
     """Run this whenever an input volume is selected."""
@@ -401,6 +418,9 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     if inputVolumeNode:
       self.masterVolumeSelector.setCurrentNodeID(inputVolumeNode.GetID())
       self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_SEG")
+      # create default output node if none selected
+      if not self.outputVolumeSelector.currentNode():
+        self.outputVolumeSelector.addNode()
       # Update the default save directory
       self._logic.setDefaultDirectory(inputVolumeNode)
       # Update the spacing scale in the seed point table
@@ -417,6 +437,11 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     if maskNode:
       self.outputCorticalBreakDetectionsSelector.baseName = (maskNode.GetName()+"_BREAKS")
       self.outputFiducialSelector.baseName = (maskNode.GetName()+"_SEEDS")
+      # create default nodes if none selected
+      if not self.outputCorticalBreakDetectionsSelector.currentNode():
+        self.outputCorticalBreakDetectionsSelector.addNode()
+      if not self.outputFiducialSelector.currentNode():
+        self.outputFiducialSelector.addNode()
 
   def onCTTypeChanged(self):
     """Run this whenver the ct type buttons change state."""
@@ -491,6 +516,27 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     # update widgets
     self.outputCorticalBreakDetectionsSelector.setCurrentNodeID("") # reset the output volume selector
     self.enableCorticalBreakDetectionsWidgets()
+  
+  def onExportSelect(self):
+    import csv
+    '''save list of seeds to .csv file'''
+    filename = self.fiducialSelector.currentNode().GetName() + ".csv"
+
+    # save file
+    filename = self.seedSaveFile.getSaveFileName(self.seedExportButton, 'Save Seeds to .csv', filename, "CSV Files(*.csv)")
+    print("Writing to " + filename)
+    
+    # write out seeds
+    seeds_list = self.fiducialSelector.currentNode()
+    with open(filename, 'w', newline='') as f:
+      writer = csv.writer(f)
+      writer.writerow(['Label', 'X', 'Y', 'Z'])
+      controlPointPosition = [0, 0, 0]
+      for i in range(seeds_list.GetNumberOfFiducials()):
+        seeds_list.GetNthControlPointPosition(i, controlPointPosition)
+        ITKCoord = self.markupsTableWidget._logic.RASToIJKCoords(
+                  controlPointPosition, self.markupsTableWidget._ras2ijk)
+        writer.writerow([seeds_list.GetNthControlPointLabel(i)] + ITKCoord)
 
   def setProgress2(self, value):
     """Update the progress bar."""
