@@ -170,6 +170,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.fiducialSelector.setMRMLScene(slicer.mrmlScene)
     self.fiducialSelector.baseName = "SEEDS"
     self.fiducialSelector.setToolTip( "Pick the seed points" )
+    self.fiducialSelector.setCurrentNode(None)
     erosionsLayout.addRow("Seed Points: ", self.fiducialSelector)
 
     # seed point table
@@ -384,7 +385,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     # input erosion selector
     self.inputErosionSelector = slicer.qMRMLNodeComboBox()
     self.inputErosionSelector.nodeTypes = ["vtkMRMLSegmentationNode"]
-    self.inputErosionSelector.selectNodeUponCreation = False
+    self.inputErosionSelector.selectNodeUponCreation = True
     self.inputErosionSelector.addEnabled = False
     self.inputErosionSelector.renameEnabled = True
     self.inputErosionSelector.removeEnabled = True
@@ -393,11 +394,12 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.inputErosionSelector.showChildNodeTypes = False
     self.inputErosionSelector.setMRMLScene(slicer.mrmlScene)
     self.inputErosionSelector.setToolTip("Pick the final erosion segmentation that contains all the erosions")
+    self.inputErosionSelector.setCurrentNode(None)
     statsLayout.addRow("Input Erosions: ", self.inputErosionSelector)
 
     self.masterVolumeSelector = slicer.qMRMLNodeComboBox()
     self.masterVolumeSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-    self.masterVolumeSelector.selectNodeUponCreation = False
+    self.masterVolumeSelector.selectNodeUponCreation = True
     self.masterVolumeSelector.addEnabled = False
     self.masterVolumeSelector.renameEnabled = True
     self.masterVolumeSelector.removeEnabled = False
@@ -406,6 +408,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.masterVolumeSelector.showChildNodeTypes = False
     self.masterVolumeSelector.setMRMLScene(slicer.mrmlScene)
     self.masterVolumeSelector.setToolTip("Pick the greyscale scan")
+    self.masterVolumeSelector.setCurrentNode(None)
     statsLayout.addRow("Master Volume: ", self.masterVolumeSelector)
 
     # voxel size spin box
@@ -429,6 +432,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputTableSelector.showChildNodeTypes = False
     self.outputTableSelector.setMRMLScene(slicer.mrmlScene)
     self.outputTableSelector.setToolTip( "Pick the output table to store the erosion statistics" )
+    self.outputTableSelector.setCurrentNode(None)
     statsLayout.addRow("Output Table: ", self.outputTableSelector)
 
     # Execution layout
@@ -455,6 +459,9 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.masterVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect6)
     self.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect6)
 
+    # logger
+    self.logger = logging.getLogger("erosion_volume")
+
   def onCollapsed4(self):
     """Run this whenever the collapsible button in step 4 is clicked"""
     if not self.erosionsCollapsibleButton.collapsed:
@@ -472,6 +479,10 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     if not self.statsCollapsibleButton.collapsed:
       self.erosionsCollapsibleButton.collapsed = True
       self.manualCorrectionCollapsibleButton.collapsed = True
+      if self.inputVolumeSelector.currentNode() and self.inputContourSelector.currentNode():
+        self.inputErosionSelector.setCurrentNodeIndex(0)
+        self.masterVolumeSelector.setCurrentNodeIndex(0)
+        self.outputTableSelector.addNode()
 
   def enter(self):
     """Run this whenever the module is reopened"""    
@@ -517,24 +528,20 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       # update the viewer windows
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
-    else:
-      self.outputErosionSelector.baseName = "ER"
-      self.fiducialSelector.baseName = "SEEDS"
+
+      #remove existing loggers
+      if self.logger.hasHandlers():
+        for handler in self.logger.handlers:
+          self.logger.removeHandler(handler)
+      #initialize logger with filename
+      filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
+      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '.log')
+      self.logger.addHandler(logHandler)
+      self.logger.info("Using Erosion Volume Module with " + inputVolumeNode.GetName() + "\n")
+
+      #set name in statistics
+      self.masterVolumeSelector.baseName = inputVolumeNode.GetName()
       
-    if inputContourNode:
-      # update the default output erosion and seeds basename
-      erosion_baseName = inputContourNode.GetName()+"_ER"
-      self.outputErosionSelector.baseName = erosion_baseName
-      self.segmentCopier.currSegmentationSelector.baseName = erosion_baseName
-      self.segmentCopier.otherSegmentationSelector.baseName = erosion_baseName
-      self.segmentationSelector.baseName = erosion_baseName
-      seed_baseName = inputContourNode.GetName()+"_SEEDS"
-      self.fiducialSelector.baseName = seed_baseName
-      # create default nodes
-      if not self.outputErosionSelector.currentNode():
-        self.outputErosionSelector.addNode()
-      if not self.fiducialSelector.currentNode():
-        self.fiducialSelector.addNode(seed_baseName)
 
   def onSelectInputContour(self):
     """Run this whenever the input contour selector in step 4 changes"""
@@ -543,6 +550,22 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       # update the default output erosion base name, which matches the mask name
       erosion_baseName = inputContourNode.GetName()+"_ER"
       self.outputErosionSelector.baseName = erosion_baseName
+      self.segmentCopier.currSegmentationSelector.baseName = erosion_baseName
+      self.segmentCopier.otherSegmentationSelector.baseName = erosion_baseName
+      self.segmentationSelector.baseName = erosion_baseName
+      self.inputErosionSelector.baseName = erosion_baseName
+      seed_baseName = inputContourNode.GetName()+"_SEEDS"
+      self.fiducialSelector.baseName = seed_baseName
+      self.outputTableSelector.baseName = inputContourNode.GetName()+"_TABLE"
+
+      # attempt to autofillsegments
+      if not self.outputErosionSelector.currentNode():
+        self.outputErosionSelector.addNode()
+      if not self.fiducialSelector.currentNode():
+        self.fiducialSelector.setCurrentNodeIndex(0)
+        if not self.fiducialSelector.currentNode():
+          self.fiducialSelector.addNode()
+      
 
   def onAddOutputErosion(self, node):
     """Run this whenever a new erosion segmentation is created from the selector in step 4"""
@@ -585,6 +608,18 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     inputContourNode = self.inputContourSelector.currentNode()
     outputVolumeNode = self.outputErosionSelector.currentNode()
     fiducialNode = self.fiducialSelector.currentNode()
+
+    self.logger.info("Erosion Volume initialized with parameters:")
+    self.logger.info("Input Volume: " + inputVolumeNode.GetName())
+    self.logger.info("Input Contour: " + inputContourNode.GetName())
+    self.logger.info("Output Volume: " + outputVolumeNode.GetName())
+    self.logger.info("Input Seeds: " + fiducialNode.GetName())
+    self.logger.info("Lower Threshold: " + str(self.lowerThresholdText.value))
+    self.logger.info("Upper Threshold: " + str(self.upperThresholdText.value))
+    self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
+    self.logger.info("Minimum Erosion Radius: " + str(self.minimalRadiusText.value))
+    self.logger.info("Dilate/Erode Distance: " + str(self.dilateErodeDistanceText.value))
+
     ready = self._logic.setErosionParameters(inputVolumeNode, 
                                             inputContourNode, 
                                             self.lowerThresholdText.value,
@@ -603,6 +638,8 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
 
     # update widgets
     self.enableErosionsWidgets()
+
+    self.logger.info("Finished\n")
   
   def onImportExportButton(self):
     """Run this whenever the import/export button in step 5 is clicked"""

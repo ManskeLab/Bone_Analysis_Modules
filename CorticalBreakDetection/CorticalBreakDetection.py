@@ -375,6 +375,9 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
     self.seedExportButton.clicked.connect(self.onExportSelect)
 
+    # logger
+    self.logger = logging.getLogger("cortical_break_detection")
+
   def enter(self):
     """
     Called each time the user opens this module.
@@ -418,17 +421,30 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     if inputVolumeNode:
       self.masterVolumeSelector.setCurrentNodeID(inputVolumeNode.GetID())
       self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_SEG")
+
       # create default output node if none selected
       if not self.outputVolumeSelector.currentNode():
         self.outputVolumeSelector.addNode()
       # Update the default save directory
       self._logic.setDefaultDirectory(inputVolumeNode)
+
       # Update the spacing scale in the seed point table
       ras2ijk = vtk.vtkMatrix4x4()
       ijk2ras = vtk.vtkMatrix4x4()
       inputVolumeNode.GetRASToIJKMatrix(ras2ijk)
       inputVolumeNode.GetIJKToRASMatrix(ijk2ras)
       self.markupsTableWidget.setCoordsMatrices(ras2ijk, ijk2ras)
+
+      #remove existing loggers
+      if self.logger.hasHandlers():
+        for handler in self.logger.handlers:
+          self.logger.removeHandler(handler)
+      #initialize logger with filename
+      filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
+      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '.log')
+      
+      self.logger.addHandler(logHandler)
+      self.logger.info("Using Cortical Break Detection Module with " + inputVolumeNode.GetName() + "\n")
 
   def onSelectMask(self):
     """Run this whenever a periosteal contour/mask is selected."""
@@ -471,6 +487,14 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
                                                 self.upperThresholdText.value,
                                                 self.sigmaText.value)
 
+    #logging
+    self.logger.info("Preprocessing initialized with paramaters:")
+    self.logger.info("Input Volume: " + inputVolumeNode.GetName())
+    self.logger.info("Output Volume: " + outputVolumeNode.GetName())
+    self.logger.info("Lower Theshold: " + str(self.lowerThresholdText.value))
+    self.logger.info("Upper Theshold: " + str(self.upperThresholdText.value))
+    self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
+
     if ready:
       success = self._logic.preprocess(outputVolumeNode)
       if success:
@@ -483,6 +507,9 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.setCurrentNodeID("") # reset the output volume selector
     self.enablePreprocessWidgets()
 
+    self.logger.info("Finished\n")
+
+
   def onGetCorticalBreakDetectionsButton(self):
     """Run this whenever the preproecess button is clicked."""
     # update widgets
@@ -494,6 +521,16 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     outputFiducialNode = self.outputFiducialSelector.currentNode()
     maskNode = self.maskSelector.currentNode()
     cbCT = self.cbCTButton.isChecked()
+
+    #logging info
+    self.logger.info("Cortical Break Detection initialized with paramaters:")
+    self.logger.info("Master Volume: " + masterVolumeNode.GetName())
+    self.logger.info("Input Mask: " + maskNode.GetName())
+    self.logger.info("Output Mask: " + outputCorticalBreakDetectionsNode.GetName())
+    self.logger.info("Output Seeds: " + outputFiducialNode.GetName())
+    self.logger.info("Cortical Thickness: " + str(self.corticalThicknessText.value))
+    self.logger.info("Dilate/Erode Distance: " + str(self.dilateErodeDistanceText.value))
+    self.logger.info("Voxel Size: " + str(self.voxelSizeText.value))
     
     ready = self._logic.setCorticalBreakDetectionsParameters(self.lowerThresholdText.value,
                                                     self.upperThresholdText.value,
@@ -512,10 +549,12 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
         # update viewer windows
         slicer.util.setSliceViewerLayers(label=outputCorticalBreakDetectionsNode, 
                                          labelOpacity=0.5)
-                                         
+                                    
     # update widgets
     self.outputCorticalBreakDetectionsSelector.setCurrentNodeID("") # reset the output volume selector
     self.enableCorticalBreakDetectionsWidgets()
+
+    self.logger.info("Finished\n")
   
   def onExportSelect(self):
     import csv

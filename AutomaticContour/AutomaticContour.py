@@ -361,6 +361,9 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.contourVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect3)
     self.masterVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect3)
 
+    #logger
+    self.logger = logging.getLogger("AutomaticContour")
+
   def onCollapsed1(self):
     if not self.boneSeparationCollapsibleButton.collapsed:
       self.automaticContourCollapsibleButton.collapsed = True
@@ -452,6 +455,17 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
       # update viewer windows
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
+
+      #remove existing loggers
+      if self.logger.hasHandlers():
+        for handler in self.logger.handlers:
+          self.logger.removeHandler(handler)
+      #initialize logger with filename
+      filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
+      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '.log')
+      self.logger.addHandler(logHandler)
+      self.logger.info("Using Automatic Contour Module with " + inputVolumeNode.GetName() + "\n")
+
     else:
       self.outputVolumeSelector.baseName = "MASK"
 
@@ -463,6 +477,18 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     inputVolumeNode = self.inputVolumeSelector.currentNode()
     outputVolumeNode = self.outputVolumeSelector.currentNode()
     separateMapNode = self.separateMapSelector.currentNode()
+
+    # log info
+    self.logger.info("Automatic Contour initialized with parameters:")
+    self.logger.info("Input Volume: " + inputVolumeNode.GetName())
+    self.logger.info("Output Volume: " + outputVolumeNode.GetName())
+    if separateMapNode:
+      self.logger.info("Rough Mask: " + separateMapNode.GetName())
+    self.logger.info("Lower Threshold: " + str(self.lowerThresholdText.value))
+    self.logger.info("Upper Threshold: " + str(self.upperThresholdText.value))
+    self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
+    self.logger.info("Number of Bones: " + str(self.boneNumSpinBox.value))
+    self.logger.info("Dilate/Erode Radius: " + str(self.dilateErodeRadiusText.value))
 
     ready = self._logic.setParameters(inputVolumeNode, 
                                      outputVolumeNode,
@@ -482,6 +508,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
         self.outputVolumeSelector.setCurrentNodeID("") # reset the output volume selector
     # update widgets
     self.enableAutomaticContourWidgets()
+
+    self.logger.info("Finished\n")
   
   def onInitButton3(self):
     """Run this whenever the initialize button in step 3 is clicked"""
