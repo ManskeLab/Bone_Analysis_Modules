@@ -7,6 +7,7 @@
 # Description: This module sets up the Automatic Contour 3D Slicer extension.
 #
 #-----------------------------------------------------
+from sre_constants import SUCCESS
 import vtk, qt, ctk, slicer
 import sitkUtils
 from slicer.ScriptedLoadableModule import *
@@ -595,3 +596,62 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
   def setProgress(self, value):
     """Update the progress bar"""
     self.progressBar.setValue(value)
+
+class AutomaticContourTest(ScriptedLoadableModuleTest):
+  """
+  This is the test case for your scripted module.
+  Uses ScriptedLoadableModuleTest base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+  
+
+  def setUp(self):
+    
+
+    """ Do whatever is needed to reset the state - typically a scene clear will be enough.
+    """
+    slicer.mrmlScene.Clear(0)
+
+  def runTest(self):
+    """Run as few or as many tests as needed here.
+    """
+    self.setUp()
+    self.test_AutoContourQuick()
+
+  def test_AutoContourQuick(self):
+    """ Ideally you should have several levels of tests.  At the lowest level
+    tests sould exercise the functionality of the logic with different inputs
+    (both valid and invalid).  At higher levels your tests should emulate the
+    way the user would interact with your code and confirm that it still works
+    the way you intended.
+    One of the most important features of the tests is that it should alert other
+    developers when their changes will have an impact on the behavior of your
+    module.  For example, if a developer removes a feature that you depend on,
+    your test should break so they know that the feature is needed.
+    """
+    from Testing.AutomaticContourTestLogic import AutomaticContourTestLogic
+    from AutomaticContourLib.AutomaticContourLogic import AutomaticContourLogic
+
+    self.delayDisplay("Starting the test")
+    #
+    # first, get some data
+    #
+    
+    # get test file
+    
+    # setup logic
+    logic = AutomaticContourLogic()
+    testLogic = AutomaticContourTestLogic()
+    scene = slicer.mrmlScene
+    
+    # setup input volume
+    inputVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA.mha', name='testInputVolume')
+
+    # generate mask with default settings
+    outputVolume = testLogic.newNode(scene, name='testOutputVolume', type='labelmap')
+    logic.setParameters(inputVolume, outputVolume, 686, 4000, 2, 1, 38, None)
+    self.assertTrue(logic.getContour(inputVolume, outputVolume, noProgress=True), "Contour operation failed")
+    self.assertTrue(testLogic.verifyMask(outputVolume, scene), "Output volume is incorrect")
+    
+    self.delayDisplay('Test passed!')
+    return SUCCESS

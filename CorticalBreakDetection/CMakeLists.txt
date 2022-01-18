@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-set(MODULE_NAME CorticalBreak)
+set(MODULE_NAME CorticalBreakDetection)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS

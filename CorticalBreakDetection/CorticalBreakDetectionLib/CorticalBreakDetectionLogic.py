@@ -120,7 +120,7 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def setCorticalBreakDetectionsParameters(self, lower, upper, inputVolumeNode, inputBoneNode, maskNode, 
+  def setCorticalBreaksParameters(self, lower, upper, inputVolumeNode, inputBoneNode, maskNode, 
                                   outputCorticalBreakDetectionsNode, corticalThickness, dilateErodeDistance, 
                                   voxelSize, cbCT):
     """
@@ -174,7 +174,7 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def getCorticalBreakDetections(self, outputCorticalBreakDetectionsNode):
+  def getCorticalBreaks(self, outputCorticalBreakDetectionsNode, noProgress=False):
     """
     Run the automatic cortical break detection algorithm.
 
@@ -184,7 +184,8 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
     # initialize progress bar
     increment = 100 // self.CorticalBreakDetection.stepNum # progress bar increment value
     progress = increment                          # progress bar initial value
-    self.progressCallBack(progress)
+    if not noProgress:
+      self.progressCallBack(progress)
     logging.info('Processing started')
     
     # run erosion detection algorithm
@@ -192,7 +193,8 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
       step = 2
       while (self.CorticalBreakDetection.execute(step)): # execute the next step
         progress += increment
-        self.progressCallBack(progress) # update progress bar
+        if not noProgress:
+          self.progressCallBack(progress) # update progress bar
         step += 1
     except Exception as e:
       slicer.util.errorDisplay('Error')

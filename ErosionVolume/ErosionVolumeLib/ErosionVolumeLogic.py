@@ -130,7 +130,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     
     return True
 
-  def getErosions(self, inputVolumeNode, inputContourNode, outputErosionNode):
+  def getErosions(self, inputVolumeNode, inputContourNode, outputErosionNode, noProgress=False):
     """
     Run the Erosion Volume algorithm and store the result in the output erosion node. 
     The erosions will have label values that match the seed point postfixes
@@ -145,7 +145,8 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     """
     # initialize progress bar
     progress = 0
-    self.progressCallBack(progress)
+    if not noProgress:
+      self.progressCallBack(progress)
     increment = 100 // self.voidVolume.stepNum # progress bar increment value
     logging.info('Processing started')
     
@@ -154,7 +155,8 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       step = 1
       while (self.voidVolume.execute(step)): # execute the next step
         progress += increment
-        self.progressCallBack(progress) # update progress bar
+        if not noProgress:
+          self.progressCallBack(progress) # update progress bar
         step += 1
     except Exception as e:
       slicer.util.errorDisplay('Error')

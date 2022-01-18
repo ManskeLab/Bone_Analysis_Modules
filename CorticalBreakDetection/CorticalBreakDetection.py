@@ -7,6 +7,7 @@
 # Description: This module sets up the interface for the Cortical Break Detection 3D Slicer extension.
 #
 #-----------------------------------------------------
+from cgi import test
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging
@@ -65,6 +66,9 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     """
     Called when the user opens the module the first time and the widget is initialized.
     """
+    # Buttons for testing
+    ScriptedLoadableModuleWidget.setup(self)
+
     # Collapsible button
     self.CorticalBreakDetectionCollapsibleButton = ctk.ctkCollapsibleButton()
     self.seedPointsCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -215,19 +219,19 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     CorticalBreakDetectionLayout.addRow("Contour: ", self.maskSelector)
 
     # output Cortical Breaks selector
-    self.outputCorticalBreakDetectionsSelector = slicer.qMRMLNodeComboBox()
-    self.outputCorticalBreakDetectionsSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
-    self.outputCorticalBreakDetectionsSelector.selectNodeUponCreation = True
-    self.outputCorticalBreakDetectionsSelector.addEnabled = True
-    self.outputCorticalBreakDetectionsSelector.renameEnabled = True
-    self.outputCorticalBreakDetectionsSelector.removeEnabled = True
-    self.outputCorticalBreakDetectionsSelector.noneEnabled = False
-    self.outputCorticalBreakDetectionsSelector.showHidden = False
-    self.outputCorticalBreakDetectionsSelector.showChildNodeTypes = False
-    self.outputCorticalBreakDetectionsSelector.setMRMLScene(slicer.mrmlScene)
-    self.outputCorticalBreakDetectionsSelector.setToolTip( "Select the node to store the Cortical Breaks in" )
-    self.outputCorticalBreakDetectionsSelector.setCurrentNode(None)
-    CorticalBreakDetectionLayout.addRow("Output Cortical Breaks: ", self.outputCorticalBreakDetectionsSelector)
+    self.outputCorticalBreaksSelector = slicer.qMRMLNodeComboBox()
+    self.outputCorticalBreaksSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+    self.outputCorticalBreaksSelector.selectNodeUponCreation = True
+    self.outputCorticalBreaksSelector.addEnabled = True
+    self.outputCorticalBreaksSelector.renameEnabled = True
+    self.outputCorticalBreaksSelector.removeEnabled = True
+    self.outputCorticalBreaksSelector.noneEnabled = False
+    self.outputCorticalBreaksSelector.showHidden = False
+    self.outputCorticalBreaksSelector.showChildNodeTypes = False
+    self.outputCorticalBreaksSelector.setMRMLScene(slicer.mrmlScene)
+    self.outputCorticalBreaksSelector.setToolTip( "Select the node to store the Cortical Breaks in" )
+    self.outputCorticalBreaksSelector.setCurrentNode(None)
+    CorticalBreakDetectionLayout.addRow("Output Cortical Breaks: ", self.outputCorticalBreaksSelector)
 
     # output seed point selector
     self.outputFiducialSelector = slicer.qMRMLNodeComboBox()
@@ -302,10 +306,10 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     executeGridLayout2.addWidget(self.progressBar2, 0, 0)
 
     # Preprocess Button
-    self.getCorticalBreakDetectionsButton = qt.QPushButton("Get Cortical Breaks")
-    self.getCorticalBreakDetectionsButton.toolTip = "Apply the automatic Cortical Break Detection algorithm"
-    self.getCorticalBreakDetectionsButton.enabled = False
-    executeGridLayout2.addWidget(self.getCorticalBreakDetectionsButton, 1, 0)
+    self.getCorticalBreaksButton = qt.QPushButton("Get Cortical Breaks")
+    self.getCorticalBreaksButton.toolTip = "Apply the automatic Cortical Break Detection algorithm"
+    self.getCorticalBreaksButton.enabled = False
+    executeGridLayout2.addWidget(self.getCorticalBreaksButton, 1, 0)
 
     # Execution frame with progress bar and preprocess button
     erosionButtonFrame2 = qt.QFrame()
@@ -321,12 +325,12 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.inputBoneSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
     self.maskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
     self.maskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectMask)
-    self.outputCorticalBreakDetectionsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
+    self.outputCorticalBreaksSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
     self.xtremeCTIButton.connect("toggled(bool)", self.onCTTypeChanged)
     self.xtremeCTIIButton.connect("toggled(bool)", self.onCTTypeChanged)
     self.cbCTButton.connect("toggled(bool)", self.onCTTypeChanged)
     self.preprocessButton.connect("clicked(bool)", self.onPreprocessButton)
-    self.getCorticalBreakDetectionsButton.connect("clicked(bool)", self.onGetCorticalBreakDetectionsButton)    
+    self.getCorticalBreaksButton.connect("clicked(bool)", self.ongetCorticalBreaksButton)    
 
   def setupSeedPoints(self):
     """Set up widgets for seed points"""
@@ -405,9 +409,9 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
   
   def onSelect2(self):
     """Run this whenever the selectors in the Cortical Break Detection detection step changes state."""
-    self.getCorticalBreakDetectionsButton.enabled = (self.masterVolumeSelector.currentNode() and
+    self.getCorticalBreaksButton.enabled = (self.masterVolumeSelector.currentNode() and
                                             self.inputBoneSelector.currentNode() and
-                                            self.outputCorticalBreakDetectionsSelector.currentNode())
+                                            self.outputCorticalBreaksSelector.currentNode())
 
   def onSelectSeed(self):
     """Run this whenever the seed point selected in the seed point step changes state."""
@@ -451,11 +455,11 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     maskNode = self.maskSelector.currentNode()
 
     if maskNode:
-      self.outputCorticalBreakDetectionsSelector.baseName = (maskNode.GetName()+"_BREAKS")
+      self.outputCorticalBreaksSelector.baseName = (maskNode.GetName()+"_BREAKS")
       self.outputFiducialSelector.baseName = (maskNode.GetName()+"_SEEDS")
       # create default nodes if none selected
-      if not self.outputCorticalBreakDetectionsSelector.currentNode():
-        self.outputCorticalBreakDetectionsSelector.addNode()
+      if not self.outputCorticalBreaksSelector.currentNode():
+        self.outputCorticalBreaksSelector.addNode()
       if not self.outputFiducialSelector.currentNode():
         self.outputFiducialSelector.addNode()
 
@@ -510,14 +514,14 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.logger.info("Finished\n")
 
 
-  def onGetCorticalBreakDetectionsButton(self):
+  def ongetCorticalBreaksButton(self):
     """Run this whenever the preproecess button is clicked."""
     # update widgets
-    self.disableCorticalBreakDetectionsWidgets()
+    self.disableCorticalBreaksWidgets()
 
     masterVolumeNode = self.masterVolumeSelector.currentNode()
     inputBoneNode = self.inputBoneSelector.currentNode()
-    outputCorticalBreakDetectionsNode = self.outputCorticalBreakDetectionsSelector.currentNode()
+    outputCorticalBreaksNode = self.outputCorticalBreaksSelector.currentNode()
     outputFiducialNode = self.outputFiducialSelector.currentNode()
     maskNode = self.maskSelector.currentNode()
     cbCT = self.cbCTButton.isChecked()
@@ -526,33 +530,33 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.logger.info("Cortical Break Detection initialized with paramaters:")
     self.logger.info("Master Volume: " + masterVolumeNode.GetName())
     self.logger.info("Input Mask: " + maskNode.GetName())
-    self.logger.info("Output Mask: " + outputCorticalBreakDetectionsNode.GetName())
+    self.logger.info("Output Mask: " + outputCorticalBreaksNode.GetName())
     self.logger.info("Output Seeds: " + outputFiducialNode.GetName())
     self.logger.info("Cortical Thickness: " + str(self.corticalThicknessText.value))
     self.logger.info("Dilate/Erode Distance: " + str(self.dilateErodeDistanceText.value))
     self.logger.info("Voxel Size: " + str(self.voxelSizeText.value))
     
-    ready = self._logic.setCorticalBreakDetectionsParameters(self.lowerThresholdText.value,
+    ready = self._logic.setCorticalBreaksParameters(self.lowerThresholdText.value,
                                                     self.upperThresholdText.value,
                                                     masterVolumeNode,
                                                     inputBoneNode,
                                                     maskNode,
-                                                    outputCorticalBreakDetectionsNode,
+                                                    outputCorticalBreaksNode,
                                                     self.corticalThicknessText.value,
                                                     self.dilateErodeDistanceText.value,
                                                     self.voxelSizeText.value,
                                                     cbCT)
     if ready:
-      success = self._logic.getCorticalBreakDetections(outputCorticalBreakDetectionsNode)
+      success = self._logic.getCorticalBreaks(outputCorticalBreaksNode)
       if success:
         self._logic.getSeeds(inputBoneNode, outputFiducialNode)
         # update viewer windows
-        slicer.util.setSliceViewerLayers(label=outputCorticalBreakDetectionsNode, 
+        slicer.util.setSliceViewerLayers(label=outputCorticalBreaksNode, 
                                          labelOpacity=0.5)
                                     
     # update widgets
-    self.outputCorticalBreakDetectionsSelector.setCurrentNodeID("") # reset the output volume selector
-    self.enableCorticalBreakDetectionsWidgets()
+    self.outputCorticalBreaksSelector.setCurrentNodeID("") # reset the output volume selector
+    self.enableCorticalBreaksWidgets()
 
     self.logger.info("Finished\n")
   
@@ -590,11 +594,69 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.preprocessButton.enabled = False
     self.progressBar1.show()
 
-  def enableCorticalBreakDetectionsWidgets(self):
+  def enableCorticalBreaksWidgets(self):
     """Enable widgets for Cortical Break Detection."""
     self.progressBar2.hide()
 
-  def disableCorticalBreakDetectionsWidgets(self):
+  def disableCorticalBreaksWidgets(self):
     """Disable widgets for Cortical Break Detection."""
-    self.getCorticalBreakDetectionsButton.enabled = False
+    self.getCorticalBreaksButton.enabled = False
     self.progressBar2.show()
+
+class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
+  """
+  This is the test case for your scripted module.
+  Uses ScriptedLoadableModuleTest base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+
+  def setUp(self):
+    """ Do whatever is needed to reset the state - typically a scene clear will be enough.
+    """
+    slicer.mrmlScene.Clear(0)
+
+  def runTest(self):
+    """Run as few or as many tests as needed here.
+    """
+    self.setUp()
+    self.test_CortBreakQuick()
+
+  def test_CortBreakQuick(self):
+    """ Ideally you should have several levels of tests.  At the lowest level
+    tests sould exercise the functionality of the logic with different inputs
+    (both valid and invalid).  At higher levels your tests should emulate the
+    way the user would interact with your code and confirm that it still works
+    the way you intended.
+    One of the most important features of the tests is that it should alert other
+    developers when their changes will have an impact on the behavior of your
+    module.  For example, if a developer removes a feature that you depend on,
+    your test should break so they know that the feature is needed.
+    """
+    from Testing.CorticalBreakDetectionTestLogic import CorticalBreakDetectionTestLogic
+    from CorticalBreakDetectionLib.CorticalBreakDetectionLogic import CorticalBreakDetectionLogic
+
+    self.delayDisplay("Starting the test")
+    #
+    # first, get some data
+    #
+
+    # setup logic
+    logic = CorticalBreakDetectionLogic()
+    testLogic = CorticalBreakDetectionTestLogic()
+    scene = slicer.mrmlScene
+    
+    # setup input file
+    inputVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA.mha', name='testInputVolume')
+
+    # check preprocessing
+    processVolume = testLogic.newNode(scene, name='testProcessVolume', type='labelmap')
+    logic.setPreprocessParameters(inputVolume, 686, 4000, 0.8)
+    self.assertTrue(logic.preprocess(processVolume), 'Preprocessing Failed')
+    
+    # check cortical break detection
+    maskVolume = testLogic.newNode(scene, filename='\\SAMPLE_MASK.mha', name='testMaskVolume', type='labelmap', display=False)
+    outputVolume = testLogic.newNode(scene, name='testOutputNode', type='labelmap')
+    logic.setCorticalBreaksParameters(686, 4000, inputVolume, processVolume, maskVolume, outputVolume, 4, 1, 0.0820, False)
+    self.assertTrue(logic.getCorticalBreaks(outputVolume, noProgress=True))
+    
+    self.delayDisplay('Test passed!')

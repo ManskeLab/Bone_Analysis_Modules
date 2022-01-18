@@ -1,5 +1,6 @@
 
 import os
+from sre_constants import SUCCESS
 import unittest
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
@@ -176,9 +177,8 @@ class AIMConverterWidget(ScriptedLoadableModuleWidget):
     line1 = "Recommended lower threshold: " + str(thresholds[0])
     line2 = "Recommended upper threshold: " + str(thresholds[1])
     self.calibrationOutput.setText(line1 + "\n" + line2)
+    
 
-
-#
 # AIMConverterLogic
 #
 
@@ -291,9 +291,9 @@ class AIMConverterTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_AIMConverter1()
+    self.test_AIMConverterQuick()
 
-  def test_AIMConverter1(self):
+  def test_AIMConverterQuick(self):
     """ Ideally you should have several levels of tests.  At the lowest level
     tests sould exercise the functionality of the logic with different inputs
     (both valid and invalid).  At higher levels your tests should emulate the
@@ -309,22 +309,34 @@ class AIMConverterTest(ScriptedLoadableModuleTest):
     #
     # first, get some data
     #
-    import urllib
-    downloads = (
-        ('http://slicer.kitware.com/midas3/download?items=5767', 'FA.nrrd', slicer.util.loadVolume),
-        )
-
-    for url,name,loader in downloads:
-      filePath = slicer.app.temporaryPath + '/' + name
-      if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
-        print('Requesting download %s from %s...\n' % (name, url))
-        urllib.urlretrieve(url, filePath)
-      if loader:
-        print('Loading %s...\n' % (name,))
-        loader(filePath)
-    self.delayDisplay('Finished with download and loading\n')
-
-    volumeNode = slicer.util.getNode(pattern="FA")
+    
+    # get test file
+    aimPath = self.getFilePath('\\SAMPLE_AIM.AIM')
+    
+    # check if file is converted
     logic = AIMConverterLogic()
-    self.assertTrue( logic.hasImageData(volumeNode) )
+    volume = slicer.vtkMRMLScalarVolumeNode()
+    volume.SetScene(slicer.mrmlScene)
+    volume.SetName("testVolumeNode")
+    slicer.mrmlScene.AddNode(volume)
+    logic.convert(aimPath, volume)
+    self.assertTrue(logic.hasImageData(volume))
     self.delayDisplay('Test passed!')
+
+    return SUCCESS
+  
+  def getFilePath(self, filename):
+    '''
+    Find the full filepath of a file in the samme folder
+
+    Args: 
+        filename (str): name of file (requires \'\\\\' before the name)
+
+    Returns:
+        str: full file path
+    '''
+    root = self.getParent(self.getParent(os.path.realpath(__file__)))
+    return root + '\\TestFiles' + filename
+
+  def getParent(self, path):
+    return os.path.split(path)[0]

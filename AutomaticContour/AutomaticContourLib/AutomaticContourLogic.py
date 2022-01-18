@@ -210,7 +210,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def getContour(self, inputVolumeNode, outputVolumeNode):
+  def getContour(self, inputVolumeNode, outputVolumeNode, noProgress=False):
     """
     Run the automatic contour algorithm.
 
@@ -224,7 +224,8 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     # initialize progress value
     increment = 100 // self.contour.getStepNum() # progress bar increment value
     progress = 0
-    self.progressCallBack(progress)
+    if not noProgress:
+      self.progressCallBack(progress)
     logging.info('Processing started')
 
     # run the automatic contour algorithm
@@ -232,7 +233,8 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       step = 1
       while (self.contour.execute(step)): # execute the next step
         progress += increment
-        self.progressCallBack(progress) # update progress bar
+        if not noProgress:
+          self.progressCallBack(progress) # update progress bar
         step += 1
     except Exception as e: 
       slicer.util.errorDisplay('Error')
