@@ -61,22 +61,35 @@ class AutomaticContourTestLogic:
         Returns:
             vtkMRMLVolumeNode
         '''
-        if type is 'scalar':
+        if type == 'scalar':
             volume = slicer.vtkMRMLScalarVolumeNode()
-        elif type is 'labelmap':
+        elif type == 'labelmap':
             volume = slicer.vtkMRMLLabelMapVolumeNode()
         volume.SetScene(scene)
         volume.SetName(name)
         scene.AddNode(volume)
-        if not filename is 'new':
+        if not filename == 'new':
             self.volumeFromFile(filename, volume, display)
         return volume
+    
+    def arrayFromFile(self, filepath):
+        reader = sitk.ImageFileReader()
+        reader.SetFileName(filepath)
+        arr = sitk.GetArrayFromImage(reader.Execute())
+        return arr
 
-    def verifyMask(self, maskVolume, scene):
-        compareVolume = self.newNode(scene, filename='\\OUTPUT_MASK.nrrd', name='testCompareVolume', type='labelmap', display=False)
-        if maskVolume == compareVolume:
-            result = True
-        else:
-            result = True
+    def verifyMask(self, maskVolume):
+        import numpy as np
 
-        return result
+        outArr = slicer.util.arrayFromVolume(maskVolume)
+        compareArr = self.arrayFromFile(self.getFilePath('\\SAMPLE_OUTPUT_MASK.nrrd'))
+        
+        diff = np.divide(np.abs(np.subtract(outArr, compareArr)), 255)
+        
+        print(np.average(diff[diff != 0]), np.count_nonzero(diff), np.average(np.abs(compareArr[compareArr != 0])), np.count_nonzero(compareArr))
+        print(np.sum(diff), np.sum(np.abs(compareArr)))
+
+        co = np.sum(diff) / np.sum(np.abs(compareArr))
+        print(co)
+
+        return co < 0.05

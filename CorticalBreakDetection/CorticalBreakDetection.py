@@ -439,6 +439,10 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
       inputVolumeNode.GetIJKToRASMatrix(ijk2ras)
       self.markupsTableWidget.setCoordsMatrices(ras2ijk, ijk2ras)
 
+      #check intensity units and display warning if not in HU
+      if not self._logic.intenstyCheck(inputVolumeNode):
+        slicer.util.warningDisplay("The selected image likely does not use HU for intensity units. Default thresholds are set in HU and will not generate an accurate result. Change the lower and upper thresholds before initializing.", windowTitle='Intensity Unit Warning')
+
       #remove existing loggers
       if self.logger.hasHandlers():
         for handler in self.logger.handlers:
@@ -656,7 +660,11 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
     # check cortical break detection
     maskVolume = testLogic.newNode(scene, filename='\\SAMPLE_MASK.mha', name='testMaskVolume', type='labelmap', display=False)
     outputVolume = testLogic.newNode(scene, name='testOutputNode', type='labelmap')
+    seedsList = testLogic.newNode(scene, name='testSeedsList', type='fiducial')
     logic.setCorticalBreaksParameters(686, 4000, inputVolume, processVolume, maskVolume, outputVolume, 4, 1, 0.0820, False)
     self.assertTrue(logic.getCorticalBreaks(outputVolume, noProgress=True))
+    logic.getSeeds(inputVolume, seedsList)
+    self.assertTrue(testLogic.verifyBreaks(outputVolume))
+    self.assertTrue(testLogic.verifySeeds(seedsList))
     
     self.delayDisplay('Test passed!')

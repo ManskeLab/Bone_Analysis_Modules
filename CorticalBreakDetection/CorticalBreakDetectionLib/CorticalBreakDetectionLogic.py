@@ -14,6 +14,7 @@ import vtk
 import SimpleITK as sitk
 import sitkUtils
 import logging, os
+import numpy as np
 from .PetersCorticalBreakDetectionLogic import PetersCorticalBreakDetectionLogic
 from .CBCTCorticalBreakDetectionLogic import CBCTCorticalBreakDetectionLogic
 
@@ -223,3 +224,21 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
       ras_coord = self.IJKToRASCoords(list(seed), ijk2ras)
       fiducialNode.AddFiducialFromArray(ras_coord)
 
+  def intenstyCheck(self, volumeNode):
+    '''
+    Check if image intensity units are in HU
+
+    Args:
+      volumeNode (vtkMRMLVolumeNode)
+    
+    Returns:
+      bool: True for HU units, false for other
+    '''
+    arr = slicer.util.arrayFromVolume(volumeNode)
+    arrMax = np.max(arr)
+    arrMin = np.min(arr)
+    if arrMax > 5000 or arrMax < 1000 or arrMin < -2000:
+      print(np.max(arr), np.min(arr), np.average(arr), np.std(arr))
+      return False
+    else:
+      return True

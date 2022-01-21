@@ -532,6 +532,10 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
 
+      #check intensity units and display warning if not in HU
+      if not self._logic.intenstyCheck(inputVolumeNode):
+        slicer.util.warningDisplay("The selected image likely does not use HU for intensity units. Default thresholds are set in HU and will not generate an accurate result. Change the lower and upper thresholds before initializing.", windowTitle='Intensity Unit Warning')
+
       #remove existing loggers
       if self.logger.hasHandlers():
         for handler in self.logger.handlers:
@@ -727,14 +731,14 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
     # get input files
     masterVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA.mha', name='testMasterVolume')
     maskVolume = testLogic.newNode(scene, filename='\\SAMPLE_MASK.mha', name='testMaskVolume', type='labelmap', display=False)
-    seedsList = testLogic.newNode(scene, name='testSeedsList', type='fiducial')
-    seedsList.AddFiducial(10, 10, 10)
+    seedsList = testLogic.newNode(scene, filename='\\SAMPLE_SEEDS.mrk.json', name='testSeedsList', type='fiducial')
 
 
     # setup volumes
     outputVolume = testLogic.newNode(scene, name='testOutputVolume', type='segmentation')
     logic.setErosionParameters(masterVolume, maskVolume, 686, 4000, 1, seedsList, 3, 4)
     self.assertTrue(logic.getErosions(masterVolume, maskVolume, outputVolume, noProgress=True))
+    #self.assertTrue(testLogic.verifyErosion(outputVolume))
 
     
     

@@ -10,6 +10,7 @@
 from sre_constants import SUCCESS
 import vtk, qt, ctk, slicer
 import sitkUtils
+import numpy as np
 from slicer.ScriptedLoadableModule import *
 import logging
 from AutomaticContourLib.AutomaticContourLogic import AutomaticContourLogic
@@ -457,6 +458,10 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
 
+      #check intensity units and display warning if not in HU
+      if not self._logic.intenstyCheck(inputVolumeNode):
+        slicer.util.warningDisplay("The selected image likely does not use HU for intensity units. Default thresholds are set in HU and will not generate an accurate result. Change the lower and upper thresholds before initializing.", windowTitle='Intensity Unit Warning')
+
       #remove existing loggers
       if self.logger.hasHandlers():
         for handler in self.logger.handlers:
@@ -649,9 +654,11 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
 
     # generate mask with default settings
     outputVolume = testLogic.newNode(scene, name='testOutputVolume', type='labelmap')
-    logic.setParameters(inputVolume, outputVolume, 686, 4000, 2, 1, 38, None)
+    logic.setParameters(inputVolume, outputVolume, 700, 4000, 2, 1, 38, None)
     self.assertTrue(logic.getContour(inputVolume, outputVolume, noProgress=True), "Contour operation failed")
-    self.assertTrue(testLogic.verifyMask(outputVolume, scene), "Output volume is incorrect")
+    self.assertTrue(testLogic.verifyMask(outputVolume), "Output volume is incorrect")
+    outArr = slicer.util.arrayFromVolume(outputVolume)
+    compareArr = testLogic.arrayFromFile(testLogic.getFilePath('\\SAMPLE_OUTPUT_MASK.nrrd'))
     
     self.delayDisplay('Test passed!')
     return SUCCESS

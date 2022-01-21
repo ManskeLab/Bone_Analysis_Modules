@@ -13,6 +13,7 @@ from slicer.ScriptedLoadableModule import *
 import vtk
 import SimpleITK as sitk
 import sitkUtils
+import numpy as np
 from numpy import copy
 import logging, os
 from ErosionVolumeLib.SegmentEditor import SegmentEditor
@@ -386,3 +387,22 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     Erosions will not be centred in the viewer windows upon selection.
     """
     self.erosionStatistics.disconnectErosionSelection()
+
+  def intenstyCheck(self, volumeNode):
+    '''
+    Check if image intensity units are in HU
+
+    Args:
+      volumeNode (vtkMRMLVolumeNode)
+    
+    Returns:
+      bool: True for HU units, false for other
+    '''
+    arr = slicer.util.arrayFromVolume(volumeNode)
+    arrMax = np.max(arr)
+    arrMin = np.min(arr)
+    if arrMax > 5000 or arrMax < 1000 or arrMin < -2000:
+      print(np.max(arr), np.min(arr), np.average(arr), np.std(arr))
+      return False
+    else:
+      return True

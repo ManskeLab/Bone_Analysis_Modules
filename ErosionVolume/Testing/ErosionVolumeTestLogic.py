@@ -61,17 +61,35 @@ class ErosionVolumeTestLogic:
         Returns:
             vtkMRMLVolumeNode
         '''
-        if type is 'scalar':
+        if type == 'scalar':
             volume = slicer.vtkMRMLScalarVolumeNode()
-        elif type is 'labelmap':
+        elif type == 'labelmap':
             volume = slicer.vtkMRMLLabelMapVolumeNode()
-        elif type is 'segmentation':
+        elif type == 'segmentation':
             volume = slicer.vtkMRMLSegmentationNode()
-        elif type is 'fiducial':
+        elif type == 'fiducial':
             volume = slicer.vtkMRMLMarkupsFiducialNode()
         volume.SetScene(scene)
         volume.SetName(name)
         scene.AddNode(volume)
-        if not filename is 'new':
-            self.volumeFromFile(filename, volume, display)
+        if not filename == 'new':
+            if type == 'fiducial':
+                volume = slicer.util.loadMarkups(self.getFilePath(filename))
+            elif type == 'seg':
+                volume = slicer.util.loadSegmentation(self.getFilePath(filename))
+            else:
+                self.volumeFromFile(filename, volume, display)
         return volume
+
+    def verifyErosion(self, erosionNode):
+        import numpy as np
+
+
+        erosionArr = slicer.util.arrayFromSegment(erosionNode, '11')
+
+        compareNode = slicer.util.loadSegmentation(self.getFilePath('\\SAMPLE_ER.seg.nrrd'))
+        compareArr = slicer.util.arrayFromSegment(compareNode, '11')
+        
+        diff = np.divide(np.abs(np.subtract(erosionArr, compareArr)), 255)
+        ratio = np.sum(diff) / np.sum(np.abs(compareArr))
+        return ratio < 0.005

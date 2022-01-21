@@ -8,6 +8,7 @@
 #              for the Automatic Contour 3D Slicer extension.
 #
 #-----------------------------------------------------
+from re import T
 import slicer
 from slicer.ScriptedLoadableModule import *
 import vtk
@@ -15,6 +16,7 @@ import SimpleITK as sitk
 import sitkUtils
 import logging
 import os
+import numpy as np
 from .ContourLogic import ContourLogic
 from .SegmentEditor import SegmentEditor
 
@@ -363,3 +365,23 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
 
       return True
     return False
+
+  def intenstyCheck(self, volumeNode):
+    '''
+    Check if image intensity units are in HU
+
+    Args:
+      volumeNode (vtkMRMLVolumeNode)
+    
+    Returns:
+      bool: True for HU units, false for other
+    '''
+    arr = slicer.util.arrayFromVolume(volumeNode)
+    arrMax = np.max(arr)
+    arrMin = np.min(arr)
+    if arrMax > 5000 or arrMax < 1000 or arrMin < -2000:
+      print(np.max(arr), np.min(arr), np.average(arr), np.std(arr))
+      return False
+    else:
+      return True
+

@@ -1,4 +1,5 @@
 import SimpleITK as sitk
+from numpy import subtract
 import sitkUtils, os, slicer
 
 class CorticalBreakDetectionTestLogic:
@@ -61,13 +62,65 @@ class CorticalBreakDetectionTestLogic:
         Returns:
             vtkMRMLVolumeNode
         '''
-        if type is 'scalar':
+        if type == 'scalar':
             volume = slicer.vtkMRMLScalarVolumeNode()
-        elif type is 'labelmap':
+        elif type == 'labelmap':
             volume = slicer.vtkMRMLLabelMapVolumeNode()
+        elif type == 'fiducial':
+            volume = slicer.vtkMRMLMarkupsFiducialNode()
         volume.SetScene(scene)
         volume.SetName(name)
         scene.AddNode(volume)
-        if not filename is 'new':
+        if not filename == 'new':
             self.volumeFromFile(filename, volume, display)
         return volume
+
+    def verifyBreaks(self, breaksNode):
+        import numpy as np
+
+        breaksArr = slicer.util.arrayFromVolume(breaksNode)
+        compareImage = sitk.ReadImage(self.getFilePath('\\SAMPLE_BREAKS.nrrd'))
+        compareArr = sitk.GetArrayFromImage(compareImage)
+
+        diff = np.divide(np.abs(np.subtract(breaksArr, compareArr)), 255)
+        ratio = np.sum(diff) / np.sum(np.abs(compareArr))
+        return ratio < 0.005
+
+
+    def verifySeeds(self, seedsNode):
+        import numpy as np
+        import csv
+
+        seedsList = []
+        for i in range(seedsNode.GetNumberOfFiducials()):
+            seedsList.append([0, 0, 0])
+            seedsNode.GetNthFiducialPosition(i, seedsList[i])
+        seedsArr = np.array(seedsList)
+
+        compareList = []
+        with open(self.getFilePath('\\SAMPLE_SEEDS.csv'), 'r') as f:
+            firstRow = True
+            reader = csv.reader(f)
+            for row in reader:
+                if firstRow:
+                    firstRow = False
+                    continue
+                row = [float(x) for x in row[1:]]
+                compareList.append(row)
+        compareArr = np.array(compareList)
+        
+        lendiff = abs(len(seedsList) - len(compareList))
+
+        if lendiff > 2:
+            return False
+        elif lendiff > 0:
+            for coord in seedsList:
+                match = False
+                for compCoord in compareList:
+                    print(coord, compCoord)
+                    if abs(np.sum(coord) - np.sum(compCoord)) < 1:
+                        match = True
+                        break
+                if not match:
+                    del coord
+        return abs(np.sum(seedsArr) - np.sum(compareArr)) < 5
