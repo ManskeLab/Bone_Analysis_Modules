@@ -84,12 +84,35 @@ class ErosionVolumeTestLogic:
     def verifyErosion(self, erosionNode):
         import numpy as np
 
-
-        erosionArr = slicer.util.arrayFromSegment(erosionNode, '11')
-
         compareNode = slicer.util.loadSegmentation(self.getFilePath('\\SAMPLE_ER.seg.nrrd'))
-        compareArr = slicer.util.arrayFromSegment(compareNode, '11')
+        compareSegment = compareNode.GetSegmentation
+
+        #compare each segmentation
+        segment = erosionNode.GetSegmentation()
+        for i in range(1, segment.GetNumberOfSegments()):
+            id = segment.GetNthSegmentID(i)
+            erosionArr = slicer.util.arrayFromSegmentBinaryLabelmap(erosionNode, id)
+            try:
+                compareArr = slicer.util.arrayFromSegmentBinaryLabelmap(compareNode, id)
+            except:
+                print('Segment ' + id + ' not found')
+                return False
+            print(np.shape(erosionArr), np.shape(compareArr))
+            if (np.shape(compareArr) > np.shape(erosionArr)):
+                padDiff = np.subtract(np.shape(compareArr), np.shape(erosionArr))
+                padDiff = np.reshape(np.append(padDiff, (0, 0, 0)), (3, 2))
+                erosionArr = np.pad(erosionArr, padDiff, 'mean')
+            else:
+                padDiff = np.subtract(np.shape(erosionArr), np.shape(compareArr))
+                padDiff = np.reshape(np.append(padDiff, (0, 0, 0)), (3, 2))
+                erosionArr = np.pad(compareArr, padDiff, 'mean')
+            diff = np.divide(np.abs(np.subtract(erosionArr, compareArr)), 255)
+            ratio = np.sum(diff) / np.sum(np.abs(compareArr))
+            print(ratio)
+            if not ratio < 0.005:
+                return False
+        return True
+
         
-        diff = np.divide(np.abs(np.subtract(erosionArr, compareArr)), 255)
-        ratio = np.sum(diff) / np.sum(np.abs(compareArr))
-        return ratio < 0.005
+        
+        

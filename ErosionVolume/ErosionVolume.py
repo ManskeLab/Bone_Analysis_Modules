@@ -738,7 +738,7 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
     outputVolume = testLogic.newNode(scene, name='testOutputVolume', type='segmentation')
     logic.setErosionParameters(masterVolume, maskVolume, 686, 4000, 1, seedsList, 3, 4)
     self.assertTrue(logic.getErosions(masterVolume, maskVolume, outputVolume, noProgress=True))
-    #self.assertTrue(testLogic.verifyErosion(outputVolume))
+    self.assertTrue(testLogic.verifyErosion(outputVolume))
 
     
     

@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-set(MODULE_NAME FileConverter)
+set(MODULE_NAME ImageRegistration)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
