@@ -28,9 +28,9 @@ class ErosionVolume(ScriptedLoadableModule):
     self.parent.title = "Erosion Volume" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []
-    self.parent.contributors = ["Mingjie Zhao and Ryan Yan"] # replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-Updated on August 22, 2021. 
+Updated on January 27, 2022. 
 This module contains steps 4-6 of erosion analysis. It requires a greyscale scan and a mask.
 Erosions are identified by placing seed points in each of them. 
 Step 4 is to segment erosions given a seed point in each erosion. 
@@ -39,7 +39,7 @@ Step 6 is to compute erosion statistics, such as volume, surface area, and round
 """
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = """
-Updated on August 22, 2021.
+Updated on January 27, 2022.
 """ # replace with organization, grant and thanks.
 
 #
@@ -542,7 +542,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
           self.logger.removeHandler(handler)
       #initialize logger with filename
       filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
-      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '.log')
+      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
       self.logger.addHandler(logHandler)
       self.logger.info("Using Erosion Volume Module with " + inputVolumeNode.GetName() + "\n")
 
@@ -705,16 +705,23 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
     self.test_ErosionVolumeQuick()
 
   def test_ErosionVolumeQuick(self):
-    """ Ideally you should have several levels of tests.  At the lowest level
-    tests sould exercise the functionality of the logic with different inputs
-    (both valid and invalid).  At higher levels your tests should emulate the
-    way the user would interact with your code and confirm that it still works
-    the way you intended.
-    One of the most important features of the tests is that it should alert other
-    developers when their changes will have an impact on the behavior of your
-    module.  For example, if a developer removes a feature that you depend on,
-    your test should break so they know that the feature is needed.
-    """
+    '''
+    Automatic Contour Tests: Runs the cortical break detection function on 3 sample images
+    and compares the results to pre-generated masks and manually placed seed points
+
+    Test Requires:
+
+      mha files: 'SAMPLE_MHA1.mha', 'SAMPLE_MHA2.mha', 'SAMPLE_MHA3.mha'
+      contour masks: 'SAMPLE_MASK1.mha', 'SAMPLE_MASK2.mha', 'SAMPLE_MASK3.mha'
+      seed lists: 'SAMPLE_SEEDS1.json', 'SAMPLE_SEEDS2.json', 'SAMPLE_SEEDS3.json'
+      comparison segmentations: 'SAMPLE_ER1.seg.nrrd', 'SAMPLE_ER2.seg.nrrd', 'SAMPLE_ER3.seg.nrrd'
+    
+    Success Conditions:
+      1. Erosion segmentation is successfully generated
+      2. Number of segmentations is correct
+      3. Each segmetation differs by less than 0.5% from the corresponding comparison
+      4. Volume and Surface area are less than 0.01% from comparison values
+    '''
     from ErosionVolumeLib.ErosionVolumeLogic import ErosionVolumeLogic
     from Testing.ErosionVolumeTestLogic import ErosionVolumeTestLogic
 
@@ -727,19 +734,40 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
     logic = ErosionVolumeLogic()
     testLogic = ErosionVolumeTestLogic()
     scene = slicer.mrmlScene
-    
-    # get input files
-    masterVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA.mha', name='testMasterVolume')
-    maskVolume = testLogic.newNode(scene, filename='\\SAMPLE_MASK.mha', name='testMaskVolume', type='labelmap', display=False)
-    seedsList = testLogic.newNode(scene, filename='\\SAMPLE_SEEDS.mrk.json', name='testSeedsList', type='fiducial')
+
+    # run 3 tests
+    passed = True
+    for i in range(1, 4):
+      index = str(i)
+      print('\n*----------------------Test ' + index + '----------------------*')
+
+      # get input files
+      masterVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA' + index + '.mha', name='testMasterVolume' + index)
+      maskVolume = testLogic.newNode(scene, filename='\\SAMPLE_MASK' + index + '.mha', name='testMaskVolume' + index, type='labelmap', display=False)
+      seedsList = testLogic.newNode(scene, filename='\\SAMPLE_SEEDS' + index + '.json', name='testSeedsList' + index, type='fiducial')
 
 
-    # setup volumes
-    outputVolume = testLogic.newNode(scene, name='testOutputVolume', type='segmentation')
-    logic.setErosionParameters(masterVolume, maskVolume, 686, 4000, 1, seedsList, 3, 4)
-    self.assertTrue(logic.getErosions(masterVolume, maskVolume, outputVolume, noProgress=True))
-    self.assertTrue(testLogic.verifyErosion(outputVolume))
+      # setup volumes
+      outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index, type='segmentation')
+      if i == 3:
+        logic.setErosionParameters(masterVolume, maskVolume, 686, 4000, 1, seedsList, 7, 7)
+      else:
+        logic.setErosionParameters(masterVolume, maskVolume, 686, 4000, 1, seedsList, 3, 4)
+      self.assertTrue(logic.getErosions(masterVolume, maskVolume, outputVolume, noProgress=True), 'Erosion volume operation failed')
+      table = testLogic.newNode(scene, name='testTable' + index, type='table')
+      logic.getStatistics(outputVolume, masterVolume, 0.0607, table)
+      
+      # check outputs against sample file
+      if not testLogic.verifyErosion(outputVolume, i):
+        self.delayDisplay('Output segments are incorrect for test ' + index, msec = 300)
+        passed = False
+        #continue
+      if not testLogic.verifyTale(table, i):
+        self.delayDisplay('Statistics table is incorrect for test ' + index, msec = 300)
+        passed = False
+        continue
 
-    
-    
-    self.delayDisplay('Test passed!')
+      self.delayDisplay('Test ' + index + ' complete')
+
+    #Failure message
+    self.assertTrue(passed, 'Incorrect results, check testing log')

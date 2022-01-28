@@ -10,9 +10,7 @@
 #              as well as underlying trabecular bone loss.
 #
 #-----------------------------------------------------
-# Usage:       python PetersCorticalBreakDetectionLogic.py inputImage inputContour outputImage 
-#                                                 voxelSize lowerThreshold upperThreshold
-#                                                 [corticalThickness] [dilateErodeDistance]
+# Usage:       This module is plugged into 3D Slicer
 #
 # Param:       inputImage: The input image file path
 #              inputContour: The input contour file path
@@ -598,52 +596,3 @@ class PetersCorticalBreakDetectionLogic:
 
     def getSeeds(self):
         return self.seeds
-
-
-# run this script on command line
-if __name__ == "__main__":
-    import argparse
-
-    # Read the input arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('inputImage', help='The input scan file path')
-    parser.add_argument('inputContour', help='The input contour file path')
-    parser.add_argument('outputImage', help='The output image file path')
-    parser.add_argument('voxelSize', type=float, help='Isotropic voxel size in micrometres')
-    parser.add_argument('lowerThreshold', type=int)
-    parser.add_argument('upperThreshold', type=int)
-    parser.add_argument('sigma', type=float, help='Standard deviation for the Gaussian smoothing filter')
-    parser.add_argument('corticalThickness', type=int, nargs='?', default=4, 
-                        help='Distance from the periosteal boundary to the endosteal boundary, only erosions connected to both the periosteal and the endosteal boundaries are labeled, default=4')
-    parser.add_argument('dilateErodeDistance', type=int, nargs='?', default=1,
-                        help='kernel radius for morphological dilation and erosion')
-    args = parser.parse_args()
-
-    input_dir = args.inputImage
-    contour_dir = args.inputContour
-    output_dir = args.outputImage
-    voxelSize = args.voxelSize
-    lower = args.lowerThreshold
-    upper = args.upperThreshold
-    sigma = args.sigma
-    corticalThickness = args.corticalThickness
-    dilateErodeDistance = args.dilateErodeDistance
-
-    # read images
-    img = sitk.ReadImage(input_dir)
-    contour = sitk.ReadImage(contour_dir)
-
-    # create erosion logic object
-    erosion = PetersCorticalBreakDetectionLogic(img, contour, voxelSize, lower, upper, 
-                                       sigma, corticalThickness, dilateErodeDistance)
-
-    # identify erosions
-    step = 2
-    print("Running automatic erosion detection script")
-    while (erosion.execute(step)):
-        step += 1
-    erosion_img = erosion.getOutput()
-
-    # store erosion_img in output_dir
-    print("Storing image in "+output_dir)
-    sitk.WriteImage(erosion_img, output_dir)

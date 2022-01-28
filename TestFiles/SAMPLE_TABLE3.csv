@@ -1,0 +1,2 @@
+"Segment","Number of voxels [voxels]","Volume [mm3]","Centroid_L","Centroid_P","Centroid_S","Surface area [mm2]","Roundness","Source","Seeds","Minimum Radius [Voxels]","Dilate Erode Distance [Voxels]"
+"Erosion_1",134895,30.1677,256,167,96,84.8445,0.552359,"testOutputVolume3","(249, 156, 83)","7","7"

@@ -20,7 +20,7 @@ class FileConverter(ScriptedLoadableModule):
     self.parent.title = "File Converter"
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []
-    self.parent.contributors = ["Ryan Yan, Michael Kuczynski"] # replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
     Updated 2022-01-07. Converts an AIM or ISQ file to a viewable slicer volume node. 
     IMPORTANT: Requires ITK package installed in Slicer. 
@@ -46,22 +46,22 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     #
     # Convert to volume option
     #
-    toVolumeCollapsible = ctk.ctkCollapsibleButton()
-    toVolumeCollapsible.text = "Convert to Volume"
-    self.layout.addWidget(toVolumeCollapsible)
+    self.toVolumeCollapsible = ctk.ctkCollapsibleButton()
+    self.toVolumeCollapsible.text = "Convert to Volume"
+    self.layout.addWidget(self.toVolumeCollapsible)
 
     # Layout within the dummy collapsible button
-    toVolumeLayout = qt.QFormLayout(toVolumeCollapsible)
+    toVolumeLayout = qt.QFormLayout(self.toVolumeCollapsible)
     toVolumeLayout.setVerticalSpacing(5)
 
     #Convert to .mha files option
-    toFilesCollapsible = ctk.ctkCollapsibleButton()
-    toFilesCollapsible.text = "Convert to Files"
-    toFilesCollapsible.collapsed = True
-    self.layout.addWidget(toFilesCollapsible)
+    self.toFilesCollapsible = ctk.ctkCollapsibleButton()
+    self.toFilesCollapsible.text = "Convert to Files"
+    self.toFilesCollapsible.collapsed = True
+    self.layout.addWidget(self.toFilesCollapsible)
 
     # Layout within the collapsible button
-    toFilesLayout = qt.QFormLayout(toFilesCollapsible)
+    toFilesLayout = qt.QFormLayout(self.toFilesCollapsible)
 
     #
     # Output Format Selector ------------------------------------------------------------------------*
@@ -121,7 +121,7 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     #
     executeGridLayout = qt.QGridLayout()
     executeGridLayout.setRowMinimumHeight(0,20)
-    executeGridLayout.setRowMinimumHeight(1,20)
+    executeGridLayout.setRowMinimumHeight(1,40)
 
     self.applyButton = qt.QPushButton("Convert")
     self.applyButton.toolTip = "Convert file to Slicer volume."
@@ -186,15 +186,24 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     self.selectedFolder = ''
 
     #convert button
+    executeGridLayout2 = qt.QGridLayout()
+    executeGridLayout2.setRowMinimumHeight(0,20)
+    executeGridLayout2.setRowMinimumHeight(1,20)
+
     self.convertButton = qt.QPushButton('Convert')
     self.convertButton.toolTip = "Convert files to .mha format"
     self.convertButton.enabled = False
-    toFilesLayout.addRow(self.convertButton)
+    executeGridLayout2.addWidget(self.convertButton, 1, 0)
 
-    #connections
+    toFilesLayout.addRow(executeGridLayout2)
+
+    # connections
     self.fileButton2.clicked.connect(self.onFilesSelect)
     self.folderButton.clicked.connect(self.onFolderSelect)
     self.convertButton.clicked.connect(self.onConvertButton)
+
+    self.toVolumeCollapsible.contentsCollapsed.connect(self.onCollapse1)
+    self.toFilesCollapsible.contentsCollapsed.connect(self.onCollapse2)
 
 
   def cleanup(self):
@@ -284,6 +293,18 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
       logic.convertMultiple(self.filenameList, self.selectedFolder)
     else:
       logic.convertMultiple(self.filenameList)
+    
+    #reset files and box
+    self.filenameList = []
+    self.multiFileText.clear()
+  
+  def onCollapse1(self):
+    if not self.toVolumeCollapsible.collapsed:
+      self.toFilesCollapsible.collapsed = True
+  
+  def onCollapse2(self):
+    if not self.toFilesCollapsible.collapsed:
+      self.toVolumeCollapsible.collapsed = True
   
 
 

@@ -39,6 +39,7 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         followImage = sitkUtils.PullVolumeFromSlicer(followNode)
         self.registration.setRegistrationParamaters(baseImage, followImage)
 
-    def run(self):
-        self.registration.execute(0)
+    def run(self, outputNode):
+        outImg = self.registration.execute(0)
+        sitkUtils.PushVolumeToSlicer(outImg, outputNode)
         return True

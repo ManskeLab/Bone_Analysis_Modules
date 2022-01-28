@@ -29,9 +29,9 @@ class AutomaticContour(ScriptedLoadableModule):
     self.parent.title = "Automatic Contour" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []
-    self.parent.contributors = ["Mingjie Zhao and Ryan Yan"] # replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-Updated on August 22, 2021.
+Updated on January 27, 2022.
 This module contains steps 1-3 of erosion analysis. 
 Step 1 is to manually separate the bones by covering each bone with a different label. 
 Step 2 is to perform automatic contouring on the greyscale image and generate a 
@@ -42,7 +42,7 @@ and jump to Step 3.
 """
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = """
-Updated on August 22, 2021.
+Updated on January 27, 2022.
 """ # replace with organization, grant and thanks.
 
 #
@@ -468,7 +468,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
           self.logger.removeHandler(handler)
       #initialize logger with filename
       filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
-      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '.log')
+      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
       self.logger.addHandler(logHandler)
       self.logger.info("Using Automatic Contour Module with " + inputVolumeNode.GetName() + "\n")
 
@@ -621,19 +621,21 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_AutoContourQuick()
+    self.test_AutoContour()
 
-  def test_AutoContourQuick(self):
-    """ Ideally you should have several levels of tests.  At the lowest level
-    tests sould exercise the functionality of the logic with different inputs
-    (both valid and invalid).  At higher levels your tests should emulate the
-    way the user would interact with your code and confirm that it still works
-    the way you intended.
-    One of the most important features of the tests is that it should alert other
-    developers when their changes will have an impact on the behavior of your
-    module.  For example, if a developer removes a feature that you depend on,
-    your test should break so they know that the feature is needed.
-    """
+  def test_AutoContour(self):
+    '''
+    Automatic Contour Tests: Runs the contour function on 3 sample images and compares the results to masks generated in IPL
+
+    Test Requires:
+
+      mha files: 'SAMPLE_MHA1.mha', 'SAMPLE_MHA2.mha', 'SAMPLE_MHA3.mha'
+      comparison masks: 'SAMPLE_MASK1.mha', 'SAMPLE_MASK2.mha', 'SAMPLE_MASK3.mha'
+    
+    Success Conditions:
+      1. Contour mask is successfully generated
+      2. Output contour mask differs by less than 2% from the comparison mask
+    '''
     from Testing.AutomaticContourTestLogic import AutomaticContourTestLogic
     from AutomaticContourLib.AutomaticContourLogic import AutomaticContourLogic
 
@@ -647,18 +649,32 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
     # setup logic
     logic = AutomaticContourLogic()
     testLogic = AutomaticContourTestLogic()
+    
     scene = slicer.mrmlScene
-    
-    # setup input volume
-    inputVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA.mha', name='testInputVolume')
 
-    # generate mask with default settings
-    outputVolume = testLogic.newNode(scene, name='testOutputVolume', type='labelmap')
-    logic.setParameters(inputVolume, outputVolume, 700, 4000, 2, 1, 38, None)
-    self.assertTrue(logic.getContour(inputVolume, outputVolume, noProgress=True), "Contour operation failed")
-    self.assertTrue(testLogic.verifyMask(outputVolume), "Output volume is incorrect")
-    outArr = slicer.util.arrayFromVolume(outputVolume)
-    compareArr = testLogic.arrayFromFile(testLogic.getFilePath('\\SAMPLE_OUTPUT_MASK.nrrd'))
+    # run 3 tests
+    passed = True
+    for i in range(1, 4):
+      index = str(i)
+      print('\n*----------------------Test ' + index + '----------------------*')
+
+      # setup input volume
+      inputVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA' + index + '.mha', name='testInputVolume' + index)
+
+      # generate mask with default settings
+      outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index, type='labelmap')
+      logic.setParameters(inputVolume, outputVolume, 686, 4000, 2, 1, 38, None)
+      self.assertTrue(logic.getContour(inputVolume, outputVolume, noProgress=True), "Contour operation failed")
+
+      # verify mask with comparison
+      if not testLogic.verifyMask(outputVolume, i):
+        self.delayDisplay('Output mask is incorrect', msec = 300)
+        passed = False
+        continue
+
+      self.delayDisplay('Test ' + index + ' complete')
     
-    self.delayDisplay('Test passed!')
+    # failure message
+    self.assertTrue(passed, 'Incorrect results, check testing log')
+      
     return SUCCESS

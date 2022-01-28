@@ -62,6 +62,8 @@ class RegistrationLogic:
 
         followImage_resampled = sitk.Resample(self.followImage, self.baseImage, FU_Transform, sitk.sitkBSpline, 0.0, self.followImage.GetPixelID())
 
+        return followImage_resampled
+
 
     def command_iteration(self, method) :
         print( '{0:3} = {1:10.5f} : {2}'.format( method.GetOptimizerIteration(), method.GetMetricValue(), method.GetOptimizerPosition() ) )

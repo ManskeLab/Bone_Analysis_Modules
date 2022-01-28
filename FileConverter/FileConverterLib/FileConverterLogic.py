@@ -1,3 +1,26 @@
+#-----------------------------------------------------
+# FileConverterLogic.py
+#
+# Created by:  Ryan Yan
+# Created on:  17-01-2020
+#
+# Description: This module converts a .aim or .isq file to a slicer volume or .mha file
+#              Uses itk to read aim files, specifically the ioscanco package
+#              Convert to volume works for 1 file at a time, only used in 3D Slicer
+#              Convert to file can convert multiple files and is uable with command line
+#
+#-----------------------------------------------------
+# Usage:       This module is plugged into 3D Slicer, but can run on its own. 
+#              When running on its own:
+#              python FileConverterLogic.py mode filepath [filepath ...] [outputPath]
+#
+# Param:       mode: input format -> 'd' for directory, 'f' for files
+#              filepath: name of folder/files to be converted (supports multiple arguments)
+#              outputPath: destination folder for converted files, default is location of input file/folder
+#              
+#
+#-----------------------------------------------------
+
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import SimpleITK as sitk
@@ -16,58 +39,8 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
-  def hasImageData(self,volumeNode):
-    """This is a dummy logic method that
-    returns true if the passed in volume
-    node has valid image data
-    """
-    if not volumeNode:
-      print('no volume node')
-      return False
-    if volumeNode.GetImageData() == None:
-      print('no image data')
-      return False
-    return True
-
-  def takeScreenshot(self,name,description,type=-1):
-    # show the message even if not taking a screen shot
-    self.delayDisplay(description)
-
-    if self.enableScreenshots == 0:
-      return
-
-    lm = slicer.app.layoutManager()
-    # switch on the type to get the requested window
-    widget = 0
-    if type == slicer.qMRMLScreenShotDialog.FullLayout:
-      # full layout
-      widget = lm.viewport()
-    elif type == slicer.qMRMLScreenShotDialog.ThreeD:
-      # just the 3D window
-      widget = lm.threeDWidget(0).threeDView()
-    elif type == slicer.qMRMLScreenShotDialog.Red:
-      # red slice window
-      widget = lm.sliceWidget("Red")
-    elif type == slicer.qMRMLScreenShotDialog.Yellow:
-      # yellow slice window
-      widget = lm.sliceWidget("Yellow")
-    elif type == slicer.qMRMLScreenShotDialog.Green:
-      # green slice window
-      widget = lm.sliceWidget("Green")
-    else:
-      # default to using the full window
-      widget = slicer.util.mainWindow()
-      # reset the type so that the node is set correctly
-      type = slicer.qMRMLScreenShotDialog.FullLayout
-
-    # grab and convert to vtk image data
-    qpixMap = qt.QPixmap().grabWidget(widget)
-    qimage = qpixMap.toImage()
-    imageData = vtk.vtkImageData()
-    slicer.qMRMLUtils().qImageToVtkImageData(qimage,imageData)
-
-    annotationLogic = slicer.modules.annotations.logic()
-    annotationLogic.CreateSnapShot(name, description, type, self.screenshotScaleFactor, imageData)
+  def __init__(self):
+    pass
 
   def convert(self, fileName, outputVolumeNode, inFormat):
     '''
@@ -169,3 +142,6 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
   #rounding function for thesholds
   def roundNearest(self, num, roundTo):
     return int(num - num % roundTo + round(num % roundTo / roundTo) * roundTo)
+
+
+  

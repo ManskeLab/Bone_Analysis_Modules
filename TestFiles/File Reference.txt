@@ -1,0 +1,5 @@
+Original names of test files:
+
+SAMPLE 1 -> BHS_022_12MO_MCP2_MID
+SAMPLE 2 -> BHS_030_03MO_MCP2_MID
+SAMPLE 3 -> BHS_079_12MO_MCP2_MID

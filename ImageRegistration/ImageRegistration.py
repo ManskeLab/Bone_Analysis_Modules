@@ -27,9 +27,9 @@ class ImageRegistration(ScriptedLoadableModule):
     self.parent.title = "Image Registration" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []
-    self.parent.contributors = ["John Doe (AnyWare Corp.)"] # replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-    This is an example of scripted loadable module bundled in an extension.
+    Perform longitudinal image registration on a baseline and follow-up image. Currently under development.
     """
     self.parent.acknowledgementText = """
     This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
@@ -90,8 +90,20 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     parametersFormLayout.addRow("Follow-up: ", self.inputSelector2)
 
     #
-    # Ruler selector
+    # Output volume selector
     #
+    self.outputSelector = slicer.qMRMLNodeComboBox()
+    self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.outputSelector.selectNodeUponCreation = True
+    self.outputSelector.addEnabled = True
+    self.outputSelector.renameEnabled = True
+    self.outputSelector.removeEnabled = True
+    self.outputSelector.noneEnabled = False
+    self.outputSelector.showHidden = False
+    self.outputSelector.showChildNodeTypes = False
+    self.outputSelector.setMRMLScene( slicer.mrmlScene )
+    self.outputSelector.setToolTip( "Select the output image" )
+    parametersFormLayout.addRow("Output: ", self.outputSelector)
 
     #
     # Apply Button
@@ -117,4 +129,4 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     logic = ImageRegistrationLogic()
     print("Run the algorithm")
     logic.setParamaters(self.inputSelector1.currentNode(), self.inputSelector2.currentNode())
-    logic.run()
+    logic.run(self.outputSelector.currentNode())

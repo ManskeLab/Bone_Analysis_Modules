@@ -1,3 +1,0 @@
-aim - SAMPLE_AIM.aim
-mha main volume - SAMPLE_MHA.mha
-mha mask - SAMPLE_MASK.mha

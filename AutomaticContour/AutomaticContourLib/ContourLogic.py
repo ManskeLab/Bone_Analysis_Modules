@@ -14,10 +14,7 @@
 #              There are 7 steps. Each bone has to run Steps 3-7 separately.
 #
 #-----------------------------------------------------
-# Usage:       This module is plugged into 3D Slicer, but can run on its own. 
-#              When running on its own:
-#              python ContourLogic.py inputImage outputImage lowerThreshold upperThreshold
-#                                     boneNum [dilateErodeRadius] [roughMask]
+# Usage:       This module is plugged into 3D Slicer.
 #
 # Param:       inputImage: The input greyscale image to be contoured
 #              outputImage: The output image to store the contour
@@ -467,53 +464,3 @@ class ContourLogic:
 
     def getOutput(self):
         return self.output_img
-
-
-# execute this script on command line
-if __name__ == "__main__":
-    import argparse
-
-    # Read the input arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('inputImage', help='The input image file path')
-    parser.add_argument('outputImage', help='The output image file path')
-    parser.add_argument('lowerThreshold', type=int)
-    parser.add_argument('upperThreshold', type=int)
-    parser.add_argument('sigma', type=float, help='Standard deviation for the Gaussian smoothing filter')
-    parser.add_argument('boneNum', type=int, help='Number of separate bone structures')
-    parser.add_argument('dilateErodeRadius', type=int, nargs='?', default=38,
-                         help='Dilate/erode kernel radius in voxels')
-    parser.add_argument('roughMask', nargs='?', default="",
-                         help='The file path of optional rough mask that helps separate bones')
-    args = parser.parse_args()
-
-    input_dir = args.inputImage
-    output_dir = args.outputImage
-    lower = args.lowerThreshold
-    upper = args.upperThreshold
-    sigma = args.sigma
-    boneNum = args.boneNum
-    dilateErodeRadius = args.dilateErodeRadius
-    roughMask_dir = args.roughMask
-
-    # read images
-    print("Reading image in {}".format(input_dir))
-    model_img = sitk.ReadImage(input_dir)
-    roughMask = None
-    if (roughMask_dir != ""):
-        print("Reading rough mask in {}".format(roughMask_dir))
-        roughMask = sitk.ReadImage(roughMask_dir)
-
-    # create contour object
-    contour = ContourLogic(model_img, lower, upper, sigma, boneNum, dilateErodeRadius, roughMask)
-
-    # run contour algorithm
-    print("Running contour script")
-    step = 1
-    while (contour.execute(step)):
-        step += 1
-    contour_img = contour.getOutput()
-
-    # store contour
-    print("Storing image in {}".format(output_dir))
-    sitk.WriteImage(contour_img, output_dir)

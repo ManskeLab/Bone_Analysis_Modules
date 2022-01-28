@@ -27,10 +27,10 @@ class CorticalBreakDetection(ScriptedLoadableModule):
     self.parent.title = "Cortical Break Detection"
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-    self.parent.contributors = ["Mingjie Zhao and Ryan Yan"]
+    self.parent.contributors = ["Mingjie Zhao"]
     # TODO: update with short description of the module and a link to online module documentation
     self.parent.helpText = """
-Updated on August 22, 2021.
+Updated on January 27, 2022.
 This module inplements the automatic Cortical Break Detection method by Michel Peters et al. Workflow:
 1. Preprocess/binarize the bone. 2. Take the preprocessed image and the mask, identify Cortical Breaks 
 and underlying trabecular bone loss using Peters et al's algorithm. The Cortical Break Detection masks will be 
@@ -39,7 +39,7 @@ algorithm (i.e. level set) from the original algorithm. 3. Manually add or remov
 """
     # TODO: replace with organization, grant and thanks
     self.parent.acknowledgementText = """
-Updated on August 22, 2021.
+Updated on January 27, 2022.
 """ # Additional initialization step after application startup is complete
 
 #
@@ -449,7 +449,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
           self.logger.removeHandler(handler)
       #initialize logger with filename
       filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
-      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '.log')
+      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
       
       self.logger.addHandler(logHandler)
       self.logger.info("Using Cortical Break Detection Module with " + inputVolumeNode.GetName() + "\n")
@@ -626,16 +626,22 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
     self.test_CortBreakQuick()
 
   def test_CortBreakQuick(self):
-    """ Ideally you should have several levels of tests.  At the lowest level
-    tests sould exercise the functionality of the logic with different inputs
-    (both valid and invalid).  At higher levels your tests should emulate the
-    way the user would interact with your code and confirm that it still works
-    the way you intended.
-    One of the most important features of the tests is that it should alert other
-    developers when their changes will have an impact on the behavior of your
-    module.  For example, if a developer removes a feature that you depend on,
-    your test should break so they know that the feature is needed.
-    """
+    '''
+    Automatic Contour Tests: Runs the cortical break detection function on 3 sample images
+    and compares the results to pre-generated masks and manually placed seed points
+
+    Test Requires:
+
+      mha files: 'SAMPLE_MHA1.mha', 'SAMPLE_MHA2.mha', 'SAMPLE_MHA3.mha'
+      contour masks: 'SAMPLE_MASK1.mha', 'SAMPLE_MASK2.mha', 'SAMPLE_MASK3.mha'
+      seed lists: 'SAMPLE_SEEDS1.json', 'SAMPLE_SEEDS2.json', 'SAMPLE_SEEDS3.json'
+    
+    Success Conditions:
+      1. Cortical breaks mask and seeds are successfully generated
+      2. Output cortical breaks mask differs by less than 0.5% from the comparison mask
+      3. No more than 10 seed points are placed
+      4. 1 seed point is within 1 unit of the comparison seed in all directions
+    '''
     from Testing.CorticalBreakDetectionTestLogic import CorticalBreakDetectionTestLogic
     from CorticalBreakDetectionLib.CorticalBreakDetectionLogic import CorticalBreakDetectionLogic
 
@@ -649,22 +655,40 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
     testLogic = CorticalBreakDetectionTestLogic()
     scene = slicer.mrmlScene
     
-    # setup input file
-    inputVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA.mha', name='testInputVolume')
+    # run 3 tests
+    passed = True
+    for i in range(1, 4):
+      index = str(i)
+      print('\n*----------------------Test ' + index + '----------------------*')
 
-    # check preprocessing
-    processVolume = testLogic.newNode(scene, name='testProcessVolume', type='labelmap')
-    logic.setPreprocessParameters(inputVolume, 686, 4000, 0.8)
-    self.assertTrue(logic.preprocess(processVolume), 'Preprocessing Failed')
-    
-    # check cortical break detection
-    maskVolume = testLogic.newNode(scene, filename='\\SAMPLE_MASK.mha', name='testMaskVolume', type='labelmap', display=False)
-    outputVolume = testLogic.newNode(scene, name='testOutputNode', type='labelmap')
-    seedsList = testLogic.newNode(scene, name='testSeedsList', type='fiducial')
-    logic.setCorticalBreaksParameters(686, 4000, inputVolume, processVolume, maskVolume, outputVolume, 4, 1, 0.0820, False)
-    self.assertTrue(logic.getCorticalBreaks(outputVolume, noProgress=True))
-    logic.getSeeds(inputVolume, seedsList)
-    self.assertTrue(testLogic.verifyBreaks(outputVolume))
-    self.assertTrue(testLogic.verifySeeds(seedsList))
-    
-    self.delayDisplay('Test passed!')
+      # setup input file
+      inputVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA' + index + '.mha', name='testInputVolume' + index)
+
+      # check preprocessing
+      processVolume = testLogic.newNode(scene, name='testProcessVolume' + index, type='labelmap')
+      logic.setPreprocessParameters(inputVolume, 686, 4000, 0.8)
+      self.assertTrue(logic.preprocess(processVolume), 'Preprocessing Failed')
+      
+      # check cortical break detection
+      maskVolume = testLogic.newNode(scene, filename='\\SAMPLE_MASK' + index + '.mha', name='testMaskVolume' + index, type='labelmap', display=False)
+      outputVolume = testLogic.newNode(scene, name='testOutputNode' + index, type='labelmap')
+      seedsList = testLogic.newNode(scene, name='testSeedsList' + index, type='fiducial')
+
+      #get output
+      logic.setCorticalBreaksParameters(686, 4000, inputVolume, processVolume, maskVolume, outputVolume, 7, 3, 0.0607, False)
+      self.assertTrue(logic.getCorticalBreaks(outputVolume, noProgress=True), 'Cortical break detection operation failed')
+      logic.getSeeds(inputVolume, seedsList)
+
+      # verify results
+      if not testLogic.verifyBreaks(outputVolume, i):
+        self.delayDisplay("Output mask is incorrect for test " + index, msec=300)
+        passed = False
+        continue
+      if not testLogic.verifySeeds(seedsList, i):
+        self.delayDisplay("Seeds are incorrect for test " + index, msec=300)
+        passed = False
+        continue
+      self.delayDisplay('Test ' + index + ' complete')
+
+    # failure message
+    self.assertTrue(passed, 'Incorrect results, check testing log')
