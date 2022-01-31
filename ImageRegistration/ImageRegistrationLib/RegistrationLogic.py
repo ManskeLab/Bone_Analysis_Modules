@@ -24,6 +24,9 @@ class RegistrationLogic:
     def __init__(self, baseImage=None, followImage=None):
         self.baseImage = baseImage
         self.followImgae = followImage
+        self.sigma = 0.8
+        self.lower = 686
+        self.upper = 4000
 
         self.reg = sitk.ImageRegistrationMethod()
 
@@ -67,6 +70,7 @@ class RegistrationLogic:
 
     def command_iteration(self, method) :
         print( '{0:3} = {1:10.5f} : {2}'.format( method.GetOptimizerIteration(), method.GetMetricValue(), method.GetOptimizerPosition() ) )
+    
 
 
     

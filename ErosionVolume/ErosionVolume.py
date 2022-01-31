@@ -702,9 +702,9 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_ErosionVolumeQuick()
+    self.test_ErosionVolume()
 
-  def test_ErosionVolumeQuick(self):
+  def test_ErosionVolume(self):
     '''
     Automatic Contour Tests: Runs the cortical break detection function on 3 sample images
     and compares the results to pre-generated masks and manually placed seed points

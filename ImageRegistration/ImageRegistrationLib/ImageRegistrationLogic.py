@@ -17,6 +17,7 @@ import numpy as np
 from numpy import copy
 import logging, os
 from .RegistrationLogic import RegistrationLogic
+from .VisualizeLogic import VisualizeLogic
 
 #
 # ImageRegistration
@@ -32,6 +33,7 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         # initialize call back object for updating progrss bar
         self.progressCallBack = None
         self.registration = RegistrationLogic()
+        self.visualizer = VisualizeLogic()
 
 
     def setParamaters(self, baseNode, followNode):
@@ -43,3 +45,18 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         outImg = self.registration.execute(0)
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)
         return True
+    
+    def setVisualizeParameters(self, baseNode, regNode):
+        baseImg = sitkUtils.PullVolumeFromSlicer(baseNode)
+        regImg = sitkUtils.PullVolumeFromSlicer(regNode)
+        self.visualizer.setVisualizeParameters(baseImg, regImg, 0.8, 686, 4000)
+    
+    def visualize(self, outputNode):
+        [baseThresh, regThresh] = self.visualizer.getThresholds()
+        
+        baseArr = sitk.GetArrayFromImage(baseThresh)
+        regArr = sitk.GetArrayFromImage(regThresh)
+        outArr = np.abs(np.subtract(baseArr.astype('int32'), regArr.astype('int32')))
+
+        outImg = sitk.GetImageFromArray(outArr)
+        sitkUtils.PushVolumeToSlicer(outImg, outputNode)

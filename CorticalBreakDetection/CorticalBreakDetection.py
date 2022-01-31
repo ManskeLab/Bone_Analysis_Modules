@@ -623,9 +623,10 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_CortBreakQuick()
+    #self.test_CortBreak()
+    self.test_CortBreakFailure()
 
-  def test_CortBreakQuick(self):
+  def test_CortBreak(self):
     '''
     Automatic Contour Tests: Runs the cortical break detection function on 3 sample images
     and compares the results to pre-generated masks and manually placed seed points
@@ -692,3 +693,39 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
 
     # failure message
     self.assertTrue(passed, 'Incorrect results, check testing log')
+  
+  def test_CortBreakFailure(self):
+    from Testing.CorticalBreakDetectionTestLogic import CorticalBreakDetectionTestLogic
+    from CorticalBreakDetectionLib.CorticalBreakDetectionLogic import CorticalBreakDetectionLogic
+
+    slicer.util.infoDisplay('Several errors will display during this test.\nFollow the test log to determine test success.')
+
+    #setup scene
+    logic = CorticalBreakDetectionLogic()
+    testLogic = CorticalBreakDetectionTestLogic()
+
+    #setup nodes
+    scene = slicer.mrmlScene
+    a = testLogic.newNode(scene, filename='\\FAIL_MHA.mha', name='node1')
+    b = testLogic.newNode(scene, filename='\\FAIL_MASK.mha', type = 'labelmap', name = 'node2')
+    c = testLogic.newNode(scene, filename='\\FAIL_MASK.mha', type = 'labelmap', name = 'node3')
+    d = testLogic.newNode(scene, type = 'labelmap', name = 'node4')
+
+    #attempt to set invalid preprocess parameters
+    self.assertFalse(logic.setPreprocessParameters(a, 6860, 4000, 0.8), 'Preprocess does not check if lower threshold is greater than upper threshold')
+    logic.setPreprocessParameters(a, 686, 400, 0.8)
+    self.assertFalse(logic.preprocess(b), 'Preprocess does not fail with incorrect inputs')
+
+    #attempt to set invalid coritcal break parameters
+    self.assertFalse(logic.setCorticalBreaksParameters(6860, 4000, a, b, c, d, 7, 3, 0.0607, False), 'Get cortical breaks does not check if lower threshold is greater than upper threshold')
+    self.assertFalse(logic.setCorticalBreaksParameters(686, 4000, a, b, c, b, 7, 3, 0.0607, False), 'Get cortical breaks does not check if output volume is the same as preprocess volume')
+    self.assertFalse(logic.setCorticalBreaksParameters(686, 4000, a, b, c, c, 7, 3, 0.0607, False), 'Get cortical breaks does not check if output volume is the same as mask volume')
+
+    #get breaks with image which will fail
+    self.assertFalse(logic.getCorticalBreaks(d, noProgress=True), 'Get cortical break does not fail when no inputs are set')
+    logic.setCorticalBreaksParameters(686, 4000, a, b, c, d, 7, 3, 0.0607, False)
+
+    #empty image works, produces no seeds
+    self.assertTrue(logic.getCorticalBreaks(d, noProgress=True), 'Cortical breaks should not fail despite no results being generated')
+
+    self.delayDisplay('Test passed')

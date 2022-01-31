@@ -357,6 +357,10 @@ class FileConverterTest(ScriptedLoadableModuleTest):
     # check if output volume correct
     self.assertTrue(self.compareImage(volume, self.getFilePath("\\SAMPLE_AIM_CONVERTED.mha")))
 
+    import numpy as np
+    img = sitk.GetImageFromArray(np.multiply(np.random.rand(10, 10, 10), 1000))
+    sitkUtils.PushVolumeToSlicer(img, volume)
+
     self.delayDisplay('Test passed!')
     return SUCCESS
   
