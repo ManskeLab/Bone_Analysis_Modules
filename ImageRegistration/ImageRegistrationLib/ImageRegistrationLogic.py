@@ -46,17 +46,21 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)
         return True
     
-    def setVisualizeParameters(self, baseNode, regNode):
+    def setVisualizeParameters(self, baseNode, regNode, sigma, lower, upper):
         baseImg = sitkUtils.PullVolumeFromSlicer(baseNode)
         regImg = sitkUtils.PullVolumeFromSlicer(regNode)
-        self.visualizer.setVisualizeParameters(baseImg, regImg, 0.8, 686, 4000)
+
+        #crop base image to match registered
+        (baseImg, regImg) = self.visualizer.edgeTrim(baseImg, regImg)
+
+        self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, lower, upper)
     
     def visualize(self, outputNode):
-        [baseThresh, regThresh] = self.visualizer.getThresholds()
+        (baseThresh, regThresh) = self.visualizer.getThresholds()
         
         baseArr = sitk.GetArrayFromImage(baseThresh)
         regArr = sitk.GetArrayFromImage(regThresh)
-        outArr = np.abs(np.subtract(baseArr.astype('int32'), regArr.astype('int32')))
+        outArr = np.add(np.multiply(baseArr, 2), regArr)
 
         outImg = sitk.GetImageFromArray(outArr)
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)

@@ -18,6 +18,7 @@
 #
 #-----------------------------------------------------
 import SimpleITK as sitk
+import numpy as np
 
 class VisualizeLogic:
     def __init__(self):
@@ -28,6 +29,19 @@ class VisualizeLogic:
         self.upper = 4000
     
     def setVisualizeParameters(self, baseImg, regImg, sigma, lower, upper):
+        '''
+        Set paramaters for visualization method
+
+        Args:
+            baseImg (SimpleITK Image): Baseline image
+            regImg (SimpleITK Image): Registered follow-up image
+            sigma (float): Gaussian sigma
+            lower (int): Lower threshold
+            upper (int): Upper threshold
+        
+        Returns:
+            None
+        '''
         self.baseImg = baseImg
         self.regImg = regImg
         self.sigma = sigma
@@ -35,6 +49,15 @@ class VisualizeLogic:
         self.upper = upper
 
     def threshold(self, img):
+        '''
+        Apply threshold operation to an image
+
+        Args:
+            img (SimpleITK Image): Input image
+        
+        Returns:
+            SimpleITK Image: Image after threshold
+        '''
         sigma_over_spacing = self.sigma * img.GetSpacing()[0]
 
         # gaussian smoothing filter
@@ -45,11 +68,43 @@ class VisualizeLogic:
 
         thresh_img = sitk.BinaryThreshold(gaussian_img, 
                                           lowerThreshold=self.lower, 
-                                          upperThreshold=self.upper, 
-                                          insideValue=1)
+                                          upperThreshold=self.upper)
 
         return thresh_img
     
     def getThresholds(self):
-        return [self.threshold(self.baseImg), self.threshold(self.regImg)]
-    
+        '''
+        Get thresholds for baseline and registered image set using parameters method
+
+        Args:
+            None
+
+        Returns:
+            (SimpleITK image, SimpleITK Image): Images after threshold
+        '''
+        return (self.threshold(self.baseImg), self.threshold(self.regImg))
+
+    def edgeTrim(self, baseImg, regImg):
+        '''
+        Trim edge of images to match
+        Registration results in blackspace at the edge of the image, 
+        so this region needs to be ignored during viusalization.
+
+        Args:
+            baseImg (SimpleITK Image): Baseline image
+            regImg (SimpleITK Image): Registered follow-up image
+        
+        Returns:
+            (SimpleITK Image, SimpleITK Image): trimmed images
+        '''
+
+        #get binary mask of non-zero regions
+        baseArr = sitk.GetArrayFromImage(baseImg)
+        regArr = sitk.GetArrayFromImage(regImg)
+        maskArr = np.logical_and((baseArr != 0), (regArr != 0)).astype('int32')
+
+        #trim images
+        baseCrop = np.multiply(maskArr, baseArr)
+        regCrop = np.multiply(maskArr, regArr)
+
+        return (sitk.GetImageFromArray(baseCrop), sitk.GetImageFromArray(regCrop))

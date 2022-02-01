@@ -203,13 +203,13 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
     self.lowerThresholdText.value = 900
-    automaticContourLayout.addRow("Lower Threshold [HU]: ", self.lowerThresholdText)
+    automaticContourLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
     self.upperThresholdText.value = 4000
-    automaticContourLayout.addRow("Upper Threshold [HU]: ", self.upperThresholdText)
+    automaticContourLayout.addRow("Upper Threshold: ", self.upperThresholdText)
 
     # gaussian sigma spin box
     self.sigmaText = qt.QDoubleSpinBox()

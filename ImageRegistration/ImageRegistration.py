@@ -12,6 +12,7 @@ import unittest
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from ImageRegistrationLib.ImageRegistrationLogic import ImageRegistrationLogic
+import sitkUtils
 
 #
 # ImageRegistration
@@ -185,6 +186,28 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.outputSelector2.baseName = ('SUBTRACTION')
     visualizeFormLayout.addRow("Output: ", self.outputSelector2)
 
+    # threshold spin boxes (default unit is HU)
+    self.lowerThresholdText = qt.QSpinBox()
+    self.lowerThresholdText.setMinimum(-9999)
+    self.lowerThresholdText.setMaximum(999999)
+    self.lowerThresholdText.setSingleStep(10)
+    self.lowerThresholdText.value = 686
+    visualizeFormLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
+    self.upperThresholdText = qt.QSpinBox()
+    self.upperThresholdText.setMinimum(-9999)
+    self.upperThresholdText.setMaximum(999999)
+    self.upperThresholdText.setSingleStep(10)
+    self.upperThresholdText.value = 4000
+    visualizeFormLayout.addRow("Upper Threshold: ", self.upperThresholdText)
+
+    # gaussian sigma spin box
+    self.sigmaText = qt.QDoubleSpinBox()
+    self.sigmaText.setMinimum(0.0001)
+    self.sigmaText.setDecimals(4)
+    self.sigmaText.value = 0.8
+    self.sigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
+    visualizeFormLayout.addRow("Gaussian Sigma: ", self.sigmaText)
+
     #
     # Visualize Button
     #
@@ -229,7 +252,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     logic = ImageRegistrationLogic()
     print("Running Registration Algorithm")
     logic.setParamaters(self.inputSelector1.currentNode(), self.inputSelector2.currentNode())
-    logic.run(self.outputSelector.currentNode())
+    #logic.run(self.outputSelector.currentNode())
   
   def onSelectVisual(self):
     self.visualButton.enabled = self.outputSelector2.currentNode() and self.visualSelector1.currentNode() and self.visualSelector2.currentNode()
@@ -238,7 +261,11 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     logic = ImageRegistrationLogic()
 
     print('Creating Subtraction Image')
-    logic.setVisualizeParameters(self.visualSelector1.currentNode(), self.visualSelector2.currentNode())
+    logic.setVisualizeParameters(self.visualSelector1.currentNode(), 
+                                self.visualSelector2.currentNode(),
+                                self.sigmaText.value,
+                                self.lowerThresholdText.value,
+                                self.upperThresholdText.value)
 
     outnode = self.outputSelector2.currentNode()
     logic.visualize(outnode)

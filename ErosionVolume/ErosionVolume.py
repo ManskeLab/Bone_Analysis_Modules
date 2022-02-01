@@ -144,13 +144,13 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
     self.lowerThresholdText.value = 686
-    erosionsLayout.addRow("Lower Threshold [HU]: ", self.lowerThresholdText)
+    erosionsLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
     self.upperThresholdText.value = 4000
-    erosionsLayout.addRow("Upper Threshold [HU]: ", self.upperThresholdText)
+    erosionsLayout.addRow("Upper Threshold: ", self.upperThresholdText)
 
     # gaussian sigma spin box
     self.sigmaText = qt.QDoubleSpinBox()
