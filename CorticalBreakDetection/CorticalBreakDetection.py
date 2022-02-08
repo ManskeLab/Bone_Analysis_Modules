@@ -479,8 +479,8 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
       self.voxelSizeText.value = 0.0607
     elif self.cbCTButton.checked:
       self.corticalThicknessText.value = 1
-      self.dilateErodeDistanceText.value = 0
-      self.voxelSizeText.value = 0.25
+      self.dilateErodeDistanceText.value = 1
+      self.voxelSizeText.value = 0.3
 
 
   def onPreprocessButton(self):

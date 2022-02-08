@@ -45,13 +45,20 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
+  def __init__(self, parent):
+    # Initialize logics object
+    self.logic = ImageRegistrationLogic()
+    # initialize call back object for updating progrss bar
+    self.logic.progressCallBack = self.setProgress
+
+    ScriptedLoadableModuleWidget.__init__(self, parent)
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
     # Instantiate and connect widgets ...
 
     #
-    # Register Area -----------------------------------------------------------*
+    # Register Image -----------------------------------------------------------*
     #
     self.registerCollapsibleButton = ctk.ctkCollapsibleButton()
     self.registerCollapsibleButton.text = "Register Images"
@@ -59,6 +66,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
 
     # Layout within the dummy collapsible button
     registerFormLayout = qt.QFormLayout(self.registerCollapsibleButton)
+    registerFormLayout.setVerticalSpacing(5)
 
     #
     # First input volume selector
@@ -93,6 +101,28 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     registerFormLayout.addRow("Follow-up: ", self.inputSelector2)
 
     #
+    # Registration similarity metric selector
+    #
+    self.metricSelector = qt.QComboBox()
+    self.metricSelector.addItems(['Mean Squares', 'Correlation', 'Mattes Mutual Information', 'ANTS Neighborhood Correlation'])
+    registerFormLayout.addRow("Similarity Metric: ", self.metricSelector)
+
+    # Help button for similarity metrics
+    self.helpButton = qt.QPushButton("Help")
+    self.helpButton.toolTip = "Description of each image similarity metric"
+    self.helpButton.setFixedSize(50, 20)
+    registerFormLayout.addRow("", self.helpButton)
+
+    # sampling percentage
+    self.samplingText = qt.QDoubleSpinBox()
+    self.samplingText.setRange(0.0001, 1)
+    self.samplingText.setDecimals(4)
+    self.samplingText.value = 0.01
+    self.samplingText.setSingleStep(0.01)
+    self.samplingText.setToolTip("Standard deviation in the Gaussian smoothing filter")
+    registerFormLayout.addRow("Metric Sampling Percentage: ", self.samplingText)
+
+    #
     # Output volume selector
     #
     self.outputSelector = slicer.qMRMLNodeComboBox()
@@ -117,8 +147,15 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.applyButton.enabled = False
     registerFormLayout.addRow(self.applyButton)
 
+    # Progress Bar
+    self.progressBar = qt.QProgressBar()
+    self.progressBar.hide()
+    registerFormLayout.addRow(self.progressBar)
+
     # connections
+    self.helpButton.clicked.connect(self.onHelpButton)
     self.applyButton.clicked.connect(self.onApplyButton)
+    
     self.inputSelector1.currentNodeChanged.connect(self.onSelect)
     self.inputSelector2.currentNodeChanged.connect(self.onSelect)
     self.outputSelector.currentNodeChanged.connect(self.onSelect)
@@ -126,7 +163,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.registerCollapsibleButton.contentsCollapsed.connect(self.onCollapse1)
 
     #
-    # Register Area -----------------------------------------------------------*
+    # Visualize Registration -----------------------------------------------------------*
     #
     self.visualizeCollapsibleButton = ctk.ctkCollapsibleButton()
     self.visualizeCollapsibleButton.text = "Visualize Registraion"
@@ -135,6 +172,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
 
     # Layout within the dummy collapsible button
     visualizeFormLayout = qt.QFormLayout(self.visualizeCollapsibleButton)
+    visualizeFormLayout.setVerticalSpacing(5)
 
     #
     # First input volume selector
@@ -202,9 +240,10 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
 
     # gaussian sigma spin box
     self.sigmaText = qt.QDoubleSpinBox()
-    self.sigmaText.setMinimum(0.0001)
+    self.sigmaText.setRange(0.0001, 10)
     self.sigmaText.setDecimals(4)
-    self.sigmaText.value = 0.8
+    self.sigmaText.value = 1
+    self.sigmaText.setSingleStep(0.1)
     self.sigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
     visualizeFormLayout.addRow("Gaussian Sigma: ", self.sigmaText)
 
@@ -215,6 +254,11 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.visualButton.toolTip = "Visualize difference in images after registration."
     self.visualButton.enabled = False
     visualizeFormLayout.addRow(self.visualButton)
+
+    # Progress Bar
+    self.progressBar2 = qt.QProgressBar()
+    self.progressBar2.hide()
+    visualizeFormLayout.addRow(self.progressBar2)
 
     # connections
     self.outputSelector2.currentNodeChanged.connect(self.onSelectVisual)
@@ -236,7 +280,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     output = self.outputSelector.currentNode()
 
     #enable register button if both nodes selected
-    self.applyButton.enabled = input1 and input2
+    self.applyButton.enabled = input1 and input2 and output
 
     #auto-fill nodes in other collapsibles, set output basename
     if input1:
@@ -246,31 +290,52 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     if output:
       self.visualSelector2.setCurrentNode(output)
 
-    
+  #help button is pressed
+  def onHelpButton(self):
+    txt = """Registration Image Similarity Metrics\n
+Mean Squares: Computes mean squared difference between pixel values. Requires intensity values to be within the same thresholds for images.\n
+Correlation: Computes normal correlation between pixel values. Requires images in the same modality, but can be in any intensity range.\n
+Mattes Mutual Information: Computes mutual information (ability to determine intensity of the second image based on the first). Can be used with multiple modalities.\n
+ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel. Ideal for images that are very close.
+          """
+    slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
+  
   #Register button is pressed
   def onApplyButton(self):
-    logic = ImageRegistrationLogic()
     print("Running Registration Algorithm")
-    logic.setParamaters(self.inputSelector1.currentNode(), self.inputSelector2.currentNode())
-    #logic.run(self.outputSelector.currentNode())
+    self.progressBar.show()
+
+    self.logic.setParamaters(self.inputSelector1.currentNode(), 
+                        self.inputSelector2.currentNode(),
+                        self.samplingText.value)
+    self.logic.setMetric(self.metricSelector.currentIndex)
+    self.logic.run(self.outputSelector.currentNode())
+
+    self.progressBar.hide()
   
+  #output node for visualization is selected
   def onSelectVisual(self):
     self.visualButton.enabled = self.outputSelector2.currentNode() and self.visualSelector1.currentNode() and self.visualSelector2.currentNode()
 
+  #visualize button is pressed
   def onVisualize(self):
-    logic = ImageRegistrationLogic()
 
     print('Creating Subtraction Image')
-    logic.setVisualizeParameters(self.visualSelector1.currentNode(), 
+    self.progressBar.show()
+
+    self.logic.setVisualizeParameters(self.visualSelector1.currentNode(), 
                                 self.visualSelector2.currentNode(),
                                 self.sigmaText.value,
                                 self.lowerThresholdText.value,
                                 self.upperThresholdText.value)
 
     outnode = self.outputSelector2.currentNode()
-    logic.visualize(outnode)
+    self.logic.visualize(outnode)
     slicer.util.setSliceViewerLayers(label=outnode, labelOpacity=0.5)
 
+    self.progressBar.hide()
+
+  #functions for collapsibles in widget
   def onCollapse1(self):
     if not self.registerCollapsibleButton.collapsed:
       self.visualizeCollapsibleButton.collapsed = True
@@ -278,3 +343,9 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
   def onCollapse2(self):
     if not self.visualizeCollapsibleButton.collapsed:
       self.registerCollapsibleButton.collapsed = True
+  
+  def setProgress(self, value):
+    """Update the progress bar"""
+    self.progressBar.setValue(value)
+    self.progressBar2.setValue(value)
+

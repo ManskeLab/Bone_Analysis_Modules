@@ -175,6 +175,7 @@ class VoidVolumeLogic:
         distance_img = distance_filter.Execute(seeds_img)
 
         # inflate seed points
+        upper = self.dilateErodeDistance if self.dilateErodeDistance != 0 else 1
         seeds_img = sitk.BinaryThreshold(distance_img, 
                                          lowerThreshold=0, 
                                          upperThreshold=self.dilateErodeDistance, 
@@ -374,6 +375,8 @@ class VoidVolumeLogic:
         destination_x = round((model_origin[0] - contour_origin[0]) / spacing)
         destination_y = round((model_origin[1] - contour_origin[1]) / spacing)
         destination_z = round((model_origin[2] - contour_origin[2]) / spacing)
+        print(destination_x, destination_y, destination_z)
+        print(model_origin)
         r = sitk.VersorTransform()
         r.SetMatrix(direction)
         destination_index = r.TransformPoint((destination_x, destination_y, destination_z))
@@ -382,8 +385,10 @@ class VoidVolumeLogic:
         paste_filter.SetDestinationIndex(destination_index)
         paste_filter.SetSourceSize(model_size)
         self.model_img = paste_filter.Execute(model_img, self.model_img)
+        print(model_img.GetOrigin())
         
         # update seed points
+        #self._seeds_crop = [(seed[0]-destination_x, seed[1]-destination_y, seed[2]-destination_z)
         self._seeds_crop = [(seed[0]+destination_x, seed[1]+destination_y, seed[2]+destination_z)
                             for seed in self.seeds]
         for i, seed in reversed(list(enumerate(self._seeds_crop))):

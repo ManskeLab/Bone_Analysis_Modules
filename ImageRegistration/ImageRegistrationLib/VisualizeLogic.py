@@ -97,7 +97,6 @@ class VisualizeLogic:
         Returns:
             (SimpleITK Image, SimpleITK Image): trimmed images
         '''
-
         #get binary mask of non-zero regions
         baseArr = sitk.GetArrayFromImage(baseImg)
         regArr = sitk.GetArrayFromImage(regImg)

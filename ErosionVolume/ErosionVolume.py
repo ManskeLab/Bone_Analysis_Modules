@@ -194,6 +194,12 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.erosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
     erosionsLayout.addRow(self.erosionCheckBox)
 
+    # check box for CBCT scans
+    self.CBCTCheckBox = qt.QCheckBox('CBCT')
+    self.CBCTCheckBox.checked = False
+    self.CBCTCheckBox.setToolTip('Set internal parameters for segmenting CBCT scans')
+    erosionsLayout.addRow(self.CBCTCheckBox)
+
     # advanced parameter box
     self.advancedParameterBox = ctk.ctkCollapsibleGroupBox()
     self.advancedParameterBox.title = "Advanced"
@@ -223,7 +229,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     advancedParameterLayout.addWidget(qt.QLabel("Minimum Erosion Radius: "), 3, 0)
     advancedParameterLayout.addWidget(self.minimalRadiusText, 3, 1)
     self.dilateErodeDistanceText = qt.QSpinBox()
-    self.dilateErodeDistanceText.setMinimum(1)
+    self.dilateErodeDistanceText.setMinimum(0)
     self.dilateErodeDistanceText.setMaximum(99)
     self.dilateErodeDistanceText.setSingleStep(1)
     self.dilateErodeDistanceText.setSuffix(' voxels')
@@ -263,6 +269,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
     self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
     self.erosionCheckBox.connect("clicked(bool)", self.onLargeErosionChecked)
+    self.CBCTCheckBox.connect("clicked(bool)", self.onCBCTChecked)
     self.getErosionsButton.connect("clicked(bool)", self.onGetErosionsButton)
   
   def setupManualCorrection(self):
@@ -592,6 +599,17 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     if self.erosionCheckBox.checked:
       self.minimalRadiusText.value = 6
       self.dilateErodeDistanceText.value = 6
+      self.CBCTCheckBox.checked = False
+    else:
+      self.minimalRadiusText.value = 3
+      self.dilateErodeDistanceText.value = 4
+  
+  def onCBCTChecked(self):
+    """Run this whenever the check box for CBCT in step 4 changes"""
+    if self.CBCTCheckBox.checked:
+      self.minimalRadiusText.value = 1
+      self.dilateErodeDistanceText.value = 0
+      self.erosionCheckBox.checked = False
     else:
       self.minimalRadiusText.value = 3
       self.dilateErodeDistanceText.value = 4

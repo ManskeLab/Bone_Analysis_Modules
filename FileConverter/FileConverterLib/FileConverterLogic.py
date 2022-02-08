@@ -40,7 +40,7 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
   """
 
   def __init__(self):
-    pass
+    self.progressCallBack = None
 
   def convert(self, fileName, outputVolumeNode, inFormat):
     '''
@@ -80,6 +80,8 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
 
       #convert to sitk image
       outputImage = sitk_itk.itk2sitk(reader.GetOutput())
+    
+    self.progressCallBack(50)
 
     #get metadata
     metadata = dict(reader.GetOutput()) 
@@ -90,6 +92,7 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
     #push to slicer and display
     sitkUtils.PushVolumeToSlicer(outputImage, targetNode=outputVolumeNode)
     slicer.util.setSliceViewerLayers(background=outputVolumeNode, fit=True)
+    self.progressCallBack(100)
     return metadata
 
   def convertMultiple(self, filenames, outputFolder=None):
@@ -106,6 +109,7 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
     '''
 
     import os
+    progress = 0
 
     #convert each file
     for file in filenames:
@@ -126,12 +130,21 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
       #convert to sitk image
       outputImage = sitk_itk.itk2sitk(reader.GetOutput())
 
+      #set spacing to normal (will default to voxel size otherwise)
+      outputImage.SetSpacing([1, 1, 1])
+
       #add metadata tag for intensity unit
       outputImage.SetMetaData('IntensityUnit', 'HU')
+
+      #write image
       if outputFolder:
         sitk.WriteImage(outputImage, outputFolder + '/' + name + '.mha')
       else:
         sitk.WriteImage(outputImage, filepath + '.mha')
+      
+      #update progress
+      progress += 100 / len(filenames)
+      self.progressCallBack(int(progress))
 
 
   def getThreshold(self, mu_water, mu_scaling):

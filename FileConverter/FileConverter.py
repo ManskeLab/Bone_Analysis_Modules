@@ -38,6 +38,13 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
+  def __init__(self, parent):
+    # Initialize logics object
+    self.logic = FileConverterLogic()
+    # initialize call back object for updating progrss bar
+    self.logic.progressCallBack = self.setProgress
+
+    ScriptedLoadableModuleWidget.__init__(self, parent)
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -128,6 +135,11 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     self.applyButton.enabled = False
     executeGridLayout.addWidget(self.applyButton, 1, 0)
 
+    # Progress Bar
+    self.progressBar = qt.QProgressBar()
+    self.progressBar.hide()
+    executeGridLayout.addWidget(self.progressBar, 0, 0)
+
     toVolumeLayout.addRow(executeGridLayout)
 
     #
@@ -195,6 +207,11 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     self.convertButton.enabled = False
     executeGridLayout2.addWidget(self.convertButton, 1, 0)
 
+    # Progress Bar
+    self.progressBar2 = qt.QProgressBar()
+    self.progressBar2.hide()
+    executeGridLayout2.addWidget(self.progressBar2, 0, 0)
+
     toFilesLayout.addRow(executeGridLayout2)
 
     # connections
@@ -258,19 +275,22 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
       slicer.util.errorDisplay("The ITK module is not installed in 3D Slicer. Follow the instructions on the File Converter Wiki page on GitHub to install.", 'ITK Not Installed')
       return
 
-    logic = FileConverterLogic()
+    self.progressBar.show()
+
     print("Run the algorithm")
     if self.aimButton.isChecked():
       inFormat = '.aim'
     elif self.isqButton.isChecked():
       inFormat = '.isq'
     
-    meta = logic.convert(self.filename, self.outputVolumeSelector.currentNode(), inFormat)
+    meta = self.logic.convert(self.filename, self.outputVolumeSelector.currentNode(), inFormat)
+
+    self.progressBar.hide()
 
     #find recommended thresholds in HU (3000/10000 in native units)
     mu_water = meta["MuWater"]
     mu_scaling = meta["MuScaling"]
-    thresholds = logic.getThreshold(mu_water, mu_scaling)
+    thresholds = self.logic.getThreshold(mu_water, mu_scaling)
 
     #formula: HU = 1000 * (native / mu_scaling - mu_water) / mu_water
     line1 = "Recommended lower threshold: " + str(thresholds[0])
@@ -288,16 +308,20 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
       slicer.util.errorDisplay("The ITK module is not installed in 3D Slicer. Follow the instructions on the File Converter Wiki page on GitHub to install.", 'ITK Not Installed')
       return
 
-    logic = FileConverterLogic()
+    self.progressBar2.show()
+
     if not self.selectedFolder == '':
-      logic.convertMultiple(self.filenameList, self.selectedFolder)
+      self.logic.convertMultiple(self.filenameList, self.selectedFolder)
     else:
-      logic.convertMultiple(self.filenameList)
+      self.logic.convertMultiple(self.filenameList)
     
     #reset files and box
     self.filenameList = []
     self.multiFileText.clear()
-  
+
+    self.progressBar2.hide()
+
+  #collapsible button pressed
   def onCollapse1(self):
     if not self.toVolumeCollapsible.collapsed:
       self.toFilesCollapsible.collapsed = True
@@ -306,6 +330,11 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     if not self.toFilesCollapsible.collapsed:
       self.toVolumeCollapsible.collapsed = True
   
+  #update progress bar
+  def setProgress(self, value):
+    """Update the progress bar"""
+    self.progressBar.setValue(value)
+    self.progressBar2.setValue(value)
 
 
 class FileConverterTest(ScriptedLoadableModuleTest):

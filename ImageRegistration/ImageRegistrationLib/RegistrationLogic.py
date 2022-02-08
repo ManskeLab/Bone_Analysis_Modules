@@ -22,24 +22,31 @@ import SimpleITK as sitk
 class RegistrationLogic:
     
     def __init__(self, baseImage=None, followImage=None):
+        '''
+        Initialize Registration Logic class
+        '''
+
+        #initial variables
         self.baseImage = baseImage
         self.followImgae = followImage
         self.sigma = 0.8
         self.lower = 686
         self.upper = 4000
+        self.progressCallBack = None
 
+        #registration method
         self.reg = sitk.ImageRegistrationMethod()
 
         #similarity metric
         self.reg.SetMetricAsMeanSquares()
         self.reg.SetMetricSamplingStrategy(self.reg.RANDOM)
-        self.reg.SetMetricSamplingPercentage(0.001)
+        self.reg.SetMetricSamplingPercentage(0.01)
 
         #interprolator
         self.reg.SetInterpolator(sitk.sitkBSpline)
 
         #optimizer
-        self.reg.SetOptimizerAsPowell(numberOfIterations=50)
+        self.reg.SetOptimizerAsPowell(numberOfIterations=100)
         self.reg.SetOptimizerScalesFromPhysicalShift()
 
         #multi-resolution framework
@@ -49,11 +56,58 @@ class RegistrationLogic:
 
         self.reg.AddCommand( sitk.sitkIterationEvent, lambda: self.command_iteration(self.reg))
 
-    def setRegistrationParamaters(self, baseImage, followImage):
+    def setRegistrationParamaters(self, baseImage, followImage, sampling=0.01):
+        '''
+        Change parameters for registration
+
+        Args:
+            baseImage (SimpleITK Image): baseline image
+            followImage (SimpleITK Image): follow-up image
+            sampling (float): metric sampling percentage (increase for greater accuracy at higher time cost)
+
+        Returns:
+            None
+        '''
+
+        #change image
         self.baseImage = baseImage
         self.followImage = followImage
+
+        #change sampling percent
+        self.reg.SetMetricSamplingPercentage(sampling)
     
-    def execute(self, step):
+    def setSimilarityMetric(self, metric):
+        '''
+        Change the similarity metric used for registration. See help message in the widget for more information on each metric.
+
+        Args:
+            metric (str): type of metric to use (\'mean_squares\', \'correlation\', \'mattes\', or \'ants\')
+
+        Returns:
+            None
+        '''
+
+        #determine type of metric and change
+        if metric == 'mean_squares':
+            self.reg.SetMetricAsMeanSquares()
+        elif metric == 'correlation':
+            self.reg.SetMetricAsCorrelation()
+        elif metric == 'mattes':
+            self.reg.SetMetricAsMattesMutualInformation()
+        elif metric == 'ants':
+            self.reg.SetMetricAsANTSNeighborhoodCorrelation(2)
+    
+    def execute(self):
+        '''
+        Run the registration algorithm
+
+        Args:
+
+        Returns:
+            SimpleITK Image: registered follow up image
+        '''
+        self.progress = 0
+
         initalTransform_FU_to_BL = sitk.CenteredTransformInitializer(self.baseImage, self.followImage, sitk.Euler3DTransform(), sitk.CenteredTransformInitializerFilter.MOMENTS)
 
         self.reg.SetInitialTransform(initalTransform_FU_to_BL, inPlace=False)
@@ -69,7 +123,14 @@ class RegistrationLogic:
 
 
     def command_iteration(self, method) :
+        '''
+        Print updates on registration status
+        '''
         print( '{0:3} = {1:10.5f} : {2}'.format( method.GetOptimizerIteration(), method.GetMetricValue(), method.GetOptimizerPosition() ) )
+
+        #update progress
+        self.progress += (100 - self.progress) // 3
+        self.progressCallBack(self.progress)
     
 
 

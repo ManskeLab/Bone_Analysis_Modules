@@ -30,23 +30,85 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
     """
 
     def __init__(self):
+        '''
+        Initialize Image Registration Logic class
+        '''
         # initialize call back object for updating progrss bar
         self.progressCallBack = None
         self.registration = RegistrationLogic()
         self.visualizer = VisualizeLogic()
 
 
-    def setParamaters(self, baseNode, followNode):
+    def setParamaters(self, baseNode, followNode, sampling):
+        '''
+        Set Parameters for registration
+
+        Args:
+            baseNode (vtkMRMLVolumeNode): volume with baseline image
+            followNode (vtkMRMLVolumeNode): volume with follow up image
+            sampling (float): metric sampling percentage
+        
+        Returns:
+            None
+        '''
         baseImage = sitkUtils.PullVolumeFromSlicer(baseNode)
         followImage = sitkUtils.PullVolumeFromSlicer(followNode)
-        self.registration.setRegistrationParamaters(baseImage, followImage)
+        self.registration.setRegistrationParamaters(baseImage, followImage, sampling)
+        self.registration.progressCallBack = self.progressCallBack
+    
+    def setMetric(self, index):
+        '''
+        Set the similarity metric for registration
+
+        Args:
+            index (int): selected metric (index of combobox)
+        
+        Returns:
+            None
+        '''
+
+        #get metric from index
+        if index == 0:
+            metric = 'mean_squares'
+        elif index == 1:
+            metric = 'correlation'
+        elif index == 2:
+            metric = 'mattes'
+        elif index == 3:
+            metric = 'ants'
+        self.registration.setSimilarityMetric(metric)
 
     def run(self, outputNode):
-        outImg = self.registration.execute(0)
+        '''
+        Run the registration algorithm
+
+        Args:
+            outputNode (vtkMRMLVolumeNode): Volume to store output image in
+
+        Returns:
+            None
+        '''
+        outImg = self.registration.execute()
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)
+        slicer.util.setSliceViewer(background=outputNode)
         return True
     
     def setVisualizeParameters(self, baseNode, regNode, sigma, lower, upper):
+        '''
+        Set parameters from visualization
+
+        Args:
+            baseNode (vtkMRMLVolumeNode): volume with baseline image
+            regNode (vtkMRMLVolumeNode): volume with registered image
+            sigma (float): gaussian sigma for smoothening images
+            lower (int): lower threshold
+            upper (int): upper threshold
+
+        Returns:
+            None
+        '''
+
+        #pull images
         baseImg = sitkUtils.PullVolumeFromSlicer(baseNode)
         regImg = sitkUtils.PullVolumeFromSlicer(regNode)
 
@@ -56,11 +118,28 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, lower, upper)
     
     def visualize(self, outputNode):
-        (baseThresh, regThresh) = self.visualizer.getThresholds()
+        '''
+        Create subtraction image of registration
+
+        Args:
+            outputNode (vtkMRMLVolumeNode): volume to store subtraction in
         
+        Returns:
+            None
+        '''
+        #get thresholds for images
+        (baseThresh, regThresh) = self.visualizer.getThresholds()
+        self.progressCallBack(30)
+        
+        #get arrays from each image
         baseArr = sitk.GetArrayFromImage(baseThresh)
         regArr = sitk.GetArrayFromImage(regThresh)
-        outArr = np.add(np.multiply(baseArr, 2), regArr)
+        self.progressCallBack(60)
 
+        #set base image to a different value
+        outArr = np.add(np.multiply(baseArr, 2), regArr)
+        self.progressCallBack(90)
+
+        #push output to volume
         outImg = sitk.GetImageFromArray(outArr)
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)
