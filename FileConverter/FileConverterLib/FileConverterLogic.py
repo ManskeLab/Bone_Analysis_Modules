@@ -41,8 +41,10 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
 
   def __init__(self):
     self.progressCallBack = None
+    self.origin = False
+    self.spacing = False
 
-  def convert(self, fileName, outputVolumeNode, inFormat):
+  def convert(self, fileName:str, outputVolumeNode, inFormat:str) -> dict:
     '''
     Convert a single file to Slicer volume
 
@@ -67,6 +69,7 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
       reader.SetFileName(fileName)
       reader.Update()
 
+      #convert to sitk image
       outputImage = sitk_itk.itk2sitk(reader.GetOutput())
 
     elif inFormat == '.isq':
@@ -81,6 +84,11 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
       #convert to sitk image
       outputImage = sitk_itk.itk2sitk(reader.GetOutput())
     
+    if self.origin:
+      outputImage.SetOrigin([0, 0, 0])
+    if self.spacing:
+      outputImage.SetSpacing([1, 1, 1])
+
     self.progressCallBack(50)
 
     #get metadata
@@ -95,7 +103,7 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
     self.progressCallBack(100)
     return metadata
 
-  def convertMultiple(self, filenames, outputFolder=None):
+  def convertMultiple(self, filenames:list, outputFolder:str=None) -> None:
     '''
     Convert multiple files to .mha
 
@@ -105,9 +113,7 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
 
     Returns:
       None
-
     '''
-
     import os
     progress = 0
 
@@ -130,8 +136,11 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
       #convert to sitk image
       outputImage = sitk_itk.itk2sitk(reader.GetOutput())
 
-      #set spacing to normal (will default to voxel size otherwise)
-      outputImage.SetSpacing([1, 1, 1])
+      #set origin and spacing
+      if self.origin:
+        outputImage.SetOrigin([0, 0, 0])
+      if self.spacing:
+        outputImage.SetSpacing([1, 1, 1])
 
       #add metadata tag for intensity unit
       outputImage.SetMetaData('IntensityUnit', 'HU')
@@ -147,14 +156,27 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
       self.progressCallBack(int(progress))
 
 
-  def getThreshold(self, mu_water, mu_scaling):
+  def getThreshold(self, mu_water:int, mu_scaling:int) -> tuple:
+    '''
+    Get estimated threshold for an image
+    '''
     lower = self.roundNearest(1000 * (3000 / mu_scaling / mu_water - 1), 10)
     upper = self.roundNearest(1000 * (10000 / mu_scaling / mu_water - 1), 100)
     return (lower, upper)
 
   #rounding function for thesholds
-  def roundNearest(self, num, roundTo):
+  def roundNearest(self, num:int, roundTo:int) -> int:
+    '''
+    Round number to nearest interval
+    '''
     return int(num - num % roundTo + round(num % roundTo / roundTo) * roundTo)
+
+  def changeOptions(self, origin:bool, spacing:bool) -> None:
+    '''
+    Change options for output image
+    '''
+    self.origin = origin
+    self.spacing = spacing
 
 
   

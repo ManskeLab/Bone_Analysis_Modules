@@ -56,7 +56,7 @@ class RegistrationLogic:
 
         self.reg.AddCommand( sitk.sitkIterationEvent, lambda: self.command_iteration(self.reg))
 
-    def setRegistrationParamaters(self, baseImage, followImage, sampling=0.01):
+    def setRegistrationParamaters(self, baseImage:sitk.Image, followImage:sitk.Image, sampling=0.01) -> None:
         '''
         Change parameters for registration
 
@@ -68,7 +68,6 @@ class RegistrationLogic:
         Returns:
             None
         '''
-
         #change image
         self.baseImage = baseImage
         self.followImage = followImage
@@ -76,7 +75,7 @@ class RegistrationLogic:
         #change sampling percent
         self.reg.SetMetricSamplingPercentage(sampling)
     
-    def setSimilarityMetric(self, metric):
+    def setSimilarityMetric(self, metric:str) -> None:
         '''
         Change the similarity metric used for registration. See help message in the widget for more information on each metric.
 
@@ -86,7 +85,6 @@ class RegistrationLogic:
         Returns:
             None
         '''
-
         #determine type of metric and change
         if metric == 'mean_squares':
             self.reg.SetMetricAsMeanSquares()
@@ -97,7 +95,7 @@ class RegistrationLogic:
         elif metric == 'ants':
             self.reg.SetMetricAsANTSNeighborhoodCorrelation(2)
     
-    def execute(self):
+    def execute(self) -> sitk.Image:
         '''
         Run the registration algorithm
 
@@ -122,7 +120,7 @@ class RegistrationLogic:
         return followImage_resampled
 
 
-    def command_iteration(self, method) :
+    def command_iteration(self, method:sitk.ImageRegistrationMethod) -> None:
         '''
         Print updates on registration status
         '''

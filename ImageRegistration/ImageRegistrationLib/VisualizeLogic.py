@@ -28,7 +28,7 @@ class VisualizeLogic:
         self.lower = 686
         self.upper = 4000
     
-    def setVisualizeParameters(self, baseImg, regImg, sigma, lower, upper):
+    def setVisualizeParameters(self, baseImg:sitk.Image, regImg:sitk.Image, sigma:float, lower:int, upper:int):
         '''
         Set paramaters for visualization method
 
@@ -48,7 +48,7 @@ class VisualizeLogic:
         self.lower = lower
         self.upper = upper
 
-    def threshold(self, img):
+    def threshold(self, img:sitk.Image):
         '''
         Apply threshold operation to an image
 
@@ -84,7 +84,7 @@ class VisualizeLogic:
         '''
         return (self.threshold(self.baseImg), self.threshold(self.regImg))
 
-    def edgeTrim(self, baseImg, regImg):
+    def edgeTrim(self, baseImg:sitk.Image, regImg:sitk.Image):
         '''
         Trim edge of images to match
         Registration results in blackspace at the edge of the image, 

@@ -38,6 +38,8 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         self.registration = RegistrationLogic()
         self.visualizer = VisualizeLogic()
 
+        self.template = None
+
 
     def setParamaters(self, baseNode, followNode, sampling):
         '''
@@ -90,10 +92,10 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         '''
         outImg = self.registration.execute()
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)
-        slicer.util.setSliceViewer(background=outputNode)
+        slicer.util.setSliceViewerLayers(background=outputNode)
         return True
     
-    def setVisualizeParameters(self, baseNode, regNode, sigma, lower, upper):
+    def setVisualizeParameters(self, baseNode, regNode, sigma:float, lower:int, upper:int):
         '''
         Set parameters from visualization
 
@@ -111,6 +113,10 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         #pull images
         baseImg = sitkUtils.PullVolumeFromSlicer(baseNode)
         regImg = sitkUtils.PullVolumeFromSlicer(regNode)
+
+        #store properties of base image
+        self.template = sitk.Image(baseImg.GetSize(), 0)
+        self.template.CopyInformation(baseImg)
 
         #crop base image to match registered
         (baseImg, regImg) = self.visualizer.edgeTrim(baseImg, regImg)
@@ -142,4 +148,5 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
 
         #push output to volume
         outImg = sitk.GetImageFromArray(outArr)
+        outImg.CopyInformation(self.template)
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)

@@ -388,7 +388,9 @@ class VoidVolumeLogic:
         print(model_img.GetOrigin())
         
         # update seed points
-        #self._seeds_crop = [(seed[0]-destination_x, seed[1]-destination_y, seed[2]-destination_z)
+        destination_x *= int(direction[0])
+        destination_y *= int(direction[4])
+        destination_z *= int(direction[8])
         self._seeds_crop = [(seed[0]+destination_x, seed[1]+destination_y, seed[2]+destination_z)
                             for seed in self.seeds]
         for i, seed in reversed(list(enumerate(self._seeds_crop))):

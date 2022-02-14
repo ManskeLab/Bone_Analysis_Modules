@@ -107,7 +107,9 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     self.fileSelect.addWidget(self.fileTextList)
     toVolumeLayout.addRow("Select File: ", self.fileSelect)
 
-    # Preprocessed output selector
+    toVolumeLayout.addRow(qt.QLabel(""))
+
+    # Output selector
     self.outputVolumeSelector = slicer.qMRMLNodeComboBox()
     self.outputVolumeSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
     self.outputVolumeSelector.selectNodeUponCreation = True
@@ -122,6 +124,19 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.baseName = "_CONVERTED"
     self.outputVolumeSelector.setCurrentNode(None)
     toVolumeLayout.addRow("Output Volume: ", self.outputVolumeSelector)
+
+    toVolumeLayout.addRow(qt.QLabel(""))
+
+    # Additional image options
+    self.originCheckBox = qt.QCheckBox('Set origin to (0, 0, 0)')
+    self.originCheckBox.checked = False
+    self.originCheckBox.setToolTip('Sets the offset of the image to 0 in all directions')
+    toVolumeLayout.addRow(self.originCheckBox)
+
+    self.spacingCheckBox = qt.QCheckBox('Set spacing to 1')
+    self.spacingCheckBox.checked = False
+    self.spacingCheckBox.setToolTip('Sets the voxel spacing to be 1 in all directions')
+    toVolumeLayout.addRow(self.spacingCheckBox)
 
     #
     # Apply Button
@@ -147,7 +162,7 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     # Update to output recommended thresholds once we figure out calculations
     self.calibrationOutput = qt.QTextEdit()
     self.calibrationOutput.setReadOnly(True)
-    self.calibrationOutput.setFixedHeight(90)
+    self.calibrationOutput.setFixedHeight(45)
     toVolumeLayout.addRow("Calibrations: ", self.calibrationOutput)
 
     # connections
@@ -156,6 +171,8 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onNodeSelect)
     self.aimButton.clicked.connect(self.onFormatSelect)
     self.isqButton.clicked.connect(self.onFormatSelect)
+    self.originCheckBox.clicked.connect(self.onCheckBox)
+    self.spacingCheckBox.clicked.connect(self.onCheckBox)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -178,6 +195,8 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     self.fileSelectPanel.addWidget(self.multiFileText)
     toFilesLayout.addRow("Select File: ", self.fileSelectPanel)
 
+    toFilesLayout.addRow(qt.QLabel(""))
+
     #optional destination folder
     self.outputFolderSelect = qt.QFileDialog()
     self.outputFolderSelect.setFileMode(qt.QFileDialog.Directory)
@@ -196,6 +215,19 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     #list of files, folder
     self.filenameList = []
     self.selectedFolder = ''
+
+    toFilesLayout.addRow(qt.QLabel(""))
+
+    # Additional image options
+    self.originCheckBox2 = qt.QCheckBox('Set origin to (0, 0, 0)')
+    self.originCheckBox2.checked = False
+    self.originCheckBox2.setToolTip('Sets the offset of the image to 0 in all directions')
+    toFilesLayout.addRow(self.originCheckBox2)
+
+    self.spacingCheckBox2 = qt.QCheckBox('Set spacing to 1')
+    self.spacingCheckBox2.checked = False
+    self.spacingCheckBox2.setToolTip('Sets the voxel spacing to be 1 in all directions')
+    toFilesLayout.addRow(self.spacingCheckBox2)
 
     #convert button
     executeGridLayout2 = qt.QGridLayout()
@@ -218,6 +250,8 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     self.fileButton2.clicked.connect(self.onFilesSelect)
     self.folderButton.clicked.connect(self.onFolderSelect)
     self.convertButton.clicked.connect(self.onConvertButton)
+    self.originCheckBox2.clicked.connect(self.onCheckBox)
+    self.spacingCheckBox2.clicked.connect(self.onCheckBox)
 
     self.toVolumeCollapsible.contentsCollapsed.connect(self.onCollapse1)
     self.toFilesCollapsible.contentsCollapsed.connect(self.onCollapse2)
@@ -263,6 +297,12 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
 
   def onNodeSelect(self):
     self.applyButton.enabled = self.outputVolumeSelector.currentNode()
+
+  def onCheckBox(self):
+    if self.toFilesCollapsible.collapsed:
+      self.logic.changeOptions(self.originCheckBox.checked, self.spacingCheckBox.checked)
+    else:
+      self.logic.changeOptions(self.originCheckBox2.checked, self.spacingCheckBox2.checked)
   
   #
   #Volume Conversion Button Pressed
