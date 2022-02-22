@@ -539,16 +539,33 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
 
+      #check if preset intensity units exist
+      check = True
+      if "Lower" in inputVolumeNode.__dict__.keys():
+        self.lowerThresholdText.setValue(inputVolumeNode.__dict__["Lower"])
+        check = False
+      if "Upper" in inputVolumeNode.__dict__.keys():
+        self.upperThresholdText.setValue(inputVolumeNode.__dict__["Upper"])
+        check = False
+
       #check intensity units and display warning if not in HU
-      if not self._logic.intenstyCheck(inputVolumeNode):
-        slicer.util.warningDisplay("The selected image likely does not use HU for intensity units. Default thresholds are set in HU and will not generate an accurate result. Change the lower and upper thresholds before initializing.", windowTitle='Intensity Unit Warning')
+      if check:
+        if not self._logic.intenstyCheck(inputVolumeNode):
+          text = """The selected image likely does not use HU for intensity units. 
+Default thresholds are set in HU and will not generate an accurate result. 
+Change the lower and upper thresholds before initializing."""
+          slicer.util.warningDisplay(text, windowTitle='Intensity Unit Warning')
 
       #remove existing loggers
       if self.logger.hasHandlers():
         for handler in self.logger.handlers:
           self.logger.removeHandler(handler)
+          
       #initialize logger with filename
-      filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
+      try:
+        filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
+      except:
+        filename = 'share\\' + inputVolumeNode.GetName() + '.'
       logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
       self.logger.addHandler(logHandler)
       self.logger.info("Using Erosion Volume Module with " + inputVolumeNode.GetName() + "\n")
@@ -652,6 +669,14 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
         self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
         self.segmentEditor.setSegmentationNode(outputVolumeNode)
         self.segmentEditor.setMasterVolumeNode(inputVolumeNode)
+    
+    # store thresholds if not default
+    lower = self.lowerThresholdText.value
+    if lower != 686:
+      inputVolumeNode.__dict__["Lower"] = lower
+    upper = self.upperThresholdText.value
+    if upper != 4000:
+      inputVolumeNode.__dict__["Upper"] = upper
 
     # update widgets
     self.enableErosionsWidgets()

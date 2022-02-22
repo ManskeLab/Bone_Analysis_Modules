@@ -25,9 +25,6 @@ from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import SimpleITK as sitk
 import sitkUtils
-import itk
-from . import sitk_itk
-
 
 class FileConverterLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
@@ -45,6 +42,8 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
     self.spacing = False
 
   def convert(self, fileName:str, outputVolumeNode, inFormat:str) -> dict:
+    import itk
+    from . import sitk_itk
     '''
     Convert a single file to Slicer volume
 
@@ -103,7 +102,9 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
     self.progressCallBack(100)
     return metadata
 
-  def convertMultiple(self, filenames:list, outputFolder:str=None) -> None:
+  def convertMultiple(self, filenames:list, outFormat:str, outputFolder:str=None) -> None:
+    import itk
+    from . import sitk_itk
     '''
     Convert multiple files to .mha
 
@@ -119,7 +120,7 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
 
     #convert each file
     for file in filenames:
-      print("Converting " + file + " to .mha file")
+      print("Converting " + file + " to " + outFormat +  " file")
 
       #split path and extension
       filepath = os.path.splitext(file)[0]
@@ -147,9 +148,9 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
 
       #write image
       if outputFolder:
-        sitk.WriteImage(outputImage, outputFolder + '/' + name + '.mha')
+        sitk.WriteImage(outputImage, outputFolder + '/' + name + outFormat)
       else:
-        sitk.WriteImage(outputImage, filepath + '.mha')
+        sitk.WriteImage(outputImage, filepath + outFormat)
       
       #update progress
       progress += 100 / len(filenames)

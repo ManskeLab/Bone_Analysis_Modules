@@ -39,16 +39,28 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
   def __init__(self, parent):
-    # Initialize logics object
-    self.logic = FileConverterLogic()
-    # initialize call back object for updating progrss bar
-    self.logic.progressCallBack = self.setProgress
-
     ScriptedLoadableModuleWidget.__init__(self, parent)
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
     # Instantiate and connect widgets ...
+
+    #check if itk installed to slicer
+    try:
+      import itk
+    except:
+      text = """This module requires ITK, which is not installed by default in 3D Slicer. 
+Follow the instructions on the File Converter Wiki page on GitHub to install 
+(https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/File-Converter-Module)."""
+      slicer.util.errorDisplay(text, 'ITK Not Installed')
+      return
+    
+
+    #initialize logic
+    self.logic = FileConverterLogic()
+
+    # initialize call back object for updating progrss bar
+    self.logic.progressCallBack = self.setProgress
 
     #
     # Convert to volume option
@@ -229,13 +241,28 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     self.spacingCheckBox2.setToolTip('Sets the voxel spacing to be 1 in all directions')
     toFilesLayout.addRow(self.spacingCheckBox2)
 
+    # ct type button layout
+    fileTypeLayout = qt.QGridLayout()
+
+    # ct type buttons
+    self.mhaButton = qt.QRadioButton("MetaImage (.mha)")
+    self.mhaButton.setChecked(True)
+    self.niftiButton = qt.QRadioButton("NIfTI (.nii)")
+    self.niftiButton.setChecked(False)
+    fileTypeLayout.addWidget(self.mhaButton, 0, 0)
+    fileTypeLayout.addWidget(self.niftiButton, 0, 1)
+    # ct type button frame
+    fileTypeFrame = qt.QFrame()
+    fileTypeFrame.setLayout(fileTypeLayout)
+    toFilesLayout.addRow("Output Format: ", fileTypeFrame)
+
     #convert button
     executeGridLayout2 = qt.QGridLayout()
     executeGridLayout2.setRowMinimumHeight(0,20)
     executeGridLayout2.setRowMinimumHeight(1,20)
 
     self.convertButton = qt.QPushButton('Convert')
-    self.convertButton.toolTip = "Convert files to .mha format"
+    self.convertButton.toolTip = "Convert files to the selected"
     self.convertButton.enabled = False
     executeGridLayout2.addWidget(self.convertButton, 1, 0)
 
@@ -265,19 +292,17 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
       self.inputFileSelect.setNameFilter("*.AIM *.aim")
     elif self.isqButton.isChecked():
       self.inputFileSelect.setNameFilter("*.ISQ *.isq")
-
-  
   
   def onFileSelect(self):
+    '''File is selected in Convert to Volume'''
     #Open file explorer and update file
     if self.inputFileSelect.exec_():
       self.filename = self.inputFileSelect.selectedFiles()[0]
       self.fileTextList.setText(self.filename)
       self.outputVolumeSelector.baseName = (self.filename[self.filename.rfind('/') + 1:self.filename.rfind('.')] +"_CONVERTED")
-      if not self.outputVolumeSelector.currentNode():
-        self.outputVolumeSelector.addNode()
   
   def onFilesSelect(self):
+    '''Files are selected in Convert to Files'''
     #Open file explorer and update files
     if self.multiFileSelect.exec_():
       self.filenameList += self.multiFileSelect.selectedFiles()
@@ -290,15 +315,17 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
       self.convertButton.enabled = True
 
   def onFolderSelect(self):
-    #select destination folder
+    '''Destination folder selected'''
     if self.outputFolderSelect.exec_():
       self.selectedFolder = self.outputFolderSelect.selectedFiles()[0]
       self.folderText.setText(self.selectedFolder)
 
   def onNodeSelect(self):
+    '''Output volume changed'''
     self.applyButton.enabled = self.outputVolumeSelector.currentNode()
 
   def onCheckBox(self):
+    '''Check box option changed'''
     if self.toFilesCollapsible.collapsed:
       self.logic.changeOptions(self.originCheckBox.checked, self.spacingCheckBox.checked)
     else:
@@ -308,12 +335,7 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
   #Volume Conversion Button Pressed
   #
   def onApplyButton(self):
-    #check if itk installed to slicer
-    try:
-      import itk
-    except:
-      slicer.util.errorDisplay("The ITK module is not installed in 3D Slicer. Follow the instructions on the File Converter Wiki page on GitHub to install.", 'ITK Not Installed')
-      return
+    '''Convert button in first widget pressed'''
 
     self.progressBar.show()
 
@@ -341,19 +363,21 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
   #Files Conversion Button Pressed
   #
   def onConvertButton(self):
-    #check if itk installed to slicer
-    try:
-      import itk
-    except:
-      slicer.util.errorDisplay("The ITK module is not installed in 3D Slicer. Follow the instructions on the File Converter Wiki page on GitHub to install.", 'ITK Not Installed')
-      return
+    '''Convert button in second widget pressed'''
 
     self.progressBar2.show()
 
+    #get output format
+    if self.mhaButton.checked:
+      outFormat = '.mha'
+    elif self.niftiButton.checked:
+      outFormat = '.nii'
+
+    #convert files
     if not self.selectedFolder == '':
-      self.logic.convertMultiple(self.filenameList, self.selectedFolder)
+      self.logic.convertMultiple(self.filenameList, outFormat, self.selectedFolder)
     else:
-      self.logic.convertMultiple(self.filenameList)
+      self.logic.convertMultiple(self.filenameList, outFormat)
     
     #reset files and box
     self.filenameList = []
