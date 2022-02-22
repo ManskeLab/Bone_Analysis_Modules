@@ -426,9 +426,6 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
       self.masterVolumeSelector.setCurrentNodeID(inputVolumeNode.GetID())
       self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_SEG")
 
-      # create default output node if none selected
-      if not self.outputVolumeSelector.currentNode():
-        self.outputVolumeSelector.addNode()
       # Update the default save directory
       self._logic.setDefaultDirectory(inputVolumeNode)
 
@@ -461,11 +458,6 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     if maskNode:
       self.outputCorticalBreaksSelector.baseName = (maskNode.GetName()+"_BREAKS")
       self.outputFiducialSelector.baseName = (maskNode.GetName()+"_SEEDS")
-      # create default nodes if none selected
-      if not self.outputCorticalBreaksSelector.currentNode():
-        self.outputCorticalBreaksSelector.addNode()
-      if not self.outputFiducialSelector.currentNode():
-        self.outputFiducialSelector.addNode()
 
   def onCTTypeChanged(self):
     """Run this whenver the ct type buttons change state."""

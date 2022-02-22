@@ -54,10 +54,26 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         # Buttons for testing
         ScriptedLoadableModuleWidget.setup(self)
 
-        # Joint Space Mask-----------------------------------------------------------------*
+        
         
         self.collapsible = ctk.ctkCollapsibleButton()
         self.collapsible.text = "Joint Space Mask"
+        self.collapsible2 = ctk.ctkCollapsibleButton()
+        self.collapsible2.text = "Width Analysis"
+        
+        #setup each collapsible
+        self.setupJointMask()
+        self.setupWidthAnalysis()
+
+        #setup buttons
+        self.onNodeChanged()
+
+        self.layout.addStretch(1)
+        
+    # Joint Space Mask-----------------------------------------------------------------*
+    def setupJointMask(self) -> None:
+        '''Setup Joint Space Mask collapsible'''
+
         jointMaskLayout = qt.QFormLayout(self.collapsible)
         jointMaskLayout.setVerticalSpacing(5)
         self.layout.addWidget(self.collapsible)
@@ -88,6 +104,8 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         self.maskVolumeSelector.renameEnabled = True
         self.maskVolumeSelector.removeEnabled = True
         self.maskVolumeSelector.noneEnabled = False
+        self.maskVolumeSelector.showHidden = False
+        self.maskVolumeSelector.showChildNodeTypes = False
         self.maskVolumeSelector.setMRMLScene(slicer.mrmlScene)
         self.maskVolumeSelector.setToolTip("Contour mask of the bones to be analyzed")
         jointMaskLayout.addRow("Input Contour: ", self.maskVolumeSelector)
@@ -102,6 +120,8 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         self.maskVolumeSelector2.renameEnabled = True
         self.maskVolumeSelector2.removeEnabled = True
         self.maskVolumeSelector2.noneEnabled = True
+        self.maskVolumeSelector2.showHidden = False
+        self.maskVolumeSelector2.showChildNodeTypes = False
         self.maskVolumeSelector2.setMRMLScene(slicer.mrmlScene)
         self.maskVolumeSelector2.setToolTip("Select the second mask if there are separate contour files for each bone")
         jointMaskLayout.addRow("Second Contour: \n(Optional)", self.maskVolumeSelector2)
@@ -116,6 +136,8 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         self.outputVolumeSelector.renameEnabled = True
         self.outputVolumeSelector.removeEnabled = True
         self.outputVolumeSelector.noneEnabled = False
+        self.outputVolumeSelector.showHidden = False
+        self.outputVolumeSelector.showChildNodeTypes = False
         self.outputVolumeSelector.setMRMLScene(slicer.mrmlScene)
         self.outputVolumeSelector.baseName = 'JOINT'
         self.outputVolumeSelector.setToolTip("Select a volume to output a mask of the joint space to")
@@ -125,13 +147,13 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         self.lowerThresholdText = qt.QSpinBox()
         self.lowerThresholdText.setMinimum(-9999)
         self.lowerThresholdText.setMaximum(999999)
-        self.lowerThresholdText.setSingleStep(10)
+        self.lowerThresholdText.setSingleStep(100)
         self.lowerThresholdText.value = 686
         jointMaskLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
         self.upperThresholdText = qt.QSpinBox()
         self.upperThresholdText.setMinimum(-9999)
         self.upperThresholdText.setMaximum(999999)
-        self.upperThresholdText.setSingleStep(10)
+        self.upperThresholdText.setSingleStep(100)
         self.upperThresholdText.value = 4000
         jointMaskLayout.addRow("Upper Threshold: ", self.upperThresholdText)
 
@@ -147,7 +169,7 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         # Apply Button
         #
         self.maskButton = qt.QPushButton("Create Joint Mask")
-        self.maskButton.enabled = True
+        self.maskButton.enabled = False
         self.maskButton.toolTip = "Create a mask of the joint space between the bones"
         jointMaskLayout.addRow(self.maskButton)
 
@@ -162,10 +184,12 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         self.outputVolumeSelector.currentNodeChanged.connect(self.onNodeChanged)
         self.maskButton.clicked.connect(self.onJointMask)
 
-        # Width Analysis -----------------------------------------------------------*
+    #TODO: add manual correction collapsible
 
-        self.collapsible2 = ctk.ctkCollapsibleButton()
-        self.collapsible2.text = "Width Analysis"
+    # Width Analysis -----------------------------------------------------------*
+    def setupWidthAnalysis(self) -> None:
+        '''Setup Width Analysis Collapsible'''
+        
         self.collapsible2.collapsed = True
         widthLayout = qt.QFormLayout(self.collapsible2)
         widthLayout.setVerticalSpacing(5)
@@ -181,6 +205,8 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         self.jointMaskSelector.renameEnabled = True
         self.jointMaskSelector.removeEnabled = True
         self.jointMaskSelector.noneEnabled = False
+        self.jointMaskSelector.showHidden = False
+        self.jointMaskSelector.showChildNodeTypes = False
         self.jointMaskSelector.setMRMLScene(slicer.mrmlScene)
         self.jointMaskSelector.setToolTip("Select the joint space mask generated in the previous step")
         widthLayout.addRow("Joint Space Mask", self.jointMaskSelector)
@@ -195,6 +221,7 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         self.outputVolumeSelector2.renameEnabled = True
         self.outputVolumeSelector2.removeEnabled = True
         self.outputVolumeSelector2.noneEnabled = False
+        self.outputVolumeSelector2.showChildNodeTypes = False
         self.outputVolumeSelector2.setMRMLScene(slicer.mrmlScene)
         self.outputVolumeSelector2.baseName = 'WIDTH'
         self.outputVolumeSelector2.setToolTip("Select a volume to output a mask of the joint space to")
@@ -210,6 +237,7 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         self.outputTableSelector.removeEnabled = True
         self.outputTableSelector.renameEnabled = True
         self.outputTableSelector.noneEnabled = False
+        self.outputTableSelector.baseName = "TABLE"
         self.outputTableSelector.setMRMLScene(slicer.mrmlScene)
         self.outputTableSelector.setToolTip( "Pick the output table to store the joint space width statistics" )
         self.outputTableSelector.setCurrentNode(None)
@@ -224,48 +252,73 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         widthLayout.addRow(self.analyzeButton)
 
         # Connections
+        self.jointMaskSelector.currentNodeChanged.connect(self.onNodeChanged2)
         self.collapsible2.contentsCollapsed.connect(self.onCollapse2)
         self.analyzeButton.clicked.connect(self.onAnalyze)
-
-
-        self.layout.addStretch(1)
         
         
     
     def onNodeChanged(self) -> None:
-        input = self.inputVolumeSelector.currentNode()
-        if input:
-            self.outputVolumeSelector.baseName = input.GetName() + '_JOINT'
-            if self.outputVolumeSelector.currentNode():
-                self.analyzeButton.enabled = True
+        '''Any node changed in first step'''
+        #get current node
+        inputNode = self.inputVolumeSelector.currentNode()
+        maskNode = self.maskVolumeSelector.currentNode()
+        output = self.outputVolumeSelector.currentNode()
+
+        #update widget
+        if inputNode:
+            self.outputVolumeSelector.baseName = inputNode.GetName() + '_JOINT'
+        if output:
+            self.jointMaskSelector.setCurrentNode(output)
+        self.maskButton.enabled = (inputNode and maskNode and output)
     
     def onJointMask(self) -> None:
+        '''Create Joint Mask button pressed'''
+        print("\nGenerating mask of joint space")
         self.progressBar.show()
 
-        self.logic.setParameters(self.inputVolumeSelector.currentNode(),
+        if not self.logic.setParameters(self.inputVolumeSelector.currentNode(),
                                 self.maskVolumeSelector.currentNode(),
                                 self.maskVolumeSelector2.currentNode(),
                                 self.lowerThresholdText.value,
                                 self.upperThresholdText.value,
-                                self.dilateErodeDistanceText.value)
+                                self.dilateErodeDistanceText.value):
+            print("Invalid input")
+            return
         
         success = self.logic.getMask(self.outputVolumeSelector.currentNode())
         if success:
             print("Completed")
             slicer.util.setSliceViewerLayers(label=self.outputVolumeSelector.currentNode(), labelOpacity = 0.5)
+        else:
+            print("Failed. Check input and parameters")
         
         self.progressBar.hide()
+
+    def onNodeChanged2(self) -> None:
+        '''Mask node changed in second step'''
+        #get current nodes
+        joint = self.jointMaskSelector.currentNode()
+        table = self.outputTableSelector.currentNode()
+
+        #update widget
+        self.analyzeButton.enabled = (joint and table)
+        if joint:
+            self.outputTableSelector.baseName = joint.GetName() + "_TABLE"
     
     def onAnalyze(self) -> None:
+        '''Analyze button pressed'''
         self.logic.setAnalysisNode(self.jointMaskSelector.currentNode())
         self.logic.analyze(self.outputVolumeSelector2.currentNode(), self.outputTableSelector.currentNode())
 
     #functions for collapsibles in widget
     def onCollapse1(self):
+        '''Funtion for first collapsible'''
         if not self.collapsible.collapsed:
             self.collapsible2.collapsed = True
 
     def onCollapse2(self):
+        '''Function for second collapsible'''
         if not self.collapsible2.collapsed:
             self.collapsible.collapsed = True
     
@@ -282,7 +335,9 @@ class JointSpaceWidthLogic:
         self.jointNode = None
 
     def setParameters(self, inputNode, mask1, mask2, lower:int, upper:int, distance:int) -> bool:
-
+        '''
+        Set the parameters to create the joint space mask
+        '''
         #Pull images
         inputImg = sitkUtils.PullVolumeFromSlicer(inputNode)
         mask1Img = sitkUtils.PullVolumeFromSlicer(mask1)
@@ -294,18 +349,23 @@ class JointSpaceWidthLogic:
         return True
 
     def getMask(self, output) -> bool:
-
-        print("\n*-----------------------------------------------*\nRunning Joint Space Width Algorithm")
+        '''
+        Get the joint space mask
+        '''
+        #Setup
+        print("Running Joint Space Width Algorithm")
         progress = 0
         numSteps = 6
         progressStep = 100 / numSteps
 
-
+        #Run the steps of the algorithm
         for i in range(numSteps):
             self.mask.execute(i)
             
             progress += progressStep
             self.progressCallBack(progress)
+
+        #Push output image to volume
         sitkUtils.PushVolumeToSlicer(self.mask.getOutput(), output)
         return True
     
@@ -365,6 +425,9 @@ class JointSpaceMask:
         self.out_img = None
 
     def setAnalysisParameters(self, image:sitk.Image, mask1:sitk.Image, mask2:sitk.Image, lower:int, upper:int, distance:int) -> None:
+        '''
+        Set the parameters for joint space mask creation
+        '''
         #set params
         self.image = image
         self.mask1 = mask1
@@ -375,6 +438,9 @@ class JointSpaceMask:
 
 
     def execute(self, step: int) -> bool:
+        '''
+        Run the steps of the algorithm
+        '''
         
         #step 1: Align mask with image and combine if 2 masks given
         if step == 0:
@@ -414,6 +480,9 @@ class JointSpaceMask:
 
     
     def combine(self) -> sitk.Image:
+        '''
+        Combine two masks and align them with the image of the bone
+        '''
         #create new images
         mask1Adj = sitk.Image(self.image.GetSize(), 0)
         mask1Adj.CopyInformation(self.image)
@@ -441,6 +510,9 @@ class JointSpaceMask:
         return sitk.Or(mask1Adj, mask2Adj)
 
     def adjust(self) -> sitk.Image:
+        '''
+        Align the mask with the bone
+        '''
         #create new image
         maskAdj = sitk.Image(self.image.GetSize(), 0)
         maskAdj.CopyInformation(self.image)
@@ -454,12 +526,18 @@ class JointSpaceMask:
         maskAdj = paste.Execute(maskAdj, sitk.Cast(self.mask1, sitk.sitkInt8))
     
     def dilate(self, img:sitk.Image) -> sitk.Image:
+        '''
+        Dilate a mask by a set distance
+        '''
         #dilate with distance map
         distance_map = sitk.SignedMaurerDistanceMap(img)
         dilated_img = (distance_map <= self.distance)
         return dilated_img
 
     def fill_holes(self, img:sitk.Image) -> sitk.Image:
+        '''
+        Fill in holes within a mask
+        '''
         #fill in holes in the mask
         fillter = sitk.BinaryFillholeImageFilter()
         fillter.SetForegroundValue(1)
@@ -467,17 +545,26 @@ class JointSpaceMask:
         return fillter.Execute(img)
 
     def erode(self, img:sitk.Image) -> sitk.Image:
+        '''
+        Erode a mask by a set distance
+        '''
         #erode with distance map
         distance_map = sitk.SignedMaurerDistanceMap(img)
         eroded_img = (distance_map <= -self.distance)
         return eroded_img
 
     def subtract(self) -> sitk.Image:
+        '''
+        Subtract the original mask from the mask with joint space
+        '''
         #subtract mask to get joint space
         subtract_img = sitk.And(sitk.Cast(self.working_img, sitk.sitkInt8), sitk.Not(self.adj_mask))
         return subtract_img
         
     def getOutput(self) -> sitk.Image:
+        '''
+        Get the output joint space mask
+        '''
         return self.working_img
 
 class JointSpaceAnalysis():
@@ -486,9 +573,15 @@ class JointSpaceAnalysis():
         self.stats = None
 
     def setImage(self, img:sitk.Image) -> None:
+        '''
+        Set the joint space mask created in the previous step
+        '''
         self.img = img
 
     def getWidth(self) -> sitk.Image:
+        '''
+        Determine the joint space width
+        '''
         #get distance map
         dist_map = sitk.SignedMaurerDistanceMapImageFilter()
         dist_map.SetInsideIsPositive(True)
@@ -521,9 +614,17 @@ class JointSpaceAnalysis():
         return out_img
 
     def getStats(self) -> tuple:
+        '''
+        Return the max, min, average, and stdev of the joint space width
+
+        Format: tuple(float, float, float, float)
+        '''
         return self.stats
 
     def getVolume(self, segNode) -> None:
+        '''
+        Return the volume of the joint space (incomplete)
+        '''
         import SegmentStatistics
 
         segStats = SegmentStatistics.SegmentStatisticsLogic()

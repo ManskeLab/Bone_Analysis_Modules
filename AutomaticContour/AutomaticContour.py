@@ -449,9 +449,6 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     if inputVolumeNode:
       # update the default output base name
       self.outputVolumeSelector.baseName = (inputVolumeNode.GetName()+"_MASK")
-      # set default node
-      if not self.outputVolumeSelector.currentNode():
-        self.outputVolumeSelector.addNode()
       # Update the default save directory
       self._logic.setDefaultDirectory(inputVolumeNode)
       # update viewer windows

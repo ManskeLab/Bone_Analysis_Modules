@@ -7,14 +7,9 @@
 # Description: This module performs longitudinal image registration given a baseline and a follow-up image.
 #
 #-----------------------------------------------------
-# Usage:       This module is plugged into 3D Slicer, but can run on its own. 
-#              When running on its own, call:
-#             
-#
-# Param:       baseImage: The input baseline scan file path
-#              followImage: The input follow-up scan file path
+# Usage:       Implemented in the Image Registration Module
 #              
-# Node:        Currently uses script from https://github.com/ManskeLab/BML_Turnover/blob/master/BML_T/BMLT_B_FU_reg.py
+# Note:        Uses script from https://github.com/ManskeLab/BML_Turnover/blob/master/BML_T/BMLT_B_FU_reg.py
 #
 #-----------------------------------------------------
 import SimpleITK as sitk

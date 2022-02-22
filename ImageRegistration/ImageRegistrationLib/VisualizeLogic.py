@@ -4,18 +4,11 @@
 # Created by:  Ryan Yan
 # Created on:  31-01-2022
 #
-# Description: This module performs longitudinal image registration given a baseline and a follow-up image.
+# Description: This module creates a subtraction image for longitudinal registrations.
 #
 #-----------------------------------------------------
-# Usage:       This module is plugged into 3D Slicer, but can run on its own. 
-#              When running on its own, call:
+# Usage:       Implemented in the Image Registration Module
 #             
-#
-# Param:       baseImage: The input baseline scan file path
-#              followImage: The input follow-up scan file path
-#              
-# Node:        Currently uses script from https://github.com/ManskeLab/BML_Turnover/blob/master/BML_T/BMLT_B_FU_reg.py
-#
 #-----------------------------------------------------
 import SimpleITK as sitk
 import numpy as np
@@ -107,3 +100,5 @@ class VisualizeLogic:
         regCrop = np.multiply(maskArr, regArr)
 
         return (sitk.GetImageFromArray(baseCrop), sitk.GetImageFromArray(regCrop))
+    
+

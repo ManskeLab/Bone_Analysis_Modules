@@ -571,14 +571,6 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       seed_baseName = inputContourNode.GetName()+"_SEEDS"
       self.fiducialSelector.baseName = seed_baseName
       self.outputTableSelector.baseName = inputContourNode.GetName()+"_TABLE"
-
-      # attempt to autofillsegments
-      if not self.outputErosionSelector.currentNode():
-        self.outputErosionSelector.addNode()
-      if not self.fiducialSelector.currentNode():
-        self.fiducialSelector.setCurrentNodeIndex(0)
-        if not self.fiducialSelector.currentNode():
-          self.fiducialSelector.addNode()
       
 
   def onAddOutputErosion(self, node):

@@ -18,6 +18,7 @@ from numpy import copy
 import logging, os
 from .RegistrationLogic import RegistrationLogic
 from .VisualizeLogic import VisualizeLogic
+from .CheckerboardLogic import CheckerboardLogic
 
 #
 # ImageRegistration
@@ -37,6 +38,7 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         self.progressCallBack = None
         self.registration = RegistrationLogic()
         self.visualizer = VisualizeLogic()
+        self.checkerboard = CheckerboardLogic()
 
         self.template = None
 
@@ -95,7 +97,7 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         slicer.util.setSliceViewerLayers(background=outputNode)
         return True
     
-    def setVisualizeParameters(self, baseNode, regNode, sigma:float, lower:int, upper:int):
+    def setVisualizeParameters(self, baseNode, regNode, sigma:float, lower:int, upper:int) -> None:
         '''
         Set parameters from visualization
 
@@ -123,7 +125,7 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
 
         self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, lower, upper)
     
-    def visualize(self, outputNode):
+    def visualize(self, outputNode) -> None:
         '''
         Create subtraction image of registration
 
@@ -150,3 +152,28 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         outImg = sitk.GetImageFromArray(outArr)
         outImg.CopyInformation(self.template)
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)
+        slicer.util.setSliceViewerLayers(label=outputNode, labelOpacity=0.5)
+    
+    def setCheckerboardParameters(self, baseNode, regNode, size:int) -> None:
+        '''Set parameters for checkerboard image'''
+        
+        base_img = sitkUtils.PullVolumeFromSlicer(baseNode)
+        reg_img = sitkUtils.PullVolumeFromSlicer(regNode)
+
+        self.checkerboard.setImages(base_img, reg_img, size)
+
+    def getCheckerboard(self, outNode) -> None:
+        '''Generate checkerboard image and push to volume'''
+
+        self.progressCallBack(50)
+        outImg = self.checkerboard.execute()
+        sitkUtils.PushVolumeToSlicer(outImg, outNode)
+        slicer.util.setSliceViewerLayers(background = outNode)
+    
+    def getCheckerboardGrid(self, gridNode) -> None:
+        '''Generate checkerboard grid and push to volume'''
+
+        self.progressCallBack(80)
+        gridImg = self.checkerboard.checkerboard_mask()
+        sitkUtils.PushVolumeToSlicer(gridImg, gridNode)
+        slicer.util.setSliceViewerLayers(label = gridNode, labelOpacity = 0.2)

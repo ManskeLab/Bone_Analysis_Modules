@@ -50,15 +50,22 @@ class CBCTEnhanceWidget(ScriptedLoadableModuleWidget):
 
         ScriptedLoadableModuleWidget.__init__(self, parent)
 
-    def setup(self):
+    def setup(self) -> None:
+        '''Setup CBCT Widget'''
         # Buttons for testing
         ScriptedLoadableModuleWidget.setup(self)
         
-        collapsible = ctk.ctkCollapsibleButton()
-        enhanceLayout = qt.QFormLayout(collapsible)
-        enhanceLayout.setVerticalSpacing(5)
-        self.layout.addWidget(collapsible)
+        self.collapsible = ctk.ctkCollapsibleButton()
+        self.collapsible.text = "Enhance CBCT Image"
 
+        self.setupEnhanceCBCT()
+        self.layout.addStretch(1)
+    
+    def setupEnhanceCBCT(self) -> None:
+        '''Setup Enhance CBCT Image collapsible'''
+        enhanceLayout = qt.QFormLayout(self.collapsible)
+        enhanceLayout.setVerticalSpacing(5)
+        self.layout.addWidget(self.collapsible)
 
         #
         # Input CBCT Scan
@@ -103,13 +110,15 @@ class CBCTEnhanceWidget(ScriptedLoadableModuleWidget):
         self.progressBar.hide()
         enhanceLayout.addRow(self.progressBar)
 
-        self.layout.addStretch(1)
         
+        
+        #connections
         self.inputVolumeSelector.currentNodeChanged.connect(self.onNodeChanged)
         self.outputVolumeSelector.currentNodeChanged.connect(self.onNodeChanged)
         self.enhanceButton.clicked.connect(self.onEnhance)
     
     def onNodeChanged(self):
+        '''Any node changed in step 1'''
         input = self.inputVolumeSelector.currentNode()
         if input:
             self.outputVolumeSelector.baseName = input.GetName() + '_ENHANCED'
@@ -117,6 +126,7 @@ class CBCTEnhanceWidget(ScriptedLoadableModuleWidget):
                 self.enhanceButton.enabled = True
 
     def onEnhance(self):
+        '''Enchance button pressed'''
         self.disableErosionsWidgets()
 
         #sharpen image
@@ -143,7 +153,7 @@ class CBCTEnhanceLogic(ScriptedLoadableModuleLogic):
     def __init__(self):
         self.progressCallBack = None
 
-    def sharpen(self, inputNode, outputNode):
+    def sharpen(self, inputNode, outputNode) -> None:
         '''
         Enhance CBCT scan
 
