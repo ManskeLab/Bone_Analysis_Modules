@@ -41,7 +41,7 @@ class RegistrationLogic:
         self.reg.SetInterpolator(sitk.sitkBSpline)
 
         #optimizer
-        self.reg.SetOptimizerAsPowell(numberOfIterations=100)
+        self.reg.SetOptimizerAsPowell()
         self.reg.SetOptimizerScalesFromPhysicalShift()
 
         #multi-resolution framework
@@ -89,6 +89,24 @@ class RegistrationLogic:
             self.reg.SetMetricAsMattesMutualInformation()
         elif metric == 'ants':
             self.reg.SetMetricAsANTSNeighborhoodCorrelation(2)
+    
+    def setOptimizer(self, optimizer:str) -> None:
+        if optimizer == 'amoeba':
+            self.reg.SetOptimizerAsAmoeba(1, 100)
+        elif optimizer == 'exhaustive':
+            self.reg.SetOptimizerAsExhaustive(100)
+        elif optimizer == 'powell':
+            self.reg.SetOptimizerAsPowell()
+        elif optimizer == 'one_plus_one':
+            self.reg.SetOptimizerAsOnePlusOneEvolutionary()
+        elif optimizer == 'gradient':
+            self.reg.SetOptimizerAsGradientDescent(1, 100)
+        elif optimizer == 'gradient_ls':
+            self.reg.SetOptimizerAsGradientDescentLineSearch(1, 100)
+        elif optimizer == 'gradient_reg':
+            self.reg.SetOptimizerAsRegularStepGradientDescent(1, 1, 100)
+        elif optimizer == 'lbfgs2':
+            self.reg.SetOptimizerAsLBFGS2()
     
     def execute(self) -> sitk.Image:
         '''

@@ -81,6 +81,10 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         elif index == 3:
             metric = 'ants'
         self.registration.setSimilarityMetric(metric)
+    
+    def setOptimizer(self, index):
+        list = ['amoeba', 'exhaustive', 'powell', 'one_plus_one', 'gradient', 'gradient_ls', 'gradient_reg', 'lbfgs2']
+        self.registration.setOptimizer(list[index])
 
     def run(self, outputNode):
         '''

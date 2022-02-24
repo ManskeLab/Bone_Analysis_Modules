@@ -30,7 +30,14 @@ class CorticalBreakDetectionTestLogic:
             str: full file path
         '''
         root = self.getParent(self.getParent(self.getParent(os.path.realpath(__file__))))
-        return root + '\\TestFiles' + filename
+
+        #Windows
+        if root.contains('\\'):
+            return root + '\\TestFiles\\' + filename
+        
+        #MacOS/Linux
+        else:
+            return root + '/TestFiles/' + filename
 
     def getParent(self, path):
         return os.path.split(path)[0]
@@ -133,7 +140,7 @@ class CorticalBreakDetectionTestLogic:
 
         #convert breaks image to array
         breaksArr = slicer.util.arrayFromVolume(breaksNode)
-        compareImage = sitk.ReadImage(self.getFilePath('\\SAMPLE_BREAKS' + str(testNum) + '.nrrd'))
+        compareImage = sitk.ReadImage(self.getFilePath('SAMPLE_BREAKS' + str(testNum) + '.nrrd'))
         compareArr = sitk.GetArrayFromImage(compareImage)
 
         #pad array if sizes different
@@ -174,7 +181,7 @@ class CorticalBreakDetectionTestLogic:
 
         #get list of seeds from file
         compareList = []
-        fileSeeds = slicer.util.loadMarkups(self.getFilePath('\\SAMPLE_SEEDS' + str(testNum) + '.json'))
+        fileSeeds = slicer.util.loadMarkups(self.getFilePath('SAMPLE_SEEDS' + str(testNum) + '.json'))
         for i in range(fileSeeds.GetNumberOfFiducials()):
             compareList.append([0, 0, 0])
             fileSeeds.GetNthFiducialPosition(i, compareList[i])

@@ -482,6 +482,8 @@ Change the lower and upper thresholds before initializing."""
         filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
       except:
         filename = 'share\\' + inputVolumeNode.GetName() + '.'
+      finally:
+        filename = 'share/' + inputVolumeNode.GetName() + '.'
       logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
       self.logger.addHandler(logHandler)
       self.logger.info("Using Automatic Contour Module with " + inputVolumeNode.GetName() + "\n")
@@ -529,14 +531,9 @@ Change the lower and upper thresholds before initializing."""
     # update widgets
     self.enableAutomaticContourWidgets()
 
-    # store thresholds if not default
-    lower = self.lowerThresholdText.value
-    if lower != 900:
-      inputVolumeNode.__dict__["Lower"] = lower
-    upper = self.upperThresholdText.value
-    if upper != 4000:
-      inputVolumeNode.__dict__["Upper"] = upper
-
+    # store thresholds 
+    inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
+    inputVolumeNode.__dict__["Upper"] = self.upperThresholdText.value
     self.logger.info("Finished\n")
   
   def onInitButton3(self):
@@ -681,7 +678,7 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
       print('\n*----------------------Test ' + index + '----------------------*')
 
       # setup input volume
-      inputVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA' + index + '.mha', name='testInputVolume' + index)
+      inputVolume = testLogic.newNode(scene, filename='SAMPLE_MHA' + index + '.mha', name='testInputVolume' + index)
 
       # generate mask with default settings
       outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index, type='labelmap')

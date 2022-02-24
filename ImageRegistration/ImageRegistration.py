@@ -97,7 +97,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.inputSelector1.setMRMLScene( slicer.mrmlScene )
     self.inputSelector1.setToolTip( "Select the baseline image" )
     self.inputSelector1.setCurrentNode(None)
-    registerFormLayout.addRow("Baseline: ", self.inputSelector1)
+    registerFormLayout.addRow("Baseline (fixed): ", self.inputSelector1)
 
     #
     # Second input volume selector
@@ -113,7 +113,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.inputSelector2.setMRMLScene( slicer.mrmlScene )
     self.inputSelector2.setToolTip( "Select the follow-up image" )
     self.inputSelector2.setCurrentNode(None)
-    registerFormLayout.addRow("Follow-up: ", self.inputSelector2)
+    registerFormLayout.addRow("Follow-up (moving): ", self.inputSelector2)
 
     #
     # Registration similarity metric selector
@@ -136,6 +136,14 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.samplingText.setSingleStep(0.01)
     self.samplingText.setToolTip("Standard deviation in the Gaussian smoothing filter")
     registerFormLayout.addRow("Metric Sampling Percentage: ", self.samplingText)
+
+    #
+    # Registration optimizer selector
+    #
+    self.optimizerSelector = qt.QComboBox()
+    self.optimizerSelector.addItems(['Amoeba', 'Exhaustive', 'Powell', '1 + 1 Evolutionary', 
+                                    'Gradient Descent', 'Gradient Descent Line Search', 'Regular Step Gradient Descent', 'L-BFGS'])
+    registerFormLayout.addRow("Similarity Metric: ", self.optimizerSelector)
 
     #
     # Output volume selector
@@ -447,6 +455,7 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
                         self.inputSelector2.currentNode(),
                         self.samplingText.value)
     self.logic.setMetric(self.metricSelector.currentIndex)
+    self.logic.setOptimizer(self.optimizerSelector.currentIndex)
     self.logic.run(self.outputSelector.currentNode())
 
     self.progressBar.hide()

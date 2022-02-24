@@ -462,6 +462,8 @@ Change the lower and upper thresholds before initializing."""
         filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
       except:
         filename = 'share\\' + inputVolumeNode.GetName() + '.'
+      finally:
+        filename = 'share/' + inputVolumeNode.GetName() + '.'
       logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
       
       self.logger.addHandler(logHandler)
@@ -566,13 +568,9 @@ Change the lower and upper thresholds before initializing."""
         slicer.util.setSliceViewerLayers(label=outputCorticalBreaksNode, 
                                          labelOpacity=0.5)
     
-    # store thresholds if not default
-    lower = self.lowerThresholdText.value
-    if lower != 686:
-      masterVolumeNode.__dict__["Lower"] = lower
-    upper = self.upperThresholdText.value
-    if upper != 4000:
-      masterVolumeNode.__dict__["Upper"] = upper
+    # store thresholds 
+    inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
+    inputVolumeNode.__dict__["Upper"] = self.upperThresholdText.value
                                     
     # update widgets
     self.outputCorticalBreaksSelector.setCurrentNodeID("") # reset the output volume selector
@@ -639,7 +637,7 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    #self.test_CortBreak()
+    self.test_CortBreak()
     self.test_CortBreakFailure()
 
   def test_CortBreak(self):
@@ -679,7 +677,7 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
       print('\n*----------------------Test ' + index + '----------------------*')
 
       # setup input file
-      inputVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA' + index + '.mha', name='testInputVolume' + index)
+      inputVolume = testLogic.newNode(scene, filename='SAMPLE_MHA' + index + '.mha', name='testInputVolume' + index)
 
       # check preprocessing
       processVolume = testLogic.newNode(scene, name='testProcessVolume' + index, type='labelmap')
@@ -687,7 +685,7 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
       self.assertTrue(logic.preprocess(processVolume), 'Preprocessing Failed')
       
       # check cortical break detection
-      maskVolume = testLogic.newNode(scene, filename='\\SAMPLE_MASK' + index + '.mha', name='testMaskVolume' + index, type='labelmap', display=False)
+      maskVolume = testLogic.newNode(scene, filename='SAMPLE_MASK' + index + '.mha', name='testMaskVolume' + index, type='labelmap', display=False)
       outputVolume = testLogic.newNode(scene, name='testOutputNode' + index, type='labelmap')
       seedsList = testLogic.newNode(scene, name='testSeedsList' + index, type='fiducial')
 
@@ -722,9 +720,9 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
 
     #setup nodes
     scene = slicer.mrmlScene
-    a = testLogic.newNode(scene, filename='\\FAIL_MHA.mha', name='node1')
-    b = testLogic.newNode(scene, filename='\\FAIL_MASK.mha', type = 'labelmap', name = 'node2')
-    c = testLogic.newNode(scene, filename='\\FAIL_MASK.mha', type = 'labelmap', name = 'node3')
+    a = testLogic.newNode(scene, filename='FAIL_MHA.mha', name='node1')
+    b = testLogic.newNode(scene, filename='FAIL_MASK.mha', type = 'labelmap', name = 'node2')
+    c = testLogic.newNode(scene, filename='FAIL_MASK.mha', type = 'labelmap', name = 'node3')
     d = testLogic.newNode(scene, type = 'labelmap', name = 'node4')
 
     #attempt to set invalid preprocess parameters

@@ -30,7 +30,14 @@ class ErosionVolumeTestLogic:
             str: full file path
         '''
         root = self.getParent(self.getParent(self.getParent(os.path.realpath(__file__))))
-        return root + '\\TestFiles' + filename
+
+        #Windows
+        if root.contains('\\'):
+            return root + '\\TestFiles\\' + filename
+        
+        #MacOS/Linux
+        else:
+            return root + '/TestFiles/' + filename
 
     def getParent(self, path):
         return os.path.split(path)[0]
@@ -48,7 +55,7 @@ class ErosionVolumeTestLogic:
             None
         '''
         #modify filepath
-        fullpath = self.getFilePath(filepath )
+        fullpath = self.getFilePath(filepath)
         print('Reading in ' + fullpath)
 
         reader = sitk.ImageFileReader()
@@ -141,7 +148,7 @@ class ErosionVolumeTestLogic:
         '''
         
         #load comparison segmentation
-        compareNode = slicer.util.loadSegmentation(self.getFilePath('\\SAMPLE_ER' + str(testNum) + '.seg.nrrd'))
+        compareNode = slicer.util.loadSegmentation(self.getFilePath('SAMPLE_ER' + str(testNum) + '.seg.nrrd'))
         #set mask to invisible
         maskId = compareNode.GetSegmentation().GetNthSegmentID(0)
         compareNode.GetDisplayNode().SetSegmentVisibility(maskId, False)
@@ -191,7 +198,7 @@ class ErosionVolumeTestLogic:
         table = tableNode.GetTable()
 
         #load comparison data
-        compareTableNode = slicer.util.loadTable(self.getFilePath('\\SAMPLE_TABLE' + str(testNum) + '.csv'))
+        compareTableNode = slicer.util.loadTable(self.getFilePath('SAMPLE_TABLE' + str(testNum) + '.csv'))
         compareTable = compareTableNode.GetTable()
 
         ratio1 = abs(table.GetValueByName(0, 'Volume [mm3]').ToFloat() / compareTable.GetValueByName(0, 'Volume [mm3]').ToFloat() - 1)

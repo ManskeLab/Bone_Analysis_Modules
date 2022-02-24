@@ -566,6 +566,8 @@ Change the lower and upper thresholds before initializing."""
         filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
       except:
         filename = 'share\\' + inputVolumeNode.GetName() + '.'
+      finally:
+        filename = 'share/' + inputVolumeNode.GetName() + '.'
       logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
       self.logger.addHandler(logHandler)
       self.logger.info("Using Erosion Volume Module with " + inputVolumeNode.GetName() + "\n")
@@ -670,13 +672,9 @@ Change the lower and upper thresholds before initializing."""
         self.segmentEditor.setSegmentationNode(outputVolumeNode)
         self.segmentEditor.setMasterVolumeNode(inputVolumeNode)
     
-    # store thresholds if not default
-    lower = self.lowerThresholdText.value
-    if lower != 686:
-      inputVolumeNode.__dict__["Lower"] = lower
-    upper = self.upperThresholdText.value
-    if upper != 4000:
-      inputVolumeNode.__dict__["Upper"] = upper
+    # store thresholds 
+    inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
+    inputVolumeNode.__dict__["Upper"] = self.upperThresholdText.value
 
     # update widgets
     self.enableErosionsWidgets()
@@ -777,9 +775,9 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
       print('\n*----------------------Test ' + index + '----------------------*')
 
       # get input files
-      masterVolume = testLogic.newNode(scene, filename='\\SAMPLE_MHA' + index + '.mha', name='testMasterVolume' + index)
-      maskVolume = testLogic.newNode(scene, filename='\\SAMPLE_MASK' + index + '.mha', name='testMaskVolume' + index, type='labelmap', display=False)
-      seedsList = testLogic.newNode(scene, filename='\\SAMPLE_SEEDS' + index + '.json', name='testSeedsList' + index, type='fiducial')
+      masterVolume = testLogic.newNode(scene, filename='SAMPLE_MHA' + index + '.mha', name='testMasterVolume' + index)
+      maskVolume = testLogic.newNode(scene, filename='SAMPLE_MASK' + index + '.mha', name='testMaskVolume' + index, type='labelmap', display=False)
+      seedsList = testLogic.newNode(scene, filename='SAMPLE_SEEDS' + index + '.json', name='testSeedsList' + index, type='fiducial')
 
 
       # setup volumes

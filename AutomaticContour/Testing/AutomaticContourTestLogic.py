@@ -30,7 +30,14 @@ class AutomaticContourTestLogic:
             str: full file path
         '''
         root = self.getParent(self.getParent(self.getParent(os.path.realpath(__file__))))
-        return root + '\\TestFiles' + filename
+
+        #Windows
+        if '\\' in root:
+            return root + '\\TestFiles\\' + filename
+        
+        #MacOS/Linux
+        else:
+            return root + '/TestFiles/' + filename
 
     def getParent(self, path):
         return os.path.split(path)[0]
@@ -131,7 +138,7 @@ class AutomaticContourTestLogic:
 
         #get arrays from output and comparison image
         outArr = slicer.util.arrayFromVolume(maskVolume)
-        compareImg = sitk.ReadImage(self.getFilePath('\\SAMPLE_MASK' + str(testNum) + '.mha'))
+        compareImg = sitk.ReadImage(self.getFilePath('SAMPLE_MASK' + str(testNum) + '.mha'))
         compareArr = sitk.GetArrayFromImage(compareImg)
 
         #pad array if sizes differemt

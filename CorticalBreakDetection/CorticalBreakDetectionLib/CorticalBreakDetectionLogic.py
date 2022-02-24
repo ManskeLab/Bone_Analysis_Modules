@@ -234,11 +234,17 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
     Returns:
       bool: True for HU units, false for other
     '''
+        #create array and calculate statistics
     arr = slicer.util.arrayFromVolume(volumeNode)
-    arrMax = np.max(arr)
-    arrMin = np.min(arr)
-    if arrMax > 5000 or arrMax < 1000 or arrMin < -2000:
-      print(np.max(arr), np.min(arr), np.average(arr), np.std(arr))
-      return False
-    else:
-      return True
+    arr_max = np.where(arr > 5000, arr, 1)
+    max_ratio = arr_max.size / arr.size
+    arr_min = np.where(arr < -2000, arr, 1)
+    min_ratio = arr_min.size / arr.size
+    arr_avg = np.average(arr)
+    arr_std = np.std(arr)
+
+    #checks: 
+    #-1000 < average < 1000
+    #500 < standard deviation < 1000
+    #out of range values < 10% of image
+    return (arr_avg > -1000 and arr_avg < 1000 and arr_std > 500 and arr_std < 1000 and max_ratio + min_ratio < 0.1)
