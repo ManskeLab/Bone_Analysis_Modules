@@ -101,4 +101,7 @@ class VisualizeLogic:
 
         return (sitk.GetImageFromArray(baseCrop), sitk.GetImageFromArray(regCrop))
     
+    def subtract(self) -> sitk.Image:
+        return (self.regImg - self.baseImg)
+    
 

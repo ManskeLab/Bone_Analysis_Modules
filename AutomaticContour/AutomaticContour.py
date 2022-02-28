@@ -15,6 +15,7 @@ from slicer.ScriptedLoadableModule import *
 import logging
 from AutomaticContourLib.AutomaticContourLogic import AutomaticContourLogic
 from AutomaticContourLib.SegmentEditor import SegmentEditor
+import os
 
 #
 # AutomaticContour
@@ -31,19 +32,29 @@ class AutomaticContour(ScriptedLoadableModule):
     self.parent.dependencies = []
     self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-Updated on January 27, 2022.
-This module contains steps 1-3 of erosion analysis. 
-Step 1 is to manually separate the bones by covering each bone with a different label. 
-Step 2 is to perform automatic contouring on the greyscale image and generate a 
-label map volume of the contour. 
-Step 3 is to manually correct the contour. 
-If a contour already exists and needs to be corrected, load it to slicer as a label map volume,
-and jump to Step 3. 
+This module contains steps 1-3 of erosion analysis. <br>
+Step 1: Manually separate the bones by covering each bone with a different label. <br>
+Step 2: Perform automatic contouring on the greyscale image and generate a 
+label map volume of the contour. <br>
+Step 3: Manually correct the contour. <br>
+If a contour already exists and needs to be corrected, load it to slicer as a label map volume
+and skip to Step 3. 
 """
-    self.parent.helpText += self.getDefaultModuleDocumentationLink()
+    self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Automatic-Contour-Module>online documentation</a>."
+    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
     self.parent.acknowledgementText = """
-Updated on January 27, 2022.
+    Updated on January 27, 2022.<br>
+    Manske Lab<br>
+    McCaig Institue for Bone and Joint Health<br>
+    University of Calgary
 """ # replace with organization, grant and thanks.
+
+  def getLogo(self):
+    directory = os.path.split(os.path.realpath(__file__))[0]
+    if '\\' in directory:
+      return directory + '\\Resources\\Icons\\Logo.png'
+    else:
+      return directory + '/Resources/Icons/Logo.png'
 
 #
 # AutomaticContourWidget

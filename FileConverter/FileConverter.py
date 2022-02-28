@@ -24,11 +24,24 @@ class FileConverter(ScriptedLoadableModule):
     self.parent.helpText = """
     Updated 2022-01-07. Converts an AIM or ISQ file to a viewable slicer volume node. 
     IMPORTANT: Requires ITK package installed in Slicer. 
-    Follow instructions at https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/AIM-File-Converter-Module to install.
+    Follow instructions on the <a href="https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/AIM-File-Converter-Module">Github Page</a> to install.
     """
+    self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/File-Converter-Module>online documentation</a>."
+    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
     self.parent.acknowledgementText = """
-    Placeholder Text
+    Updated on February 28, 2022<br>
+    Manske Lab<br>
+    McCaig Institue for Bone and Joint Health<br>
+    University of Calgary
 """ # replace with organization, grant and thanks.
+
+  def getLogo(self):
+    directory = os.path.split(os.path.realpath(__file__))[0]
+    if '\\' in directory:
+      return directory + '\\Resources\\Icons\\Logo.png'
+    else:
+      return directory + '/Resources/Icons/Logo.png'
+
 
 #
 # FileConverterWidget
@@ -48,9 +61,10 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     #check if itk installed to slicer
     try:
       import itk
+      self.the()
     except:
       text = """This module requires ITK, which is not installed by default in 3D Slicer. 
-Follow the instructions on the File Converter Wiki page on GitHub to install 
+Follow the instructions on the File Converter Wiki page on GitHub 
 (https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/File-Converter-Module)."""
       slicer.util.errorDisplay(text, 'ITK Not Installed')
       return
@@ -95,7 +109,7 @@ Follow the instructions on the File Converter Wiki page on GitHub to install
     self.formatSelect.addWidget(self.aimButton, 0, 0)
     self.formatSelect.addWidget(self.isqButton, 0, 1)
 
-    # ct type button frame
+    # file type button frame
     self.formatSelectFrame = qt.QFrame()
     self.formatSelectFrame.setLayout(self.formatSelect)
     #self.formatSelectFrame.setFixedHeight(30)
@@ -437,7 +451,7 @@ class FileConverterTest(ScriptedLoadableModuleTest):
     #
     
     # get test file
-    aimPath = self.getFilePath('\\SAMPLE_AIM.AIM')
+    aimPath = self.getFilePath('SAMPLE_AIM.AIM')
     
     # check if file is converted
     logic = FileConverterLogic()
@@ -468,7 +482,15 @@ class FileConverterTest(ScriptedLoadableModuleTest):
         str: full file path
     '''
     root = self.getParent(self.getParent(os.path.realpath(__file__)))
-    return root + '\\TestFiles' + filename
+
+    #Windows
+    if '\\' in root:
+        return root + '\\TestFiles\\' + filename
+    
+    #MacOS/Linux
+    else:
+        return root + '/TestFiles/' + filename
+
 
   def getParent(self, path):
     return os.path.split(path)[0]

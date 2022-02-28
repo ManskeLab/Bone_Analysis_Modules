@@ -13,6 +13,7 @@ from slicer.ScriptedLoadableModule import *
 import logging
 import SimpleITK as sitk
 import sitkUtils
+import os
 
 #
 # Module for CBCT Enhancement
@@ -24,16 +25,28 @@ class JointSpaceWidth(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Joint Space Width" # TODO make this more human readable by adding spaces
+    self.parent.title = "Joint Space Width (Beta)" # TODO make this more human readable by adding spaces
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []
     self.parent.contributors = ["Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """Determines the width of the space in the metacarpal (MCP) joint.
-                            Can also be used for other joints, but may be suboptimal"""
-    self.parent.helpText += self.getDefaultModuleDocumentationLink()
+    Can also be used for other joints, but may be suboptimal. Currently under development.
+    """
+    self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Joint-Space-Width-Module>online documentation</a>."
+    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
     self.parent.acknowledgementText = """
-Updated on January 27, 2022.
+    Updated on February 28, 2022 <br>
+    Manske Lab <br>
+    McCaig Institute for Bone and Joint Health <br>
+    University of Calgary
 """ # replace with organization, grant and thanks.
+
+  def getLogo(self):
+    directory = os.path.split(os.path.realpath(__file__))[0]
+    if '\\' in directory:
+      return directory + '\\Resources\\Icons\\Logo.png'
+    else:
+      return directory + '/Resources/Icons/Logo.png'
 
 #
 # CBCTEnhanceWidget

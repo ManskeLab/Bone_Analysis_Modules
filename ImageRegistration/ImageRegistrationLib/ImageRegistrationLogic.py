@@ -158,6 +158,13 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)
         slicer.util.setSliceViewerLayers(label=outputNode, labelOpacity=0.5)
     
+    def subtractGray(self, outputNode) -> None:
+        '''Create grayscale subtraction image'''
+        #create image
+        out_img = self.visualizer.subtract()
+        sitkUtils.PushVolumeToSlicer(out_img, outputNode)
+        slicer.util.setSliceViewerLayers(background=outputNode)
+    
     def setCheckerboardParameters(self, baseNode, regNode, size:int) -> None:
         '''Set parameters for checkerboard image'''
         

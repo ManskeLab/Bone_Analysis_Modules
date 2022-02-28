@@ -13,6 +13,7 @@ from slicer.ScriptedLoadableModule import *
 import logging
 from CorticalBreakDetectionLib.CorticalBreakDetectionLogic import CorticalBreakDetectionLogic
 from CorticalBreakDetectionLib.MarkupsTable import MarkupsTable
+import os
 
 #
 # CorticalBreakDetection
@@ -30,17 +31,29 @@ class CorticalBreakDetection(ScriptedLoadableModule):
     self.parent.contributors = ["Mingjie Zhao"]
     # TODO: update with short description of the module and a link to online module documentation
     self.parent.helpText = """
-Updated on January 27, 2022.
-This module inplements the automatic Cortical Break Detection method by Michel Peters et al. Workflow:
-1. Preprocess/binarize the bone. 2. Take the preprocessed image and the mask, identify Cortical Breaks 
-and underlying trabecular bone loss using Peters et al's algorithm. The Cortical Break Detection masks will be 
-converted to seed points. Note that trabecular bone loss on CBCT will be segmented using a different 
-algorithm (i.e. level set) from the original algorithm. 3. Manually add or remove seed points.
+This module inplements the automatic cortical break detection method by Michel Peters et al.<br>
+Step 1: Segment/binarize the bone. <br>
+Step 2: Identify cortical breaks and underlying trabecular bone loss using Peters et al's algorithm.
+The cortical break masks will be converted to seed points. Note that trabecular bone loss on CBCT 
+will be segmented using a different algorithm (i.e. level set) from the original algorithm. <br>
+Step 3: Manually add or remove seed points.
 """
+    self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Cortical-Break-Detection-Module>online documentation</a>."
+    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
     # TODO: replace with organization, grant and thanks
     self.parent.acknowledgementText = """
 Updated on January 27, 2022.
+Manske Lab<br>
+    McCaig Institue for Bone and Joint Health<br>
+    University of Calgary
 """ # Additional initialization step after application startup is complete
+
+  def getLogo(self):
+    directory = os.path.split(os.path.realpath(__file__))[0]
+    if '\\' in directory:
+      return directory + '\\Resources\\Icons\\Logo.png'
+    else:
+      return directory + '/Resources/Icons/Logo.png'
 
 #
 # CorticalBreakDetectionWidget
@@ -111,7 +124,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.inputVolumeSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Input Volume: ", self.inputVolumeSelector)
 
-    # Preprocessed output selector
+    # Segmented output selector
     self.outputVolumeSelector = slicer.qMRMLNodeComboBox()
     self.outputVolumeSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
     self.outputVolumeSelector.selectNodeUponCreation = True
@@ -122,7 +135,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.showHidden = False
     self.outputVolumeSelector.showChildNodeTypes = False
     self.outputVolumeSelector.setMRMLScene(slicer.mrmlScene)
-    self.outputVolumeSelector.setToolTip( "Select the node to store the preprocessed image in" )
+    self.outputVolumeSelector.setToolTip( "Select the node to store the segmented image in" )
     self.outputVolumeSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Output Volume: ", self.outputVolumeSelector)
 
@@ -160,11 +173,11 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.progressBar1.hide()
     executeGridLayout1.addWidget(self.progressBar1, 0, 0)
 
-    # Preprocess Button
-    self.preprocessButton = qt.QPushButton("Preprocess")
-    self.preprocessButton.toolTip = "Apply threshold and smoothing"
-    self.preprocessButton.enabled = False
-    executeGridLayout1.addWidget(self.preprocessButton, 1, 0)
+    # segment Button
+    self.segmentButton = qt.QPushButton("Segment")
+    self.segmentButton.toolTip = "Apply threshold and smoothing"
+    self.segmentButton.enabled = False
+    executeGridLayout1.addWidget(self.segmentButton, 1, 0)
     executeGridLayout1.addWidget(qt.QLabel(""), 2, 0)
 
     # Execution frame with progress bar and get button
@@ -198,10 +211,9 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.inputBoneSelector.showHidden = False
     self.inputBoneSelector.showChildNodeTypes = False
     self.inputBoneSelector.setMRMLScene(slicer.mrmlScene)
-    self.inputBoneSelector.baseName = "ER"
-    self.inputBoneSelector.setToolTip( "Select the preprocessed image" )
+    self.inputBoneSelector.setToolTip( "Select the segmented image" )
     self.inputBoneSelector.setCurrentNode(None)
-    CorticalBreakDetectionLayout.addRow("Preprocessed Volume: ", self.inputBoneSelector)
+    CorticalBreakDetectionLayout.addRow("Segmented Volume: ", self.inputBoneSelector)
 
     # bone mask
     self.maskSelector = slicer.qMRMLNodeComboBox()
@@ -305,13 +317,13 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.progressBar2.hide()
     executeGridLayout2.addWidget(self.progressBar2, 0, 0)
 
-    # Preprocess Button
+    # segment Button
     self.getCorticalBreaksButton = qt.QPushButton("Get Cortical Breaks")
     self.getCorticalBreaksButton.toolTip = "Apply the automatic Cortical Break Detection algorithm"
     self.getCorticalBreaksButton.enabled = False
     executeGridLayout2.addWidget(self.getCorticalBreaksButton, 1, 0)
 
-    # Execution frame with progress bar and preprocess button
+    # Execution frame with progress bar and segment button
     erosionButtonFrame2 = qt.QFrame()
     erosionButtonFrame2.setLayout(executeGridLayout2)
     CorticalBreakDetectionLayout.addRow(erosionButtonFrame2)
@@ -329,7 +341,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.xtremeCTIButton.connect("toggled(bool)", self.onCTTypeChanged)
     self.xtremeCTIIButton.connect("toggled(bool)", self.onCTTypeChanged)
     self.cbCTButton.connect("toggled(bool)", self.onCTTypeChanged)
-    self.preprocessButton.connect("clicked(bool)", self.onPreprocessButton)
+    self.segmentButton.connect("clicked(bool)", self.onsegmentButton)
     self.getCorticalBreaksButton.connect("clicked(bool)", self.ongetCorticalBreaksButton)    
 
   def setupSeedPoints(self):
@@ -403,8 +415,8 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
       self.CorticalBreakDetectionCollapsibleButton.collapsed = True
 
   def onSelect1(self):
-    """Run this whenever the selectors in the preprocess step changes state."""
-    self.preprocessButton.enabled = (self.inputVolumeSelector.currentNode() and
+    """Run this whenever the selectors in the segment step changes state."""
+    self.segmentButton.enabled = (self.inputVolumeSelector.currentNode() and
                                      self.outputVolumeSelector.currentNode())
   
   def onSelect2(self):
@@ -493,20 +505,20 @@ Change the lower and upper thresholds before initializing."""
       self.voxelSizeText.value = 0.3
 
 
-  def onPreprocessButton(self):
+  def onsegmentButton(self):
     """Run this whenever the get Cortical Break Detection button is clicked."""
     # update widgets
-    self.disablePreprocessWidgets()
+    self.disablesegmentWidgets()
 
     inputVolumeNode = self.inputVolumeSelector.currentNode()
     outputVolumeNode = self.outputVolumeSelector.currentNode()
-    ready = self._logic.setPreprocessParameters(inputVolumeNode, 
+    ready = self._logic.setsegmentParameters(inputVolumeNode, 
                                                 self.lowerThresholdText.value,
                                                 self.upperThresholdText.value,
                                                 self.sigmaText.value)
 
     #logging
-    self.logger.info("Preprocessing initialized with paramaters:")
+    self.logger.info("Segmentation initialized with paramaters:")
     self.logger.info("Input Volume: " + inputVolumeNode.GetName())
     self.logger.info("Output Volume: " + outputVolumeNode.GetName())
     self.logger.info("Lower Theshold: " + str(self.lowerThresholdText.value))
@@ -514,7 +526,7 @@ Change the lower and upper thresholds before initializing."""
     self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
 
     if ready:
-      success = self._logic.preprocess(outputVolumeNode)
+      success = self._logic.segment(outputVolumeNode)
       if success:
         self.inputBoneSelector.setCurrentNode(self.outputVolumeSelector.currentNode())
         # update viewer windows
@@ -523,13 +535,13 @@ Change the lower and upper thresholds before initializing."""
                                          labelOpacity=0.5)
     # update widgets
     self.outputVolumeSelector.setCurrentNodeID("") # reset the output volume selector
-    self.enablePreprocessWidgets()
+    self.enablesegmentWidgets()
 
     self.logger.info("Finished\n")
 
 
   def ongetCorticalBreaksButton(self):
-    """Run this whenever the preproecess button is clicked."""
+    """Run this whenever the segment button is clicked."""
     # update widgets
     self.disableCorticalBreaksWidgets()
 
@@ -603,13 +615,13 @@ Change the lower and upper thresholds before initializing."""
     """Update the progress bar."""
     self.progressBar2.setValue(value)
 
-  def enablePreprocessWidgets(self):
-    """Enable widgets for preprocessing."""
+  def enablesegmentWidgets(self):
+    """Enable widgets for segmenting."""
     self.progressBar1.hide()
 
-  def disablePreprocessWidgets(self):
-    """Disable widgets for preprocessing."""
-    self.preprocessButton.enabled = False
+  def disablesegmentWidgets(self):
+    """Disable widgets for segmenting."""
+    self.segmentButton.enabled = False
     self.progressBar1.show()
 
   def enableCorticalBreaksWidgets(self):
@@ -679,10 +691,10 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
       # setup input file
       inputVolume = testLogic.newNode(scene, filename='SAMPLE_MHA' + index + '.mha', name='testInputVolume' + index)
 
-      # check preprocessing
+      # check segmenting
       processVolume = testLogic.newNode(scene, name='testProcessVolume' + index, type='labelmap')
-      logic.setPreprocessParameters(inputVolume, 686, 4000, 0.8)
-      self.assertTrue(logic.preprocess(processVolume), 'Preprocessing Failed')
+      logic.setsegmentParameters(inputVolume, 686, 4000, 0.8)
+      self.assertTrue(logic.segment(processVolume), 'segmenting Failed')
       
       # check cortical break detection
       maskVolume = testLogic.newNode(scene, filename='SAMPLE_MASK' + index + '.mha', name='testMaskVolume' + index, type='labelmap', display=False)
@@ -725,14 +737,14 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
     c = testLogic.newNode(scene, filename='FAIL_MASK.mha', type = 'labelmap', name = 'node3')
     d = testLogic.newNode(scene, type = 'labelmap', name = 'node4')
 
-    #attempt to set invalid preprocess parameters
-    self.assertFalse(logic.setPreprocessParameters(a, 6860, 4000, 0.8), 'Preprocess does not check if lower threshold is greater than upper threshold')
-    logic.setPreprocessParameters(a, 686, 400, 0.8)
-    self.assertFalse(logic.preprocess(b), 'Preprocess does not fail with incorrect inputs')
+    #attempt to set invalid segment parameters
+    self.assertFalse(logic.setsegmentParameters(a, 6860, 4000, 0.8), 'segment does not check if lower threshold is greater than upper threshold')
+    logic.setsegmentParameters(a, 686, 400, 0.8)
+    self.assertFalse(logic.segment(b), 'segment does not fail with incorrect inputs')
 
     #attempt to set invalid coritcal break parameters
     self.assertFalse(logic.setCorticalBreaksParameters(6860, 4000, a, b, c, d, 7, 3, 0.0607, False), 'Get cortical breaks does not check if lower threshold is greater than upper threshold')
-    self.assertFalse(logic.setCorticalBreaksParameters(686, 4000, a, b, c, b, 7, 3, 0.0607, False), 'Get cortical breaks does not check if output volume is the same as preprocess volume')
+    self.assertFalse(logic.setCorticalBreaksParameters(686, 4000, a, b, c, b, 7, 3, 0.0607, False), 'Get cortical breaks does not check if output volume is the same as segment volume')
     self.assertFalse(logic.setCorticalBreaksParameters(686, 4000, a, b, c, c, 7, 3, 0.0607, False), 'Get cortical breaks does not check if output volume is the same as mask volume')
 
     #get breaks with image which will fail

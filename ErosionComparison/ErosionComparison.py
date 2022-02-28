@@ -13,6 +13,7 @@ from slicer.ScriptedLoadableModule import *
 import logging
 import SimpleITK as sitk
 import sitkUtils
+import os
 
 #
 # Module for CBCT Enhancement
@@ -29,11 +30,20 @@ class ErosionComparison(ScriptedLoadableModule):
     self.parent.dependencies = []
     self.parent.contributors = ["Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """Compares two longitudinally registered scans to determine the development of erosions in the bone.
-                            Ideally, the Erosion Volume module should be used to obtain erosion segmentations, but the module can be used with the scans directly, with lower accuracy."""
-    self.parent.helpText += self.getDefaultModuleDocumentationLink()
+    Ideally, the Erosion Volume module should be used to obtain erosion segmentations, but the module can be used with the scans directly, with lower accuracy.
+    """
+    self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Erosion-Comparison-Module>online documentation</a>."
+    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
     self.parent.acknowledgementText = """
 Updated on February 17, 2022.
 """ # replace with organization, grant and thanks.
+
+  def getLogo(self):
+    directory = os.path.split(os.path.realpath(__file__))[0]
+    if '\\' in directory:
+      return directory + '\\Resources\\Icons\\Logo.png'
+    else:
+      return directory + '/Resources/Icons/Logo.png'
 
 #
 # ErosionComparisonWidget

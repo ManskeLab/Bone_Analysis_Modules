@@ -13,6 +13,7 @@ from slicer.ScriptedLoadableModule import *
 import logging
 import SimpleITK as sitk
 import sitkUtils
+import os
 
 #
 # Module for CBCT Enhancement
@@ -28,12 +29,24 @@ class CBCTEnhance(ScriptedLoadableModule):
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []
     self.parent.contributors = ["Ryan Yan"] # replace with "Firstname Lastname (Organization)"
-    self.parent.helpText = """Enhance Cone Beam CT (CBCT) scans in order to perform image analysis. 
-                            Uses edge enhancement and Laplacian sharpening filters."""
-    self.parent.helpText += self.getDefaultModuleDocumentationLink()
+    self.parent.helpText = """Enhance Cone Beam CT (CBCT) scans in order to perform image analysis using the other modules. 
+    Uses edge enhancement and Laplacian sharpening filters.
+    """ 
+    self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/CBCT-Enhance-Module>online documentation</a>."
+    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
     self.parent.acknowledgementText = """
-Updated on January 27, 2022.
+Updated on February 28, 2022 <br>
+    Manske Lab <br>
+    McCaig Institute for Bone and Joint Health <br>
+    University of Calgary
 """ # replace with organization, grant and thanks.
+
+  def getLogo(self):
+    directory = os.path.split(os.path.realpath(__file__))[0]
+    if '\\' in directory:
+      return directory + '\\Resources\\Icons\\Logo.png'
+    else:
+      return directory + '/Resources/Icons/Logo.png'
 
 #
 # CBCTEnhanceWidget

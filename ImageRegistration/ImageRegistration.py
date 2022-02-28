@@ -30,12 +30,27 @@ class ImageRegistration(ScriptedLoadableModule):
     self.parent.dependencies = []
     self.parent.contributors = ["Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-    Perform longitudinal image registration on a baseline and follow-up image. Currently under development.
+    Perform longitudinal image registration on a baseline and follow-up image. 
+This proccess applies a transform to an image that will minimize the difference between the image 
+based on a selected similarity metric. Can be used for unimodal or multi-modal images. <br>
+Additionally, visualization tools are included for judging the quality of a registration. 
+Grayscale subtraction, 3d visualization, and checkerboard views are available.
     """
+    self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Image-Registration-Module>online documentation</a>."
+    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
     self.parent.acknowledgementText = """
-    This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc.
-    and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
+    Updated on February 28, 2022 <br>
+    Manske Lab <br>
+    McCaig Institute for Bone and Joint Health <br>
+    University of Calgary
 """ # replace with organization, grant and thanks.
+
+  def getLogo(self):
+    directory = os.path.split(os.path.realpath(__file__))[0]
+    if '\\' in directory:
+      return directory + '\\Resources\\Icons\\Logo.png'
+    else:
+      return directory + '/Resources/Icons/Logo.png'
 
 #
 # ImageRegistrationWidget
@@ -62,7 +77,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.registerCollapsibleButton = ctk.ctkCollapsibleButton()
     self.registerCollapsibleButton.text = "Register Images"
     self.visualizeCollapsibleButton = ctk.ctkCollapsibleButton()
-    self.visualizeCollapsibleButton.text = "Visualize Registraion"
+    self.visualizeCollapsibleButton.text = "Subtraction View"
     self.checkerboardCollapsibleButton = ctk.ctkCollapsibleButton()
     self.checkerboardCollapsibleButton.text = "Checkerboard View"
 
@@ -189,7 +204,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
   # Visualize Registration -----------------------------------------------------------*
   
   def setupVisualization(self) -> None:
-    '''Setup Visualize Registration collapsible'''
+    '''Setup Subtraction View collapsible'''
     self.visualizeCollapsibleButton.collapsed = True
     self.layout.addWidget(self.visualizeCollapsibleButton)
 
@@ -228,6 +243,21 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.visualSelector2.setToolTip( "Select the follow-up image" )
     self.visualSelector2.setCurrentNode(None)
     visualizeFormLayout.addRow("Registered Follow-up: ", self.visualSelector2)
+
+    # visualization type button layout
+    visualTypeLayout = qt.QGridLayout()
+
+    # visualization type buttons
+    self.threeDButton = qt.QRadioButton("3D")
+    self.threeDButton.setChecked(True)
+    self.grayButton = qt.QRadioButton("Grayscale")
+    self.grayButton.setChecked(False)
+    visualTypeLayout.addWidget(self.threeDButton, 0, 0)
+    visualTypeLayout.addWidget(self.grayButton, 0, 1)
+    # visualization type button frame
+    fileTypeFrame = qt.QFrame()
+    fileTypeFrame.setLayout(visualTypeLayout)
+    visualizeFormLayout.addRow("Output Format: ", fileTypeFrame)
 
     #
     # Output volume selector
@@ -270,6 +300,9 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.sigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
     visualizeFormLayout.addRow("Gaussian Sigma: ", self.sigmaText)
 
+    #store labels
+    self.labels = [visualizeFormLayout.itemAt(i, 0) for i in range(4, 7)]
+
     #
     # Visualize Button
     #
@@ -284,7 +317,11 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     visualizeFormLayout.addRow(self.progressBar2)
 
     # connections
+    self.visualSelector1.currentNodeChanged.connect(self.onSelectVisual)
+    self.visualSelector2.currentNodeChanged.connect(self.onSelectVisual)
     self.outputSelector2.currentNodeChanged.connect(self.onSelectVisual)
+    self.threeDButton.clicked.connect(self.onSwitchMode)
+    self.grayButton.clicked.connect(self.onSwitchMode)
     self.visualButton.clicked.connect(self.onVisualize)
 
     self.visualizeCollapsibleButton.contentsCollapsed.connect(self.onCollapse2)
@@ -467,7 +504,29 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
     output = self.outputSelector2.currentNode()
     self.visualButton.enabled = (visual1 and visual2 and output)
     if visual1:
-      self.outputSelector.baseName = visual1.GetName() + '_SUBTRACTION'
+      self.outputSelector2.baseName = visual1.GetName() + '_SUBTRACTION'
+
+  def onSwitchMode(self) -> None:
+    '''Mode changed between 3d and grayscale'''
+    if self.threeDButton.checked:
+      self.outputSelector2.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+
+      #show options
+      self.lowerThresholdText.show()
+      self.upperThresholdText.show()
+      self.sigmaText.show()
+      for label in self.labels:
+        label.widget().show()
+
+    elif self.grayButton.checked:
+      self.outputSelector2.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+
+      #hide options
+      self.lowerThresholdText.hide()
+      self.upperThresholdText.hide()
+      self.sigmaText.hide()
+      for label in self.labels:
+        label.widget().hide()
 
   def onVisualize(self) -> None:
     '''Visualize button is pressed'''
@@ -484,7 +543,16 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
 
     #get output
     outnode = self.outputSelector2.currentNode()
-    self.logic.visualize(outnode)
+
+    if self.threeDButton.checked:
+      self.logic.visualize(outnode)
+
+      print("Displaying volume rendering of " + outnode.GetName())
+      volRenLogic = slicer.modules.volumerendering.logic()
+      displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(outnode)
+      displayNode.SetVisibility(True)
+    elif self.grayButton.checked:
+      self.logic.subtractGray(outnode)
 
     self.progressBar.hide()
   

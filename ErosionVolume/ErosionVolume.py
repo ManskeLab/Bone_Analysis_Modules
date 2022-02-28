@@ -14,6 +14,7 @@ from ErosionVolumeLib.ErosionVolumeLogic import ErosionVolumeLogic
 from ErosionVolumeLib.SegmentEditor import SegmentEditor
 from ErosionVolumeLib.SegmentCopier import SegmentCopier
 from ErosionVolumeLib.MarkupsTable import MarkupsTable
+import os
 
 #
 # ErosionVolume
@@ -29,18 +30,28 @@ class ErosionVolume(ScriptedLoadableModule):
     self.parent.categories = ["Bone"]
     self.parent.dependencies = []
     self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
-    self.parent.helpText = """
-Updated on January 27, 2022. 
+    self.parent.helpText = """ 
 This module contains steps 4-6 of erosion analysis. It requires a greyscale scan and a mask.
-Erosions are identified by placing seed points in each of them. 
-Step 4 is to segment erosions given a seed point in each erosion. 
-Step 5 is to manually correct the erosion segmentations and combine them into a single segmentation. 
-Step 6 is to compute erosion statistics, such as volume, surface area, and roundness.
+Erosions are identified by placing seed points in each of them. <br>
+Step 4: Segment erosions given a seed point in each erosion. <br>
+Step 5: Manually correct the erosion segmentations and combine them into a single segmentation. <br>
+Step 6: Compute erosion statistics, such as volume, surface area, and roundness.
 """
-    self.parent.helpText += self.getDefaultModuleDocumentationLink()
+    self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Erosion-Volume-Module>online documentation</a>."
+    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
     self.parent.acknowledgementText = """
-Updated on January 27, 2022.
+Updated on January 27, 2022.<br>
+Manske Lab<br>
+    McCaig Institue for Bone and Joint Health<br>
+    University of Calgary
 """ # replace with organization, grant and thanks.
+
+  def getLogo(self):
+    directory = os.path.split(os.path.realpath(__file__))[0]
+    if '\\' in directory:
+      return directory + '\\Resources\\Icons\\Logo.png'
+    else:
+      return directory + '/Resources/Icons/Logo.png'
 
 #
 # ErosionVolumeWidget
