@@ -550,6 +550,10 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
 
+      #Set master volume in statistics step
+      self.masterVolumeSelector.setCurrentNode(inputVolumeNode)
+      self.voxelSizeText.value = inputVolumeNode.GetSpacing()[0]
+
       #check if preset intensity units exist
       check = True
       if "Lower" in inputVolumeNode.__dict__.keys():
@@ -561,7 +565,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
 
       #check intensity units and display warning if not in HU
       if check:
-        if not self._logic.intenstyCheck(inputVolumeNode):
+        if not self._logic.intensityCheck(inputVolumeNode):
           text = """The selected image likely does not use HU for intensity units. 
 Default thresholds are set in HU and will not generate an accurate result. 
 Change the lower and upper thresholds before initializing."""

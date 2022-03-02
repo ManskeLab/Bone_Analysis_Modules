@@ -61,7 +61,6 @@ class FileConverterWidget(ScriptedLoadableModuleWidget):
     #check if itk installed to slicer
     try:
       import itk
-      self.the()
     except:
       text = """This module requires ITK, which is not installed by default in 3D Slicer. 
 Follow the instructions on the File Converter Wiki page on GitHub 

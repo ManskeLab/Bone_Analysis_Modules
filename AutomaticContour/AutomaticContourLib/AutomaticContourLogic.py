@@ -366,7 +366,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       return True
     return False
 
-  def intenstyCheck(self, volumeNode):
+  def intensityCheck(self, volumeNode):
     '''
     Check if image intensity units are in HU
 

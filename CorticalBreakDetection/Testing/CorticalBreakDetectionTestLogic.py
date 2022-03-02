@@ -32,7 +32,7 @@ class CorticalBreakDetectionTestLogic:
         root = self.getParent(self.getParent(self.getParent(os.path.realpath(__file__))))
 
         #Windows
-        if root.contains('\\'):
+        if '\\' in root:
             return root + '\\TestFiles\\' + filename
         
         #MacOS/Linux

@@ -459,7 +459,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
 
       #check intensity units and display warning if not in HU
       if check:
-        if not self._logic.intenstyCheck(inputVolumeNode):
+        if not self._logic.intensityCheck(inputVolumeNode):
           text = """The selected image likely does not use HU for intensity units. 
 Default thresholds are set in HU and will not generate an accurate result. 
 Change the lower and upper thresholds before initializing."""
@@ -512,7 +512,7 @@ Change the lower and upper thresholds before initializing."""
 
     inputVolumeNode = self.inputVolumeSelector.currentNode()
     outputVolumeNode = self.outputVolumeSelector.currentNode()
-    ready = self._logic.setsegmentParameters(inputVolumeNode, 
+    ready = self._logic.setSegmentParameters(inputVolumeNode, 
                                                 self.lowerThresholdText.value,
                                                 self.upperThresholdText.value,
                                                 self.sigmaText.value)
@@ -693,7 +693,7 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
 
       # check segmenting
       processVolume = testLogic.newNode(scene, name='testProcessVolume' + index, type='labelmap')
-      logic.setsegmentParameters(inputVolume, 686, 4000, 0.8)
+      logic.setSegmentParameters(inputVolume, 686, 4000, 0.8)
       self.assertTrue(logic.segment(processVolume), 'segmenting Failed')
       
       # check cortical break detection
@@ -738,8 +738,8 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
     d = testLogic.newNode(scene, type = 'labelmap', name = 'node4')
 
     #attempt to set invalid segment parameters
-    self.assertFalse(logic.setsegmentParameters(a, 6860, 4000, 0.8), 'segment does not check if lower threshold is greater than upper threshold')
-    logic.setsegmentParameters(a, 686, 400, 0.8)
+    self.assertFalse(logic.setSegmentParameters(a, 6860, 4000, 0.8), 'segment does not check if lower threshold is greater than upper threshold')
+    logic.setSegmentParameters(a, 686, 400, 0.8)
     self.assertFalse(logic.segment(b), 'segment does not fail with incorrect inputs')
 
     #attempt to set invalid coritcal break parameters
@@ -747,10 +747,10 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
     self.assertFalse(logic.setCorticalBreaksParameters(686, 4000, a, b, c, b, 7, 3, 0.0607, False), 'Get cortical breaks does not check if output volume is the same as segment volume')
     self.assertFalse(logic.setCorticalBreaksParameters(686, 4000, a, b, c, c, 7, 3, 0.0607, False), 'Get cortical breaks does not check if output volume is the same as mask volume')
 
-    #get breaks with image which will fail
+    #get breaks with image set
     self.assertFalse(logic.getCorticalBreaks(d, noProgress=True), 'Get cortical break does not fail when no inputs are set')
+    
     logic.setCorticalBreaksParameters(686, 4000, a, b, c, d, 7, 3, 0.0607, False)
-
     #empty image works, produces no seeds
     self.assertTrue(logic.getCorticalBreaks(d, noProgress=True), 'Cortical breaks should not fail despite no results being generated')
 

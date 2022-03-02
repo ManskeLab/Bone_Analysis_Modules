@@ -63,9 +63,9 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
       dir = os.path.dirname(storageNode.GetFullNameFromFileName())
       slicer.mrmlScene.SetRootDirectory(dir)
       
-  def setPreprocessParameters(self, inputVolumeNode, lower, upper, sigma):
+  def setSegmentParameters(self, inputVolumeNode, lower, upper, sigma):
     """
-    Set parameters for preprocessing. 
+    Set parameters for segmentation. 
 
     Args:
       inputVolumeNode (vtkMRMLScalarVolumeNode)
@@ -93,9 +93,9 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def preprocess(self, outputVolumeNode):
+  def segment(self, outputVolumeNode):
     """
-    Preprocess the input Volume and store the result in output volume.
+    Segment the input Volume and store the result in output volume.
     
     Args:
       outputVolumeNode (vtkMRMLLabelMapVolumeNode
@@ -103,7 +103,7 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
     Returns:
       bool: True for success, False otherwise
     """
-    logging.info('Preprocessing started')
+    logging.info('Segmenting started')
     
     # run erosion detection algorithm
     try:
@@ -113,11 +113,11 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
       slicer.util.errorDisplay('Error')
       print(e)
       return False
-    preprocessed_img = self.CorticalBreakDetection.getSeg()
+    segmented_img = self.CorticalBreakDetection.getSeg()
 
     logging.info('Processing completed')
 
-    sitkUtils.PushVolumeToSlicer(preprocessed_img, outputVolumeNode)
+    sitkUtils.PushVolumeToSlicer(segmented_img, outputVolumeNode)
 
     return True
 
@@ -224,7 +224,7 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
       ras_coord = self.IJKToRASCoords(list(seed), ijk2ras)
       fiducialNode.AddFiducialFromArray(ras_coord)
 
-  def intenstyCheck(self, volumeNode):
+  def intensityCheck(self, volumeNode):
     '''
     Check if image intensity units are in HU
 
@@ -234,12 +234,12 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
     Returns:
       bool: True for HU units, false for other
     '''
-        #create array and calculate statistics
+    #create array and calculate statistics
     arr = slicer.util.arrayFromVolume(volumeNode)
-    arr_max = np.where(arr > 5000, arr, 1)
-    max_ratio = arr_max.size / arr.size
-    arr_min = np.where(arr < -2000, arr, 1)
-    min_ratio = arr_min.size / arr.size
+    arr_max = np.where(arr > 4000, arr, 0)
+    max_ratio = np.count_nonzero(arr_max) / arr.size
+    arr_min = np.where(arr < -1000, arr, 0)
+    min_ratio = np.count_nonzero(arr_min) / arr.size
     arr_avg = np.average(arr)
     arr_std = np.std(arr)
 

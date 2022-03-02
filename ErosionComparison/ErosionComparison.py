@@ -292,7 +292,7 @@ class ErosionComparisonWidget(ScriptedLoadableModuleWidget):
         self.logic.compareSegments(outNode)
 
         self.logic.getStatistics(outNode, self.outputTableSelector.currentNode())
-        print("Finished/n")
+        print("Finished\n")
 
     def onCompareImage(self) -> None:
         '''Compare image button pressed'''
@@ -444,6 +444,8 @@ class ErosionComparisonLogic(ScriptedLoadableModuleLogic):
         col_id.SetName("Segment ID")
         col_vol = tableNode.AddColumn()
         col_vol.SetName("Change in Volume (mm3)")
+        col_vox = tableNode.AddColumn()
+        col_vox.SetName("Change in Voxels")
 
         #get statistics
         segStats = SegmentStatistics.SegmentStatisticsLogic()
@@ -458,3 +460,5 @@ class ErosionComparisonLogic(ScriptedLoadableModuleLogic):
             seg_id = segment.GetNthSegmentID(i + 1)
             tableNode.SetCellText(i, 0, "Segment_" + str(i + 1))
             tableNode.SetCellText(i, 1, str.format('{:.6f}', segStats.getStatistics()[(seg_id, 'LabelmapSegmentStatisticsPlugin.volume_mm3')]))
+            tableNode.SetCellText(i, 2, str(segStats.getStatistics()[(seg_id, 'LabelmapSegmentStatisticsPlugin.voxel_count')]))
+            

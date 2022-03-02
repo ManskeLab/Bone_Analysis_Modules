@@ -477,7 +477,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
       #check intensity units and display warning if not in HU
       if check:
-        if not self._logic.intenstyCheck(inputVolumeNode):
+        if not self._logic.intensityCheck(inputVolumeNode):
           text = """The selected image likely does not use HU for intensity units. 
 Default thresholds are set in HU and will not generate an accurate result. 
 Change the lower and upper thresholds before initializing."""
@@ -651,7 +651,8 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_AutoContour()
+    #self.test_AutoContour()
+    self.test_AutoContourFailure()
 
   def test_AutoContour(self):
     '''
@@ -708,3 +709,31 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
     self.assertTrue(passed, 'Incorrect results, check testing log')
       
     return SUCCESS
+
+  def test_AutoContourFailure(self):
+    from Testing.AutomaticContourTestLogic import AutomaticContourTestLogic
+    from AutomaticContourLib.AutomaticContourLogic import AutomaticContourLogic
+
+    slicer.util.infoDisplay('Several errors will display during this test.\nFollow the test log to determine test success.')
+
+    #setup scene
+    logic = AutomaticContourLogic()
+    testLogic = AutomaticContourTestLogic()
+
+    #setup nodes
+    scene = slicer.mrmlScene
+    a = testLogic.newNode(scene, filename='FAIL_MHA.mha', name='node1')
+    b = testLogic.newNode(scene, type = 'labelmap', name = 'node4')
+
+    #attempt to set invalid parameters
+    self.assertFalse(logic.setParameters(a, b, 6860, 4000, 0.8, 1, 48, None), 'Contouring does not check if lower threshold is greater than upper threshold')
+    self.assertFalse(logic.setParameters(a, a, 686, 4000, 0.8, 1, 48, None), 'Contouring does not check if output volume is the same as segment volume')
+
+    #get breaks with image which will fail
+    self.assertFalse(logic.getContour(a, b, noProgress=True), 'Contouring does not fail when no inputs are set')
+
+    logic.setParameters(a, b, 686, 4000, 0.8, 1, 48, None)
+    self.assertTrue(logic.getContour(a, b, noProgress=True), 'Contouring should not fail despite no results being generated')
+
+
+    self.delayDisplay('Test passed')

@@ -165,6 +165,19 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       return False
     erosion_img = self.voidVolume.getOutput()
 
+    #check if output failed (matches input mask)
+    erosion_arr = sitk.GetArrayFromImage(erosion_img)
+    contour_arr = slicer.util.arrayFromVolume(inputContourNode)
+    print(np.count_nonzero(erosion_arr), np.count_nonzero(contour_arr), contour_arr.size * 0.05)
+    if abs(np.count_nonzero(erosion_arr) - np.count_nonzero(contour_arr)) < contour_arr.size * 0.05:
+      text = """Unable to detect erosions. Check the set parameters in the module.\n
+-Thresholds may be incorrect for the image
+-Seed points may be incorrect
+-Minimum erosion radius may need to be increased or decreased
+-Large erosion may need to be enabled"""
+      slicer.util.errorDisplay(text, "Erosion Analysis Failed")
+      return False
+
     # move mask and erosion segments to output erosion node
     self._initOutputErosionNode(erosion_img, inputVolumeNode, inputContourNode, outputErosionNode)
     # record the seed points, source, and advanced parameters for each erosion
@@ -388,7 +401,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     """
     self.erosionStatistics.disconnectErosionSelection()
 
-  def intenstyCheck(self, volumeNode):
+  def intensityCheck(self, volumeNode):
     '''
     Check if image intensity units are in HU
 
@@ -398,12 +411,12 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     Returns:
       bool: True for HU units, false for other
     '''
-        #create array and calculate statistics
+    #create array and calculate statistics
     arr = slicer.util.arrayFromVolume(volumeNode)
-    arr_max = np.where(arr > 5000, arr, 1)
-    max_ratio = arr_max.size / arr.size
-    arr_min = np.where(arr < -2000, arr, 1)
-    min_ratio = arr_min.size / arr.size
+    arr_max = np.where(arr > 4000, arr, 0)
+    max_ratio = np.count_nonzero(arr_max) / arr.size
+    arr_min = np.where(arr < -1000, arr, 0)
+    min_ratio = np.count_nonzero(arr_min) / arr.size
     arr_avg = np.average(arr)
     arr_std = np.std(arr)
 
