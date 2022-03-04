@@ -1,13 +1,31 @@
+#-----------------------------------------------------
+# FileConverterLogic.py
+#
+# Created by:  Ryan Yan
+# Created on:  17-01-2020
+#
+# Description: This module implements FileConverterLogic for command line
+#
+#-----------------------------------------------------
+# Usage:       Type the following command:
+#              python FileConverterLogic.py mode filepath [filepath ...] [outformat] [outputPath]
+#
+# Param:       mode: input format -> 'd' for directory, 'f' for files
+#              filepath: name of folder/files to be converted (supports multiple arguments)
+#              outputPath: destination folder for converted files, default is location of input file/folder
+#              
+#
+#-----------------------------------------------------
+
 import itk
 import SimpleITK as sitk
 import sitk_itk
 
-class FileConverterCmd():
+class FileConverterLogic():
 
-  def __init__(self) -> None:
-    pass
-
-  def convertMultiple(self, filenames, outputFolder=None):
+  def convertMultiple(self, filenames:list, outFormat:str, outputFolder:str=None, noProgress=False) -> None:
+    import itk
+    import sitk_itk
     '''
     Convert multiple files to .mha
 
@@ -17,13 +35,13 @@ class FileConverterCmd():
 
     Returns:
       None
-
     '''
     import os
+    progress = 0
 
     #convert each file
     for file in filenames:
-      print("Converting " + file + " to .mha file")
+      print("Converting " + file + " to " + outFormat +  " file")
 
       #split path and extension
       filepath = os.path.splitext(file)[0]
@@ -42,10 +60,22 @@ class FileConverterCmd():
 
       #add metadata tag for intensity unit
       outputImage.SetMetaData('IntensityUnit', 'HU')
+
+      #write image
       if outputFolder:
-        sitk.WriteImage(outputImage, outputFolder + '/' + name + '.mha')
+        sitk.WriteImage(outputImage, outputFolder + '/' + name + outFormat)
       else:
-        sitk.WriteImage(outputImage, filepath + '.mha')
+        sitk.WriteImage(outputImage, filepath + outFormat)
+      
+      #update progress
+      progress += 100 / len(filenames)
+      if not noProgress:
+        self.progressCallBack(int(progress))
+
+class FileConverterCmd():
+
+  def __init__(self) -> None:
+    pass
 
 # execute this script on command line
 if __name__ == "__main__":
@@ -56,25 +86,35 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('mode', help='input format -> \'d\' for directory, \'f\' for files')
   parser.add_argument('filepath', help='name of folder/files to be converted (supports multiple arguments)', nargs='+')
-  parser.add_argument('-o', '--outputPath', help='destination folder for converted files, default is location of input file/folder', default=None, metavar='')
+  parser.add_argument('-of', '--outputFormat', help='file format to convert to (.mha or .nii)', default='.mha', metavar='')
+  parser.add_argument('-op', '--outputPath', help='destination folder for converted files, default is location of input file/folder', default=None, metavar='')
   args = parser.parse_args()
 
   mode = args.mode
   filepath = args.filepath
+  outputFormat = args.outputFormat
   outputPath = args.outputPath
 
-  if mode == "'d'" or mode == 'd':
+  #check conversion mode
+  if 'd' in mode.lower():
+    #get list of files from directory
     filenames = []
     exts = ['.aim', '.AIM', '.isq', '.ISQ']
     for file in os.listdir(filepath[0]):
       print(file)
       if os.path.splitext(file)[1] in exts:
         filenames.append(filepath[0] + '/' + file)
-  elif mode == "'f'" or mode == 'f':
+  elif 'f' in mode.lower():
+    #get filelist
     filenames = filepath
+  
+  #check output format
+  accepted = ['.mha', '.nii']
+  if not outputFormat in accepted:
+    outputFormat = '.mha'
 
-  converter = FileConverterCmd()
+  converter = FileConverterLogic()
   if outputPath:
-    converter.convertMultiple(filenames, outputPath)
+    converter.convertMultiple(filenames, outputFormat, outputFolder=outputPath, noProgress=True)
   else:
-    converter.convertMultiple(filenames)
+    converter.convertMultiple(filenames, outputFormat, noProgress=True)

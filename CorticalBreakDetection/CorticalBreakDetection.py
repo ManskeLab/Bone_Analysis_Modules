@@ -581,8 +581,8 @@ Change the lower and upper thresholds before initializing."""
                                          labelOpacity=0.5)
     
     # store thresholds 
-    inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
-    inputVolumeNode.__dict__["Upper"] = self.upperThresholdText.value
+    masterVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
+    masterVolumeNode.__dict__["Upper"] = self.upperThresholdText.value
                                     
     # update widgets
     self.outputCorticalBreaksSelector.setCurrentNodeID("") # reset the output volume selector

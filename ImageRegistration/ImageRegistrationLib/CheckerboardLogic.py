@@ -48,23 +48,6 @@ class CheckerboardLogic:
     checker.SetCheckerPattern(self.size)
     out_mask = checker.Execute(black, white)
     return out_mask
-  
-  def checkerboard_grid(self) -> sitk.Image:
-    '''create grid of lines
-    NOT ADDED TO WIDGET'''
-    dims = self.base.GetSize()
-    dims = dims[::-1]
-    inc = [int(dims[x] / self.size) for x in range(3)]
-    print(dims, self.size, inc)
-
-    grid_arr = np.zeros(dims)
-    for i in range(1, int(dims[0] / inc[0] + 1)):
-      grid_arr[i * inc[0], :, :] = 3
-    for i in range(1, int(dims[1] / inc[1] + 1)):
-      grid_arr[:, i * inc[1], :] = 3
-    for i in range(1, int(dims[2] / inc[2] + 1)):
-      grid_arr[:, :, i * inc[2]] = 3
-    return sitk.GetImageFromArray(grid_arr)
 
   def intensity_check(self) -> None:
     '''Check the intensity values of an image'''

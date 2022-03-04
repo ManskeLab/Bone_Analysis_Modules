@@ -158,6 +158,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.optimizerSelector = qt.QComboBox()
     self.optimizerSelector.addItems(['Amoeba', 'Exhaustive', 'Powell', '1 + 1 Evolutionary', 
                                     'Gradient Descent', 'Gradient Descent Line Search', 'Regular Step Gradient Descent', 'L-BFGS'])
+    self.optimizerSelector.setCurrentIndex(2)
     registerFormLayout.addRow("Similarity Metric: ", self.optimizerSelector)
 
     #
@@ -175,7 +176,26 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.outputSelector.setMRMLScene( slicer.mrmlScene )
     self.outputSelector.setToolTip( "Select the output image" )
     self.outputSelector.setCurrentNode(None)
+    self.outputSelector.baseName = 'REG'
     registerFormLayout.addRow("Output: ", self.outputSelector)
+
+    #
+    # Output transform selector
+    #
+    self.transformSelector = slicer.qMRMLNodeComboBox()
+    self.transformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+    self.transformSelector.selectNodeUponCreation = True
+    self.transformSelector.addEnabled = True
+    self.transformSelector.renameEnabled = True
+    self.transformSelector.removeEnabled = True
+    self.transformSelector.noneEnabled = True
+    self.transformSelector.showHidden = False
+    self.transformSelector.showChildNodeTypes = False
+    self.transformSelector.setMRMLScene( slicer.mrmlScene )
+    self.transformSelector.setToolTip( "Select the output transform" )
+    self.transformSelector.setCurrentNode(None)
+    self.transformSelector.baseName = 'TRF'
+    registerFormLayout.addRow("Transform (optional): ", self.transformSelector)
 
     #
     # Apply Button
@@ -301,7 +321,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     visualizeFormLayout.addRow("Gaussian Sigma: ", self.sigmaText)
 
     #store labels
-    self.labels = [visualizeFormLayout.itemAt(i, 0) for i in range(4, 7)]
+    self.labels = [visualizeFormLayout.itemAt(i, 0) for i in range(4, 6)]
 
     #
     # Visualize Button
@@ -469,6 +489,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
       self.checkerSelector1.setCurrentNode(input1)
     if input2:
       self.outputSelector.baseName = input2.GetName() + '_REG'
+      self.transformSelector.baseName = input2.GetName() + "_TRF"
     if output:
       self.visualSelector2.setCurrentNode(output)
       self.checkerSelector2.setCurrentNode(output)
@@ -493,7 +514,7 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
                         self.samplingText.value)
     self.logic.setMetric(self.metricSelector.currentIndex)
     self.logic.setOptimizer(self.optimizerSelector.currentIndex)
-    self.logic.run(self.outputSelector.currentNode())
+    self.logic.run(self.outputSelector.currentNode(), self.transformSelector.currentNode())
 
     self.progressBar.hide()
   
@@ -514,7 +535,7 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
       #show options
       self.lowerThresholdText.show()
       self.upperThresholdText.show()
-      self.sigmaText.show()
+      self.sigmaText.value = 1
       for label in self.labels:
         label.widget().show()
 
@@ -524,7 +545,7 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
       #hide options
       self.lowerThresholdText.hide()
       self.upperThresholdText.hide()
-      self.sigmaText.hide()
+      self.sigmaText.value = 0.5
       for label in self.labels:
         label.widget().hide()
 
@@ -629,3 +650,211 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
     self.progressBar.setValue(value)
     self.progressBar2.setValue(value)
 
+class ImageRegistrationTest(ScriptedLoadableModuleTest):
+  """
+  This is the test case for your scripted module.
+  Uses ScriptedLoadableModuleTest base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+
+  def setUp(self):
+    """ Do whatever is needed to reset the state - typically a scene clear will be enough.
+    """
+    slicer.mrmlScene.Clear(0)
+
+  def runTest(self):
+    """Run as few or as many tests as needed here.
+    """
+    self.setUp()
+    self.test_Registration()
+
+  def test_Registration(self):
+    '''
+    Automatic Contour Tests: Runs the cortical break detection function on 3 sample images
+    and compares the results to pre-generated masks and manually placed seed points
+
+    Test Requires:
+
+      mha files: 'SAMPLE_MHA1.mha', 'SAMPLE_MHA2.mha', 'SAMPLE_MHA3.mha'
+      contour masks: 'SAMPLE_MASK1.mha', 'SAMPLE_MASK2.mha', 'SAMPLE_MASK3.mha'
+      seed lists: 'SAMPLE_SEEDS1.json', 'SAMPLE_SEEDS2.json', 'SAMPLE_SEEDS3.json'
+      comparison segmentations: 'SAMPLE_ER1.seg.nrrd', 'SAMPLE_ER2.seg.nrrd', 'SAMPLE_ER3.seg.nrrd'
+    
+    Success Conditions:
+      1. Erosion segmentation is successfully generated
+      2. Number of segmentations is correct
+      3. Each segmetation differs by less than 0.5% from the corresponding comparison
+      4. Volume and Surface area are less than 0.01% from comparison values
+    '''
+    from ImageRegistrationLib.ImageRegistrationLogic import ImageRegistrationLogic
+    #from Testing.ErosionVolumeTestLogic import ErosionVolumeTestLogic
+
+    self.delayDisplay("Starting the test")
+    #
+    # first, get some data
+    #
+    
+    # setup logic
+    logic = ImageRegistrationLogic()
+    testLogic = ImageRegistrationTestLogic()
+    scene = slicer.mrmlScene
+
+    # run 3 tests
+    passed = True
+    for i in range(1, 2):
+      index = str(i)
+      print('\n*----------------------Test ' + index + '----------------------*')
+
+      # get input files
+      baseVolume = testLogic.newNode(scene, filename='SAMPLE_BL' + index + '.mha', name='testBaselineVolume' + index, display=False)
+      followVolume = testLogic.newNode(scene, filename='SAMPLE_FU' + index + '.mha', name='testFollowupVolume' + index, display=False)
+
+      # setup volumes
+      outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index, type='segmentation')
+      logic.setParamaters(baseVolume, followVolume, 0.01)
+      logic.run(outputVolume)
+      
+      # check outputs against sample file
+      if not testLogic.verifyRegistration(outputVolume, i):
+        self.delayDisplay('Output segments are incorrect for test ' + index, msec = 300)
+        passed = False
+
+      self.delayDisplay('Test ' + index + ' complete')
+
+    #Failure message
+    self.assertTrue(passed, 'Incorrect results, check testing log')
+
+import SimpleITK as sitk
+import sitkUtils, os, slicer
+import numpy as np
+
+class ImageRegistrationTestLogic:
+
+    def __init__(self):
+        pass
+
+    def getFilePath(self, filename):
+        '''
+        Find the full filepath of a file in the samme folder
+
+        Args: 
+            filename (str): name of file (requires \'\\\\' before the name)
+
+        Returns:
+            str: full file path
+        '''
+        root = self.getParent(self.getParent(self.getParent(os.path.realpath(__file__))))
+
+        #Windows
+        if '\\' in root:
+            return root + '\\TestFiles\\' + filename
+        
+        #MacOS/Linux
+        else:
+            return root + '/TestFiles/' + filename
+
+    def getParent(self, path):
+        return os.path.split(path)[0]
+
+    def volumeFromFile(self, filepath, volume, display=True):
+        '''
+        Import an image file into a Slicer volume
+
+        Args:
+            filepath (str): full path to the file
+            volume (vtkVolumeNode): Slicer volume
+            display (bool): option to display the volume in Slicer
+
+        Returns:
+            None
+        '''
+        #modify filepath
+        fullpath = self.getFilePath(filepath)
+        print('Reading in ' + fullpath)
+
+        reader = sitk.ImageFileReader()
+        reader.SetFileName(fullpath)
+
+        outputImage = reader.Execute()
+
+        sitkUtils.PushVolumeToSlicer(outputImage, targetNode=volume)
+        if display:
+            slicer.util.setSliceViewerLayers(background=volume, fit=True)
+
+    def newNode(self, scene, filename='new', name='node', type='scalar', display=True):
+        '''
+        Create a new node for a Slicer volume
+
+        Args:
+            scene (mrmlScene): current Slicer scene
+            filename (str)
+            name (str): name of the node to be created
+            type (str): type of volume created (use \'scalar\' or \'labelmap\')
+            display (bool): option to display the volume in Slicer
+        
+        Returns:
+            vtkMRMLVolumeNode
+        '''
+        if type == 'scalar':
+            volume = slicer.vtkMRMLScalarVolumeNode()
+        elif type == 'labelmap':
+            volume = slicer.vtkMRMLLabelMapVolumeNode()
+        elif type == 'segmentation':
+            volume = slicer.vtkMRMLSegmentationNode()
+        elif type == 'fiducial':
+            volume = slicer.vtkMRMLMarkupsFiducialNode()
+        elif type == 'table':
+            volume = slicer.vtkMRMLTableNode()
+        volume.SetScene(scene)
+        volume.SetName(name)
+        scene.AddNode(volume)
+        if not filename == 'new':
+            if type == 'fiducial':
+                volume = slicer.util.loadMarkups(self.getFilePath(filename))
+            elif type == 'seg':
+                volume = slicer.util.loadSegmentation(self.getFilePath(filename))
+            else:
+                self.volumeFromFile(filename, volume, display)
+        return volume
+
+    def padArray(self, arr1, arr2):
+        '''
+        Reformats two arrays to both be the same size
+
+        Args:
+            arr1 (NDarray): first array
+            arr2 (NDarray): second array
+
+        Returns:
+            (NDarray, NDarray): tuple of padded arrays 
+        '''
+        #find differences in array size
+        padDiff = np.subtract(np.shape(arr1), np.shape(arr2))
+        negDiff = np.negative(padDiff)
+
+        #remove negative values
+        padDiff = np.clip(padDiff, 0, None)
+        negDiff = np.clip(negDiff, 0, None)
+
+        #reshape for the pad function
+        pad1 = []
+        pad2 = []
+        for i in range(3):
+            pad1.append([negDiff[i], 0])
+            pad2.append([padDiff[i], 0])
+
+        #add padding based on array edge values
+        arr1 = np.pad(arr1, pad1, 'edge')
+        arr2 = np.pad(arr2, pad2, 'edge')
+        
+        return (arr1, arr2)
+
+    def verifyRegistration(self, erosionNode, testNum):
+        '''
+        Check registered image against original
+        '''
+        return True
+        
+
+        
+        

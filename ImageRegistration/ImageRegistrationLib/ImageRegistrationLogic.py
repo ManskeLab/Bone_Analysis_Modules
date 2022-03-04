@@ -86,20 +86,41 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         list = ['amoeba', 'exhaustive', 'powell', 'one_plus_one', 'gradient', 'gradient_ls', 'gradient_reg', 'lbfgs2']
         self.registration.setOptimizer(list[index])
 
-    def run(self, outputNode):
+    def run(self, outputNode, transformNode=None):
         '''
         Run the registration algorithm
 
         Args:
             outputNode (vtkMRMLVolumeNode): Volume to store output image in
+            transformNode (vtkMRMLTransformNode): Node to store registration transform, default=None
 
         Returns:
             None
         '''
+        #Run registration
         outImg = self.registration.execute()
         sitkUtils.PushVolumeToSlicer(outImg, outputNode)
         slicer.util.setSliceViewerLayers(background=outputNode)
-        return True
+
+        #Get transform if requested
+        if transformNode:
+            #get transfrom
+            tsfm_sitk = self.registration.get_transform()
+
+            #change transform to array
+            euler_tsfm = sitk.Euler3DTransform(sitk.CompositeTransform(tsfm_sitk).GetNthTransform(0))
+            tsfm_array = list(euler_tsfm.GetMatrix())
+            translate = list(euler_tsfm.GetTranslation())
+            for i in range(3):
+                tsfm_array.insert(i * 4 + 3, translate[i])
+            tsfm_array += [0, 0, 0, 1]
+
+            #create vtk transform
+            tsfm_vtk = vtk.vtkTransform()
+            tsfm_vtk.SetMatrix(tsfm_array)
+            transformNode.SetAndObserveTransformToParent(tsfm_vtk)
+
+        #return True
     
     def setVisualizeParameters(self, baseNode, regNode, sigma:float, lower:int, upper:int) -> None:
         '''

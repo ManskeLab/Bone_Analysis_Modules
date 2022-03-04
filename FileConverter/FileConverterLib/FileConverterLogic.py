@@ -10,18 +10,12 @@
 #              Convert to file can convert multiple files and is uable with command line
 #
 #-----------------------------------------------------
-# Usage:       This module is plugged into 3D Slicer, but can run on its own. 
-#              When running on its own:
-#              python FileConverterLogic.py mode filepath [filepath ...] [outputPath]
-#
-# Param:       mode: input format -> 'd' for directory, 'f' for files
-#              filepath: name of folder/files to be converted (supports multiple arguments)
-#              outputPath: destination folder for converted files, default is location of input file/folder
+# Usage:       This module is plugged into 3D Slicer.
 #              
 #
 #-----------------------------------------------------
 
-from __main__ import vtk, qt, ctk, slicer
+from __main__ import slicer
 from slicer.ScriptedLoadableModule import *
 import SimpleITK as sitk
 import sitkUtils
@@ -41,7 +35,7 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
     self.origin = False
     self.spacing = False
 
-  def convert(self, fileName:str, outputVolumeNode, inFormat:str) -> dict:
+  def convert(self, fileName:str, outputVolumeNode, inFormat:str, noProgress=False) -> dict:
     import itk
     from . import sitk_itk
     '''
@@ -88,7 +82,8 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
     if self.spacing:
       outputImage.SetSpacing([1, 1, 1])
 
-    self.progressCallBack(50)
+    if not noProgress:
+      self.progressCallBack(50)
 
     #get metadata
     metadata = dict(reader.GetOutput()) 
@@ -99,10 +94,12 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
     #push to slicer and display
     sitkUtils.PushVolumeToSlicer(outputImage, targetNode=outputVolumeNode)
     slicer.util.setSliceViewerLayers(background=outputVolumeNode, fit=True)
-    self.progressCallBack(100)
+
+    if not noProgress:
+      self.progressCallBack(100)
     return metadata
 
-  def convertMultiple(self, filenames:list, outFormat:str, outputFolder:str=None) -> None:
+  def convertMultiple(self, filenames:list, outFormat:str, outputFolder:str=None, noProgress=False) -> None:
     import itk
     from . import sitk_itk
     '''
@@ -154,7 +151,8 @@ class FileConverterLogic(ScriptedLoadableModuleLogic):
       
       #update progress
       progress += 100 / len(filenames)
-      self.progressCallBack(int(progress))
+      if not noProgress:
+        self.progressCallBack(int(progress))
 
 
   def getThreshold(self, mu_water:int, mu_scaling:int) -> tuple:

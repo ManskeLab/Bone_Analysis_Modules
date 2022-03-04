@@ -102,6 +102,10 @@ class VisualizeLogic:
         return (sitk.GetImageFromArray(baseCrop), sitk.GetImageFromArray(regCrop))
     
     def subtract(self) -> sitk.Image:
-        return (self.regImg - self.baseImg)
+        gauss = sitk.SmoothingRecursiveGaussianImageFilter()
+        gauss.SetSigma(self.sigma)
+        smooth_base = gauss.Execute(self.baseImg)
+        smooth_reg = gauss.Execute(self.regImg)
+        return (smooth_base - smooth_reg)
     
 

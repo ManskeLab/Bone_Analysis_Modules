@@ -37,7 +37,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     self.voidVolume = VoidVolumeLogic()
     self.erosionStatistics = ErosionStatisticsLogic()
 
-  def RASToIJKCoords(self, ras_3coords, ras2ijk):
+  def RASToIJKCoords(self, ras_3coords:list, ras2ijk) -> tuple:
     """
     Convert from RAS coordinates to SimpleITK coordinates. 
     Normally this involves negating the x, y coordinates, 
@@ -53,7 +53,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     ras_4coords = ras_3coords + [1]
     return tuple((round(i) for i in ras2ijk.MultiplyPoint(ras_4coords)[:3]))
 
-  def setDefaultDirectory(self, inputVolumeNode):
+  def setDefaultDirectory(self, inputVolumeNode) -> None:
     """
     Set the default directory to be the same as where the inputVolumeNode is stored.
     Files created after this method is called will be saved in that directory.
@@ -67,7 +67,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       slicer.mrmlScene.SetRootDirectory(dir)
 
   def setErosionParameters(self, inputVolumeNode, inputContourNode,
-    lower, upper, sigma, fiducialNode, minimalRadius, dilateErodeDistance):
+    lower:int, upper:int, sigma:float, fiducialNode, minimalRadius:int, dilateErodeDistance:int) -> bool:
     """
     Set parameters used by the Erosion Volume algorithm. 
 
@@ -76,7 +76,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       inputContourNode (vtkMRMLLabelMapVolumeNode)
       lower (int)
       upper (int)
-      sigma (double): Gaussian sigma
+      sigma (float): Gaussian sigma
       fiducialNode (vtkMRMLFiducialNode)
       minimalRadius (int) : used in the SimpleITK Distance Transformation filter.
       dilateErodeDistance (int) : used in the SimpleITK Dilate/Erode filters.
@@ -131,7 +131,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     
     return True
 
-  def getErosions(self, inputVolumeNode, inputContourNode, outputErosionNode, noProgress=False):
+  def getErosions(self, inputVolumeNode, inputContourNode, outputErosionNode, noProgress=False) -> bool:
     """
     Run the Erosion Volume algorithm and store the result in the output erosion node. 
     The erosions will have label values that match the seed point postfixes
@@ -187,7 +187,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def labelmapToSegmentationNode(self, labelMapNode, segmentNode):
+  def labelmapToSegmentationNode(self, labelMapNode, segmentNode) -> None:
     """
     Import the label map volume to the segmentation, with each label to a different 
     segment. 
@@ -198,7 +198,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     """
     slicer.vtkSlicerSegmentationsModuleLogic.ImportLabelmapToSegmentationNode(labelMapNode, segmentNode, "")
   
-  def segmentationNodeToLabelmap(self, segmentNode, labelMapNode):
+  def segmentationNodeToLabelmap(self, segmentNode, labelMapNode) -> None:
     """
     Export the segmentation to the label map volume. Labels go from 1, 2,..., to N
     based on the order of the segments. Only visible segmentations will be exported.
@@ -216,7 +216,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
                                                                           labelMapNode, 
                                                                           referenceVolumeNode)
 
-  def exportErosionsToLabelmap(self, segmentNode, labelMapNode):
+  def exportErosionsToLabelmap(self, segmentNode, labelMapNode) -> None:
     """
     Export the erosion segmentations to the label map volume. 
     Labels will be consistent with the names of the erosion segments.
@@ -254,12 +254,6 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     labelMapNode.GetDisplayNode().SetAndObserveColorNodeID(
       'vtkMRMLColorTableNodeFileGenericColors.txt')
 
-  def importErosionsToSegmentationNode(self, labelMapNode, SegmentNode):
-    """
-    Import the erosion label map to the segmentation. 
-    The names of the eroison segments will be prefixed with the name of the label map.
-    """
-
   def enterSegmentEditor(self, segmentEditor):
     """
     Run this whenever the module is reopened. 
@@ -286,8 +280,8 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     """
     segmentEditor.exit()
 
-  def _initOutputErosionNode(self, erosion_img, inputVolumeNode, 
-                            inputContourNode, outputErosionNode):
+  def _initOutputErosionNode(self, erosion_img:sitk.Image, inputVolumeNode, 
+                            inputContourNode, outputErosionNode) -> None:
     """
     Set the parent of the output erosion node. 
     Move the mask to the output erosion node.
@@ -370,7 +364,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       # record name of erosion source node
       segment.SetTag("Source", erosionSource)
 
-  def getStatistics(self, inputErosionNode, masterVolumeNode, voxelSize, outputTableNode):
+  def getStatistics(self, inputErosionNode, masterVolumeNode, voxelSize:float, outputTableNode) -> None:
     """
     Get erosion statistics from the erosion segmentation. 
     Store the numeric data in the output table. 
@@ -401,7 +395,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     """
     self.erosionStatistics.disconnectErosionSelection()
 
-  def intensityCheck(self, volumeNode):
+  def intensityCheck(self, volumeNode) -> bool:
     '''
     Check if image intensity units are in HU
 

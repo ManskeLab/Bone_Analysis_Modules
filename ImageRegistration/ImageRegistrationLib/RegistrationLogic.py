@@ -51,6 +51,9 @@ class RegistrationLogic:
 
         self.reg.AddCommand( sitk.sitkIterationEvent, lambda: self.command_iteration(self.reg))
 
+        #transform
+        self.FU_Transform = None
+
     def setRegistrationParamaters(self, baseImage:sitk.Image, followImage:sitk.Image, sampling=0.01) -> None:
         '''
         Change parameters for registration
@@ -123,12 +126,12 @@ class RegistrationLogic:
 
         self.reg.SetInitialTransform(initalTransform_FU_to_BL, inPlace=False)
         print('Start follow-up to baseline registration')
-        FU_Transform = self.reg.Execute( sitk.Cast(self.baseImage, sitk.sitkFloat64), sitk.Cast(self.followImage, sitk.sitkFloat64) )
+        self.FU_Transform = self.reg.Execute( sitk.Cast(self.baseImage, sitk.sitkFloat64), sitk.Cast(self.followImage, sitk.sitkFloat64) )
 
         # Resample registered FU grayscale image
         print('Resampling follow-up image')
 
-        followImage_resampled = sitk.Resample(self.followImage, self.baseImage, FU_Transform, sitk.sitkBSpline, 0.0, self.followImage.GetPixelID())
+        followImage_resampled = sitk.Resample(self.followImage, self.baseImage, self.FU_Transform, sitk.sitkBSpline, 0.0, self.followImage.GetPixelID())
 
         return followImage_resampled
 
@@ -137,11 +140,15 @@ class RegistrationLogic:
         '''
         Print updates on registration status
         '''
-        print( '{0:3} = {1:10.5f} : {2}'.format( method.GetOptimizerIteration(), method.GetMetricValue(), method.GetOptimizerPosition() ) )
+        print( 'Iteration{0:3} has a value of {1:10.5f} at position: {2}'.format( method.GetOptimizerIteration(), method.GetMetricValue(), method.GetOptimizerPosition() ) )
 
         #update progress
         self.progress += (100 - self.progress) // 3
         self.progressCallBack(self.progress)
+    
+    def get_transform(self) -> sitk.Transform:
+        '''Get registration transform'''
+        return self.FU_Transform
     
 
 

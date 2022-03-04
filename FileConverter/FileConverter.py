@@ -413,7 +413,6 @@ Follow the instructions on the File Converter Wiki page on GitHub
     self.progressBar.setValue(value)
     self.progressBar2.setValue(value)
 
-
 class FileConverterTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
@@ -443,66 +442,29 @@ class FileConverterTest(ScriptedLoadableModuleTest):
     module.  For example, if a developer removes a feature that you depend on,
     your test should break so they know that the feature is needed.
     """
+    from Testing.FileConverterTestLogic import FileConverterTestLogic
 
     self.delayDisplay("Starting the test")
     #
     # first, get some data
     #
+
+    #setup logic
+    logic = FileConverterLogic()
+    testLogic = FileConverterTestLogic()
     
     # get test file
-    aimPath = self.getFilePath('SAMPLE_AIM.AIM')
+    aimPath = testLogic.getFilePath('SAMPLE_AIM.AIM')
     
     # check if file is converted
-    logic = FileConverterLogic()
     volume = slicer.vtkMRMLScalarVolumeNode()
     volume.SetScene(slicer.mrmlScene)
     volume.SetName("testVolumeNode")
     slicer.mrmlScene.AddNode(volume)
-    logic.convert(aimPath, volume, '.aim')
+    logic.convert(aimPath, volume, '.aim', noProgress=True)
 
     # check if output volume correct
-    self.assertTrue(self.compareImage(volume, self.getFilePath("\\SAMPLE_AIM_CONVERTED.mha")))
-
-    import numpy as np
-    img = sitk.GetImageFromArray(np.multiply(np.random.rand(10, 10, 10), 1000))
-    sitkUtils.PushVolumeToSlicer(img, volume)
+    self.assertTrue(testLogic.compareImage(volume, testLogic.getFilePath("\\SAMPLE_AIM_CONVERTED.mha")))
 
     self.delayDisplay('Test passed!')
     return SUCCESS
-  
-  def getFilePath(self, filename):
-    '''
-    Find the full filepath of a file in the samme folder
-
-    Args: 
-        filename (str): name of file (requires \'\\\\' before the name)
-
-    Returns:
-        str: full file path
-    '''
-    root = self.getParent(self.getParent(os.path.realpath(__file__)))
-
-    #Windows
-    if '\\' in root:
-        return root + '\\TestFiles\\' + filename
-    
-    #MacOS/Linux
-    else:
-        return root + '/TestFiles/' + filename
-
-
-  def getParent(self, path):
-    return os.path.split(path)[0]
-
-  def compareImage(self, convertedVolume, comparisonFile):
-    import numpy as np
-
-    # create numpy arrays
-    convertArr = slicer.util.arrayFromVolume(convertedVolume)
-
-    reader = sitk.ImageFileReader()
-    reader.SetFileName(comparisonFile)
-    compareArr = sitk.GetArrayFromImage(reader.Execute())
-
-    # check if images exactly equal and return result
-    return compareArr.all() == convertArr.all()

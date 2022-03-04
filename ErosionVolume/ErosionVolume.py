@@ -809,11 +809,9 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
       if not testLogic.verifyErosion(outputVolume, i):
         self.delayDisplay('Output segments are incorrect for test ' + index, msec = 300)
         passed = False
-        #continue
       if not testLogic.verifyTale(table, i):
         self.delayDisplay('Statistics table is incorrect for test ' + index, msec = 300)
         passed = False
-        continue
 
       self.delayDisplay('Test ' + index + ' complete')
 
