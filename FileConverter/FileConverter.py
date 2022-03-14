@@ -18,7 +18,7 @@ class FileConverter(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "File Converter"
-    self.parent.categories = ["Bone"]
+    self.parent.categories = ["Bone Analysis Module (BAM)"]
     self.parent.dependencies = []
     self.parent.contributors = ["Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
@@ -27,7 +27,8 @@ class FileConverter(ScriptedLoadableModule):
     Follow instructions on the <a href="https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/AIM-File-Converter-Module">Github Page</a> to install.
     """
     self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/File-Converter-Module>online documentation</a>."
-    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
+    self.parent.helpText += "<br><td><img src=\"" + self.getLogo('bam') + "\" height=80> "
+    self.parent.helpText += "<img src=\"" + self.getLogo('manske') + "\" height=80></td>"
     self.parent.acknowledgementText = """
     Updated on February 28, 2022<br>
     Manske Lab<br>
@@ -35,12 +36,21 @@ class FileConverter(ScriptedLoadableModule):
     University of Calgary
 """ # replace with organization, grant and thanks.
 
-  def getLogo(self):
-    directory = os.path.split(os.path.realpath(__file__))[0]
+  def getLogo(self, logo_type):
+    #get directory
+    directory = os.path.split(os.path.split(os.path.realpath(__file__))[0])[0]
+
+    #set file name
+    if logo_type == 'bam':
+      name = 'BAM_Logo.png'
+    elif logo_type == 'manske':
+      name = 'Manske_Lab_Logo.png'
+
+    #
     if '\\' in directory:
-      return directory + '\\Resources\\Icons\\Logo.png'
+      return directory + '\\Logos\\' + name
     else:
-      return directory + '/Resources/Icons/Logo.png'
+      return directory + '/Logos/' + name
 
 
 #

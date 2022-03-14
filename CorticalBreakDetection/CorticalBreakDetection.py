@@ -26,7 +26,7 @@ class CorticalBreakDetection(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Cortical Break Detection"
-    self.parent.categories = ["Bone"]
+    self.parent.categories = ["Bone Analysis Module (BAM)"]
     self.parent.dependencies = []  # TODO: add here list of module names that this module requires
     self.parent.contributors = ["Mingjie Zhao"]
     # TODO: update with short description of the module and a link to online module documentation
@@ -39,21 +39,31 @@ will be segmented using a different algorithm (i.e. level set) from the original
 Step 3: Manually add or remove seed points.
 """
     self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Cortical-Break-Detection-Module>online documentation</a>."
-    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
+    self.parent.helpText += "<br><td><img src=\"" + self.getLogo('bam') + "\" height=80> "
+    self.parent.helpText += "<img src=\"" + self.getLogo('manske') + "\" height=80></td>"
     # TODO: replace with organization, grant and thanks
     self.parent.acknowledgementText = """
-Updated on January 27, 2022.
-Manske Lab<br>
+    Updated on January 27, 2022.
+    Manske Lab<br>
     McCaig Institue for Bone and Joint Health<br>
     University of Calgary
 """ # Additional initialization step after application startup is complete
 
-  def getLogo(self):
-    directory = os.path.split(os.path.realpath(__file__))[0]
+  def getLogo(self, logo_type):
+    #get directory
+    directory = os.path.split(os.path.split(os.path.realpath(__file__))[0])[0]
+
+    #set file name
+    if logo_type == 'bam':
+      name = 'BAM_Logo.png'
+    elif logo_type == 'manske':
+      name = 'Manske_Lab_Logo.png'
+
+    #
     if '\\' in directory:
-      return directory + '\\Resources\\Icons\\Logo.png'
+      return directory + '\\Logos\\' + name
     else:
-      return directory + '/Resources/Icons/Logo.png'
+      return directory + '/Logos/' + name
 
 #
 # CorticalBreakDetectionWidget
@@ -138,6 +148,15 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.setToolTip( "Select the node to store the segmented image in" )
     self.outputVolumeSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Output Volume: ", self.outputVolumeSelector)
+
+    self.threshButton = qt.QCheckBox()
+    self.threshButton.checked = True
+    CorticalBreakDetectionLayout.addRow("Use Automatic Thresholding", self.threshButton)
+
+    self.threshSelector = qt.QComboBox()
+    self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
+    #self.threshSelector.setCurrentIndex(2)
+    CorticalBreakDetectionLayout.addRow("Thresholding Method", self.threshSelector)
 
     # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
@@ -338,11 +357,14 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.maskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
     self.maskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectMask)
     self.outputCorticalBreaksSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
+    self.threshButton.clicked.connect(self.onAutoThresh)
     self.xtremeCTIButton.connect("toggled(bool)", self.onCTTypeChanged)
     self.xtremeCTIIButton.connect("toggled(bool)", self.onCTTypeChanged)
     self.cbCTButton.connect("toggled(bool)", self.onCTTypeChanged)
-    self.segmentButton.connect("clicked(bool)", self.onsegmentButton)
+    self.segmentButton.connect("clicked(bool)", self.onSegmentButton)
     self.getCorticalBreaksButton.connect("clicked(bool)", self.ongetCorticalBreaksButton)    
+
+    self.onAutoThresh()
 
   def setupSeedPoints(self):
     """Set up widgets for seed points"""
@@ -488,6 +510,12 @@ Change the lower and upper thresholds before initializing."""
     if maskNode:
       self.outputCorticalBreaksSelector.baseName = (maskNode.GetName()+"_BREAKS")
       self.outputFiducialSelector.baseName = (maskNode.GetName()+"_SEEDS")
+  
+  def onAutoThresh(self):
+    use_auto = self.threshButton.checked
+    self.lowerThresholdText.setEnabled(not use_auto)
+    self.upperThresholdText.setEnabled(not use_auto)
+    self.threshSelector.setEnabled(use_auto)
 
   def onCTTypeChanged(self):
     """Run this whenver the ct type buttons change state."""
@@ -505,17 +533,23 @@ Change the lower and upper thresholds before initializing."""
       self.voxelSizeText.value = 0.3
 
 
-  def onsegmentButton(self):
+  def onSegmentButton(self):
     """Run this whenever the get Cortical Break Detection button is clicked."""
     # update widgets
     self.disablesegmentWidgets()
 
     inputVolumeNode = self.inputVolumeSelector.currentNode()
     outputVolumeNode = self.outputVolumeSelector.currentNode()
-    ready = self._logic.setSegmentParameters(inputVolumeNode, 
-                                                self.lowerThresholdText.value,
-                                                self.upperThresholdText.value,
-                                                self.sigmaText.value)
+    
+    if self.threshButton.checked:
+      ready = self._logic.setSegmentParameters(inputVolumeNode, 
+                                                self.sigmaText.value,
+                                                method=self.threshSelector.currentIndex)
+    else:
+      ready = self._logic.setSegmentParameters(inputVolumeNode, 
+                                                self.sigmaText.value,
+                                                lower=self.lowerThresholdText.value,
+                                                upper=self.upperThresholdText.value)
 
     #logging
     self.logger.info("Segmentation initialized with paramaters:")

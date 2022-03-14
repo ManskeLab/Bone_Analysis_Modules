@@ -27,7 +27,7 @@ class ErosionVolume(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Erosion Volume" # TODO make this more human readable by adding spaces
-    self.parent.categories = ["Bone"]
+    self.parent.categories = ["Bone Analysis Module (BAM)"]
     self.parent.dependencies = []
     self.parent.contributors = ["Mingjie Zhao"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """ 
@@ -38,7 +38,8 @@ Step 5: Manually correct the erosion segmentations and combine them into a singl
 Step 6: Compute erosion statistics, such as volume, surface area, and roundness.
 """
     self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Erosion-Volume-Module>online documentation</a>."
-    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
+    self.parent.helpText += "<br><td><img src=\"" + self.getLogo('bam') + "\" height=80> "
+    self.parent.helpText += "<img src=\"" + self.getLogo('manske') + "\" height=80></td>"
     self.parent.acknowledgementText = """
 Updated on January 27, 2022.<br>
 Manske Lab<br>
@@ -46,12 +47,21 @@ Manske Lab<br>
     University of Calgary
 """ # replace with organization, grant and thanks.
 
-  def getLogo(self):
-    directory = os.path.split(os.path.realpath(__file__))[0]
+  def getLogo(self, logo_type):
+    #get directory
+    directory = os.path.split(os.path.split(os.path.realpath(__file__))[0])[0]
+
+    #set file name
+    if logo_type == 'bam':
+      name = 'BAM_Logo.png'
+    elif logo_type == 'manske':
+      name = 'Manske_Lab_Logo.png'
+
+    #
     if '\\' in directory:
-      return directory + '\\Resources\\Icons\\Logo.png'
+      return directory + '\\Logos\\' + name
     else:
-      return directory + '/Resources/Icons/Logo.png'
+      return directory + '/Logos/' + name
 
 #
 # ErosionVolumeWidget
@@ -154,7 +164,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
-    self.lowerThresholdText.value = 686
+    self.lowerThresholdText.value = 530
     erosionsLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
@@ -767,8 +777,8 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
     Success Conditions:
       1. Erosion segmentation is successfully generated
       2. Number of segmentations is correct
-      3. Each segmetation differs by less than 0.5% from the corresponding comparison
-      4. Volume and Surface area are less than 0.01% from comparison values
+      3. Each segmetation differs by less than 2% from the corresponding comparison
+      4. Volume and Surface area are less than 0.5% from comparison values
     '''
     from ErosionVolumeLib.ErosionVolumeLogic import ErosionVolumeLogic
     from Testing.ErosionVolumeTestLogic import ErosionVolumeTestLogic
@@ -798,9 +808,9 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
       # setup volumes
       outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index, type='segmentation')
       if i == 3:
-        logic.setErosionParameters(masterVolume, maskVolume, 686, 4000, 1, seedsList, 7, 7)
+        logic.setErosionParameters(masterVolume, maskVolume, 530, 4000, 1, seedsList, 6, 6)
       else:
-        logic.setErosionParameters(masterVolume, maskVolume, 686, 4000, 1, seedsList, 3, 4)
+        logic.setErosionParameters(masterVolume, maskVolume, 530, 4000, 1, seedsList, 3, 4)
       self.assertTrue(logic.getErosions(masterVolume, maskVolume, outputVolume, noProgress=True), 'Erosion volume operation failed')
       table = testLogic.newNode(scene, name='testTable' + index, type='table')
       logic.getStatistics(outputVolume, masterVolume, 0.0607, table)

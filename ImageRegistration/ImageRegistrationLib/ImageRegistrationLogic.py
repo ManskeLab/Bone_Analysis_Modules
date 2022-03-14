@@ -122,20 +122,9 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
 
         #return True
     
-    def setVisualizeParameters(self, baseNode, regNode, sigma:float, lower:int, upper:int) -> None:
-        '''
-        Set parameters from visualization
 
-        Args:
-            baseNode (vtkMRMLVolumeNode): volume with baseline image
-            regNode (vtkMRMLVolumeNode): volume with registered image
-            sigma (float): gaussian sigma for smoothening images
-            lower (int): lower threshold
-            upper (int): upper threshold
-
-        Returns:
-            None
-        '''
+    def setVisualizeParameters(self, baseNode, regNode, sigma:float, method:int=None, lower:int=None, upper:int=None) -> None:
+        '''Set parameters from visualization (manual threshold)'''
 
         #pull images
         baseImg = sitkUtils.PullVolumeFromSlicer(baseNode)
@@ -148,7 +137,12 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         #crop base image to match registered
         (baseImg, regImg) = self.visualizer.edgeTrim(baseImg, regImg)
 
-        self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, lower, upper)
+        if method is not None:
+            self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, True)
+            self.visualizer.setThresholdMethod(method)
+        else:
+            self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, False)
+            self.visualizer.setManualThresholds(lower, upper)
     
     def visualize(self, outputNode) -> None:
         '''

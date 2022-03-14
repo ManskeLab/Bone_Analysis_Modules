@@ -14,6 +14,7 @@ import logging
 import SimpleITK as sitk
 import sitkUtils
 import os
+from JointSpaceWidthLib.SegmentEditor import SegmentEditor
 
 #
 # Module for CBCT Enhancement
@@ -26,14 +27,15 @@ class JointSpaceWidth(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Joint Space Width (Beta)" # TODO make this more human readable by adding spaces
-    self.parent.categories = ["Bone"]
+    self.parent.categories = ["Bone Analysis Module (BAM)"]
     self.parent.dependencies = []
     self.parent.contributors = ["Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """Determines the width of the space in the metacarpal (MCP) joint.
     Can also be used for other joints, but may be suboptimal. Currently under development.
     """
     self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Joint-Space-Width-Module>online documentation</a>."
-    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
+    self.parent.helpText += "<br><td><img src=\"" + self.getLogo('bam') + "\" height=80> "
+    self.parent.helpText += "<img src=\"" + self.getLogo('manske') + "\" height=80></td>"
     self.parent.acknowledgementText = """
     Updated on February 28, 2022 <br>
     Manske Lab <br>
@@ -41,12 +43,21 @@ class JointSpaceWidth(ScriptedLoadableModule):
     University of Calgary
 """ # replace with organization, grant and thanks.
 
-  def getLogo(self):
-    directory = os.path.split(os.path.realpath(__file__))[0]
+  def getLogo(self, logo_type):
+    #get directory
+    directory = os.path.split(os.path.split(os.path.realpath(__file__))[0])[0]
+
+    #set file name
+    if logo_type == 'bam':
+      name = 'BAM_Logo.png'
+    elif logo_type == 'manske':
+      name = 'Manske_Lab_Logo.png'
+
+    #
     if '\\' in directory:
-      return directory + '\\Resources\\Icons\\Logo.png'
+      return directory + '\\Logos\\' + name
     else:
-      return directory + '/Resources/Icons/Logo.png'
+      return directory + '/Logos/' + name
 
 #
 # CBCTEnhanceWidget
@@ -71,15 +82,20 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         
         self.collapsible = ctk.ctkCollapsibleButton()
         self.collapsible.text = "Joint Space Mask"
+        self.manualCorrectionCollapsibleButton = ctk.ctkCollapsibleButton()
+        self.manualCorrectionCollapsibleButton.text = 'Manual Correction'
         self.collapsible2 = ctk.ctkCollapsibleButton()
         self.collapsible2.text = "Width Analysis"
         
         #setup each collapsible
         self.setupJointMask()
+        self.setupManualCorrection()
         self.setupWidthAnalysis()
 
         #setup buttons
         self.onNodeChanged()
+        self.onNodeChanged2()
+        self.onSelectManual()
 
         self.layout.addStretch(1)
         
@@ -196,8 +212,89 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         self.inputVolumeSelector.currentNodeChanged.connect(self.onNodeChanged)
         self.outputVolumeSelector.currentNodeChanged.connect(self.onNodeChanged)
         self.maskButton.clicked.connect(self.onJointMask)
+    
+    # Manual Correction -------------------------------------------------------------------
+    def setupManualCorrection(self):
+        """Set up widgets in step 3 manual correction"""
+        self.manualCorrectionCollapsibleButton.collapsed = True
+        self.layout.addWidget(self.manualCorrectionCollapsibleButton)
 
-    #TODO: add manual correction collapsible
+        # Layout within the collapsible button
+        manualCorrectionLayout = qt.QVBoxLayout(self.manualCorrectionCollapsibleButton)
+
+        # layout for input and output selectors
+        selectorFormLayout = qt.QFormLayout()
+        selectorFormLayout.setContentsMargins(0, 0, 0, 0)
+
+        # contour selector
+        self.contourVolumeSelector = slicer.qMRMLNodeComboBox()
+        self.contourVolumeSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+        self.contourVolumeSelector.selectNodeUponCreation = False
+        self.contourVolumeSelector.addEnabled = False
+        self.contourVolumeSelector.removeEnabled = False
+        self.contourVolumeSelector.renameEnabled = False
+        self.contourVolumeSelector.noneEnabled = False
+        self.contourVolumeSelector.showHidden = False
+        self.contourVolumeSelector.showChildNodeTypes = False
+        self.contourVolumeSelector.setMRMLScene( slicer.mrmlScene )
+        self.contourVolumeSelector.setToolTip( "Select the contour to be corrected" )
+        selectorFormLayout.addRow("Contour to be Corrected: ", self.contourVolumeSelector)
+
+        # master volume selector
+        self.masterVolumeSelector = slicer.qMRMLNodeComboBox()
+        self.masterVolumeSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        self.masterVolumeSelector.selectNodeUponCreation = False
+        self.masterVolumeSelector.addEnabled = False
+        self.masterVolumeSelector.removeEnabled = False
+        self.masterVolumeSelector.noneEnabled = False
+        self.masterVolumeSelector.showHidden = False
+        self.masterVolumeSelector.showChildNodeTypes = False
+        self.masterVolumeSelector.setMRMLScene( slicer.mrmlScene )
+        self.masterVolumeSelector.setToolTip("Select the scan associated with the contour")
+        selectorFormLayout.addRow("Master Volume: ", self.masterVolumeSelector)
+
+        # frame with selectors
+        selectorFrame = qt.QFrame()
+        selectorFrame.setLayout(selectorFormLayout)
+        manualCorrectionLayout.addWidget(selectorFrame)
+
+        # layout for initialize and apply buttons
+        initApplyGridLayout = qt.QGridLayout()
+        initApplyGridLayout.setContentsMargins(0, 5, 0, 5)
+
+        # initialize button
+        self.initButton3 = qt.QPushButton("Initialize")
+        self.initButton3.toolTip = "Initialize the parameters in segmentation editor for manual correction"
+        self.initButton3.enabled = False
+        initApplyGridLayout.addWidget(self.initButton3, 0, 0)
+
+        # cancel button
+        self.cancelButton3 = qt.QPushButton("Cancel")
+        self.cancelButton3.toolTip = "Discard the manual correction"
+        self.cancelButton3.enabled = False
+        initApplyGridLayout.addWidget(self.cancelButton3, 0, 1)
+
+        # apply button
+        self.applyButton3 = qt.QPushButton("Apply")
+        self.applyButton3.toolTip = "Apply the manual correction to the contour"
+        self.applyButton3.enabled = False
+        initApplyGridLayout.addWidget(self.applyButton3, 0, 2)
+
+        # frame with initialize and apply buttons
+        initApplyFrame = qt.QFrame()
+        initApplyFrame.setLayout(initApplyGridLayout)
+        manualCorrectionLayout.addWidget(initApplyFrame)
+
+        # segmentation editor
+        self.segmentEditor = SegmentEditor(manualCorrectionLayout)
+
+        # connections
+        self.manualCorrectionCollapsibleButton.connect('contentsCollapsed(bool)', self.onCollapse2)
+        self.initButton3.connect('clicked(bool)', self.onInitButtonManual)
+        self.applyButton3.connect('clicked(bool)', self.onApplyButtonManual)
+        self.cancelButton3.connect('clicked(bool)', self.onCancelButtonManual)
+        self.contourVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectManual)
+        self.masterVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectManual)
 
     # Width Analysis -----------------------------------------------------------*
     def setupWidthAnalysis(self) -> None:
@@ -266,7 +363,7 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
 
         # Connections
         self.jointMaskSelector.currentNodeChanged.connect(self.onNodeChanged2)
-        self.collapsible2.contentsCollapsed.connect(self.onCollapse2)
+        self.collapsible2.contentsCollapsed.connect(self.onCollapse3)
         self.analyzeButton.clicked.connect(self.onAnalyze)
         
         
@@ -323,17 +420,67 @@ class JointSpaceWidthWidget(ScriptedLoadableModuleWidget):
         '''Analyze button pressed'''
         self.logic.setAnalysisNode(self.jointMaskSelector.currentNode())
         self.logic.analyze(self.outputVolumeSelector2.currentNode(), self.outputTableSelector.currentNode())
+    
+    def onSelectManual(self):
+        """Update the state of the initialize button whenever the selectors in step 3 change"""
+        self.initButton3.enabled = (self.contourVolumeSelector.currentNode() and
+                                self.masterVolumeSelector.currentNode())
+
+    def onInitButtonManual(self):
+        """Run this whenever the initialize button in step 3 is clicked"""
+        contourVolumeNode = self.contourVolumeSelector.currentNode()
+        masterVolumeNode = self.masterVolumeSelector.currentNode()
+        
+        self.logic.initManualCorrection(self.segmentEditor, 
+                                                contourVolumeNode, 
+                                                masterVolumeNode)
+        
+        self.initButton3.enabled = False
+        self.applyButton3.enabled = True
+        self.cancelButton3.enabled = True
+        
+    
+    def onCancelButtonManual(self):
+        """Run this whenever the cancel button in step 3 is clicked"""
+        if slicer.util.confirmOkCancelDisplay('Do you want to discard the manual correction?'):
+            contourVolumeNode = self.contourVolumeSelector.currentNode()
+            masterVolumeNode = self.masterVolumeSelector.currentNode()
+        
+            self.logic.cancelManualCorrection(contourVolumeNode, masterVolumeNode)
+        
+        self.initButton3.enabled = True
+        self.applyButton3.enabled = False
+        self.cancelButton3.enabled = False
+    
+    def onApplyButtonManual(self):
+        """Run this whenever the apply button in step 3 is clicked"""
+        contourVolumeNode = self.contourVolumeSelector.currentNode()
+        masterVolumeNode = self.masterVolumeSelector.currentNode()
+
+        self.logic.applyManualCorrection(contourVolumeNode, masterVolumeNode)
+
+        self.initButton3.enabled = True
+        self.applyButton3.enabled = False
+        self.cancelButton3.enabled = False
 
     #functions for collapsibles in widget
     def onCollapse1(self):
         '''Funtion for first collapsible'''
         if not self.collapsible.collapsed:
             self.collapsible2.collapsed = True
+            self.manualCorrectionCollapsibleButton.collapsed = True
 
     def onCollapse2(self):
         '''Function for second collapsible'''
+        if not self.manualCorrectionCollapsibleButton.collapsed:
+            self.collapsible.collapsed = True
+            self.collapsible2.collapsed = True
+    
+    def onCollapse3(self):
+        '''Function for second collapsible'''
         if not self.collapsible2.collapsed:
             self.collapsible.collapsed = True
+            self.manualCorrectionCollapsibleButton.collapsed = True
     
     def setProgress(self, value:int) -> None:
         """Update the progress bar"""
@@ -346,6 +493,7 @@ class JointSpaceWidthLogic:
         self.analysis = JointSpaceAnalysis()
         self.outImg = None
         self.jointNode = None
+        self._segmentNodeId = ""
 
     def setParameters(self, inputNode, mask1, mask2, lower:int, upper:int, distance:int) -> bool:
         '''
@@ -417,6 +565,117 @@ class JointSpaceWidthLogic:
 
         # TODO: volume and visualization
         #self.analysis.getVolume(segNode)
+    def labelmapToSegmentationNode(self, labelMapNode, segmentNode):
+        """
+        Load the label map volume to the segmentations, with each label to a different 
+        segmentation. 
+
+        Args:
+            labelMapNode(vtkMRMLLabelMapVolume)
+            segmentNode(vtkSegmentationNode): will be modified.
+        """
+        slicer.vtkSlicerSegmentationsModuleLogic.ImportLabelmapToSegmentationNode(labelMapNode, segmentNode, "")
+  
+    def segmentationNodeToLabelmap(self, segmentNode, labelMapNode, referenceVolumeNode):
+        """
+        Load the segmentations to the label map volume. Labels go from 1, 2,..., to N. 
+        Order of the segmentations are maintained. 
+
+        Args:
+            segmentNode (vtkMRMLSegmentationNode)
+            labelMapNode (vtkMRMLLabelMapVolumeNode): will be modified.
+            referenceVolumeNode (vtkMRMLScalarVolumeNode): decides the size of the 
+            resulting label map volume. 
+        """
+        visibleSegmentIds = vtk.vtkStringArray()
+        segmentNode.GetDisplayNode().GetVisibleSegmentIDs(visibleSegmentIds)
+        slicer.vtkSlicerSegmentationsModuleLogic.ExportSegmentsToLabelmapNode(segmentNode, 
+                                                                            visibleSegmentIds,
+                                                                            labelMapNode, 
+                                                                            referenceVolumeNode)
+    
+    def initManualCorrection(self, segmentEditor, contourVolumeNode, masterVolumeNode):
+        """
+        Set up the segmentation editor for manual correction of contour. 
+        Create new segmentation node if not created. 
+        Load contour to the segmentation editor.
+        
+        Args:
+            segmentEditor (SegmentEditor): will be modified
+            contourVolumeNode (vtkMRMLLabelMapVolumeNode)
+            masterVolumeNode (vtkMRMLScalarVolumeNode)
+
+        Returns:
+            bool: True for success, False otherwise.
+        """
+        segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
+
+        if (contourVolumeNode and masterVolumeNode):
+            if not segmentNode:
+                segmentNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+                segmentNode.SetReferenceImageGeometryParameterFromVolumeNode(masterVolumeNode)
+            self._segmentNodeId = segmentNode.GetID()
+            self.labelmapToSegmentationNode(contourVolumeNode, segmentNode)
+            # set segmentation node and master volume node in segmentation editor
+            segmentEditor.setSegmentationNode(segmentNode)
+            segmentEditor.setMasterVolumeNode(masterVolumeNode)
+            # update viewer windows
+            slicer.util.setSliceViewerLayers(background=masterVolumeNode)
+
+            return True
+        return False
+    
+    def cancelManualCorrection(self, contourVolumeNode, masterVolumeNode):
+        """
+        Cancel the manual correction. 
+        Remove the segmentation node in the segmentation editor. 
+
+        Args:
+            contourVolumeNode (vtkMRMLLabelMapVolumeNode)
+            masterVolumeNode (vtkMRMLScalarVolumeNode)
+
+        Returns:
+            bool: True for success, False if nodes are missing.
+        """
+        segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
+
+        if segmentNode:
+            # remove the current segmentation node
+            slicer.mrmlScene.RemoveNode(segmentNode)
+        if (contourVolumeNode and masterVolumeNode):
+            # update viewer windows
+            slicer.util.setSliceViewerLayers(background=masterVolumeNode,
+                                            label=contourVolumeNode, 
+                                            labelOpacity=0.5)
+        
+        return (segmentNode and contourVolumeNode and masterVolumeNode)
+
+    def applyManualCorrection(self, contourVolumeNode, masterVolumeNode):
+        """
+        Apply the manual correction.
+        Load the contour back to the input node.
+        Remove the segmentation node in the segmentation editor.
+
+        Args:
+            contourVolumeNode (vtkMRMLLabelMapVolumeNode): will be modified
+            masterVolumeNode (vtkMRMLScalarVolumeNode)
+        
+        Returns:
+            bool: True for success, False otherwise.
+        """
+        segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
+
+        if (segmentNode and contourVolumeNode and masterVolumeNode):
+            self.segmentationNodeToLabelmap(segmentNode, contourVolumeNode, masterVolumeNode)
+            # remove the current segmentation node
+            slicer.mrmlScene.RemoveNode(segmentNode)
+            # update viewer windows
+            slicer.util.setSliceViewerLayers(background=masterVolumeNode,
+                                            label=contourVolumeNode, 
+                                            labelOpacity=0.5)
+
+            return True
+        return False
 
     
 import numpy as np

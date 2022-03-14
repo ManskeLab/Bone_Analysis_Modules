@@ -63,30 +63,22 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
       dir = os.path.dirname(storageNode.GetFullNameFromFileName())
       slicer.mrmlScene.SetRootDirectory(dir)
       
-  def setSegmentParameters(self, inputVolumeNode, lower, upper, sigma):
-    """
-    Set parameters for segmentation. 
-
-    Args:
-      inputVolumeNode (vtkMRMLScalarVolumeNode)
-      lower (int)
-      upper (int)
-      sigma (float): Standard deviation in the Gaussian smoothing filter.
-
-    Returns:
-      bool: True for success, False if inputs are not valid.
-    """
-    # check input validity
-    if (lower > upper):
-      slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
-      return False
+  def setSegmentParameters(self, inputVolumeNode, sigma:int, method:int=None, lower:int=None, upper:int=None) -> bool:
+    if method is None:
+      # check input validity
+      if (lower > upper):
+        slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
+        return False
 
     # images
     model_img = sitkUtils.PullVolumeFromSlicer(inputVolumeNode.GetName())
     self.CorticalBreakDetection.setModel(model_img)
     
     # thresholds
-    self.CorticalBreakDetection.setThresholds(lower, upper)
+    if method is not None:
+      self.CorticalBreakDetection.setMethod(method)
+    else:
+      self.CorticalBreakDetection.setThresholds(lower, upper)
 
     # sigma
     self.CorticalBreakDetection.setSigma(sigma)

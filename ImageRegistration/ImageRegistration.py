@@ -26,7 +26,7 @@ class ImageRegistration(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Image Registration" # TODO make this more human readable by adding spaces
-    self.parent.categories = ["Bone"]
+    self.parent.categories = ["Bone Analysis Module (BAM)"]
     self.parent.dependencies = []
     self.parent.contributors = ["Ryan Yan"] # replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
@@ -37,7 +37,8 @@ Additionally, visualization tools are included for judging the quality of a regi
 Grayscale subtraction, 3d visualization, and checkerboard views are available.
     """
     self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Image-Registration-Module>online documentation</a>."
-    self.parent.helpText += "<td><img src=\"" + self.getLogo() + "\" height=100></td>"
+    self.parent.helpText += "<br><td><img src=\"" + self.getLogo('bam') + "\" height=80> "
+    self.parent.helpText += "<img src=\"" + self.getLogo('manske') + "\" height=80></td>"
     self.parent.acknowledgementText = """
     Updated on February 28, 2022 <br>
     Manske Lab <br>
@@ -45,12 +46,21 @@ Grayscale subtraction, 3d visualization, and checkerboard views are available.
     University of Calgary
 """ # replace with organization, grant and thanks.
 
-  def getLogo(self):
-    directory = os.path.split(os.path.realpath(__file__))[0]
+  def getLogo(self, logo_type):
+    #get directory
+    directory = os.path.split(os.path.split(os.path.realpath(__file__))[0])[0]
+
+    #set file name
+    if logo_type == 'bam':
+      name = 'BAM_Logo.png'
+    elif logo_type == 'manske':
+      name = 'Manske_Lab_Logo.png'
+
+    #
     if '\\' in directory:
-      return directory + '\\Resources\\Icons\\Logo.png'
+      return directory + '\\Logos\\' + name
     else:
-      return directory + '/Resources/Icons/Logo.png'
+      return directory + '/Logos/' + name
 
 #
 # ImageRegistrationWidget
@@ -297,6 +307,14 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.outputSelector2.baseName = ('SUBTRACTION')
     visualizeFormLayout.addRow("Output: ", self.outputSelector2)
 
+    self.threshButton = qt.QCheckBox()
+    self.threshButton.checked = True
+    visualizeFormLayout.addRow("Use Automatic Thresholding", self.threshButton)
+
+    self.threshSelector = qt.QComboBox()
+    self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
+    visualizeFormLayout.addRow("Thresholding Method", self.threshSelector)
+
     # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
@@ -321,7 +339,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     visualizeFormLayout.addRow("Gaussian Sigma: ", self.sigmaText)
 
     #store labels
-    self.labels = [visualizeFormLayout.itemAt(i, 0) for i in range(4, 6)]
+    self.labels = [visualizeFormLayout.itemAt(i, 0) for i in range(4, 8)]
 
     #
     # Visualize Button
@@ -343,8 +361,11 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.threeDButton.clicked.connect(self.onSwitchMode)
     self.grayButton.clicked.connect(self.onSwitchMode)
     self.visualButton.clicked.connect(self.onVisualize)
+    self.threshButton.clicked.connect(self.onAutoThresh)
 
     self.visualizeCollapsibleButton.contentsCollapsed.connect(self.onCollapse2)
+
+    self.onAutoThresh()
   
   def setupCheckerboard(self) -> None:
     self.checkerboardCollapsibleButton.collapsed = True
@@ -548,6 +569,12 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
       self.sigmaText.value = 0.5
       for label in self.labels:
         label.widget().hide()
+    
+  def onAutoThresh(self):
+    use_auto = self.threshButton.checked
+    self.lowerThresholdText.setEnabled(not use_auto)
+    self.upperThresholdText.setEnabled(not use_auto)
+    self.threshSelector.setEnabled(use_auto)
 
   def onVisualize(self) -> None:
     '''Visualize button is pressed'''
@@ -556,11 +583,17 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
     self.progressBar.show()
 
     # set parameters
-    self.logic.setVisualizeParameters(self.visualSelector1.currentNode(), 
+    if self.threshButton.checked:
+      self.logic.setVisualizeParameters(self.visualSelector1.currentNode(), 
                                 self.visualSelector2.currentNode(),
                                 self.sigmaText.value,
-                                self.lowerThresholdText.value,
-                                self.upperThresholdText.value)
+                                method=self.threshSelector.currentIndex)
+    else:
+      self.logic.setVisualizeParameters(self.visualSelector1.currentNode(), 
+                                self.visualSelector2.currentNode(),
+                                self.sigmaText.value,
+                                lower=self.lowerThresholdText.value,
+                                upper=self.upperThresholdText.value)
 
     #get output
     outnode = self.outputSelector2.currentNode()
@@ -696,6 +729,7 @@ class ImageRegistrationTest(ScriptedLoadableModuleTest):
     
     # setup logic
     logic = ImageRegistrationLogic()
+    logic.progressCallBack = self.foo
     testLogic = ImageRegistrationTestLogic()
     scene = slicer.mrmlScene
 
@@ -706,12 +740,12 @@ class ImageRegistrationTest(ScriptedLoadableModuleTest):
       print('\n*----------------------Test ' + index + '----------------------*')
 
       # get input files
-      baseVolume = testLogic.newNode(scene, filename='SAMPLE_BL' + index + '.mha', name='testBaselineVolume' + index, display=False)
-      followVolume = testLogic.newNode(scene, filename='SAMPLE_FU' + index + '.mha', name='testFollowupVolume' + index, display=False)
+      baseVolume = testLogic.newNode(scene, filename='SAMPLE_REG_BL' + index + '.mha', name='testBaselineVolume' + index, display=False)
+      followVolume = testLogic.newNode(scene, filename='SAMPLE_REG_FU' + index + '.mha', name='testFollowupVolume' + index, display=False)
 
       # setup volumes
-      outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index, type='segmentation')
-      logic.setParamaters(baseVolume, followVolume, 0.01)
+      outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index)
+      logic.setParamaters(baseVolume, followVolume, 0.001)
       logic.run(outputVolume)
       
       # check outputs against sample file
@@ -723,6 +757,9 @@ class ImageRegistrationTest(ScriptedLoadableModuleTest):
 
     #Failure message
     self.assertTrue(passed, 'Incorrect results, check testing log')
+    
+  def foo(self, progress):
+    pass
 
 import SimpleITK as sitk
 import sitkUtils, os, slicer
@@ -743,7 +780,9 @@ class ImageRegistrationTestLogic:
         Returns:
             str: full file path
         '''
-        root = self.getParent(self.getParent(self.getParent(os.path.realpath(__file__))))
+        #REPLACE WHEN MOVED TO SUBCLASS
+        #root = self.getParent(self.getParent(self.getParent(os.path.realpath(__file__))))
+        root = self.getParent(self.getParent(os.path.realpath(__file__)))
 
         #Windows
         if '\\' in root:

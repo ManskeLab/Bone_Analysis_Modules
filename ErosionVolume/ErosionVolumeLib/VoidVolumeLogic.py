@@ -33,7 +33,7 @@
 import SimpleITK as sitk
 
 class VoidVolumeLogic:
-    def __init__(self, img=None, mask=None, lower=686, upper=15000, sigma=1,
+    def __init__(self, img=None, mask=None, lower=530, upper=15000, sigma=1,
                  seeds=None, minimalRadius=3, dilateErodeDistance=4):
         self.model_img = img                  # greyscale scan
         self.contour_img = mask               # mask, periosteal boundary

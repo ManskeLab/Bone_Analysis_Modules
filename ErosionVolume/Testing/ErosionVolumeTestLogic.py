@@ -177,7 +177,7 @@ class ErosionVolumeTestLogic:
             diff = np.subtract(erosionArr, compareArr)
             ratio = np.count_nonzero(diff) / diff.size * 100
             print('The difference between the test and comparison image is ' + str.format('{:.6f}', ratio) + '%')
-            if ratio > 0.5:
+            if ratio > 2:
                 print("Test Failed: Difference is too large")
                 return False
         print("Test Passed")
@@ -203,13 +203,13 @@ class ErosionVolumeTestLogic:
 
         ratio1 = abs(table.GetValueByName(0, 'Volume [mm3]').ToFloat() / compareTable.GetValueByName(0, 'Volume [mm3]').ToFloat() - 1)
         print('The difference in Volume is ' + str.format('{:.6f}', ratio1) + '%' )
-        if ratio1 > 0.01:
+        if ratio1 > 0.5:
             print('Test Failed: Volume difference is too large')
             return False
 
         ratio2 = abs(table.GetValueByName(0, 'Surface area [mm2]').ToFloat() / compareTable.GetValueByName(0, 'Surface area [mm2]').ToFloat() - 1)
         print('The difference in Surface area is ' + str.format('{:.6f}', ratio2) + '%' )
-        if ratio2 > 0.01:
+        if ratio2 > 0.5:
             print('Test Failed: Surface area difference is too large')
             return False
         

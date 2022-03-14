@@ -18,30 +18,41 @@ class VisualizeLogic:
         self.baseImg = None
         self.regImg = None
         self.sigma = 0.8
-        self.lower = 686
+        self.lower = 500
         self.upper = 4000
+        self.thresh_method = None
+        self.auto_thresh = True
     
-    def setVisualizeParameters(self, baseImg:sitk.Image, regImg:sitk.Image, sigma:float, lower:int, upper:int):
+    def setVisualizeParameters(self, baseImg:sitk.Image, regImg:sitk.Image, sigma:float, auto_thresh:bool) -> None:
         '''
         Set paramaters for visualization method
-
-        Args:
-            baseImg (SimpleITK Image): Baseline image
-            regImg (SimpleITK Image): Registered follow-up image
-            sigma (float): Gaussian sigma
-            lower (int): Lower threshold
-            upper (int): Upper threshold
-        
-        Returns:
-            None
         '''
         self.baseImg = baseImg
         self.regImg = regImg
         self.sigma = sigma
+        self.auto_thresh = auto_thresh
+    
+    def setThresholdMethod(self, index:int) -> None:
+        '''Set thresholding method for visualization'''
+        if index == 0:
+            self.thresh_method = sitk.OtsuThresholdImageFilter()
+        elif index == 1:
+            self.thresh_method = sitk.HuangThresholdImageFilter()
+        elif index == 2:
+            self.thresh_method = sitk.MaximumEntropyThresholdImageFilter()
+        elif index == 3:
+            self.thresh_method = sitk.MomentsThresholdImageFilter()
+        elif index == 4:
+            self.thresh_method = sitk.YenThresholdImageFilter()
+        self.thresh_method.SetOutsideValue(1)
+        self.thresh_method.SetInsideValue(0)
+    
+    def setManualThresholds(self, lower:int, upper:int) -> None:
+        '''Set manual thresholds for visualization'''
         self.lower = lower
         self.upper = upper
 
-    def threshold(self, img:sitk.Image):
+    def threshold(self, img:sitk.Image) -> sitk.Image:
         '''
         Apply threshold operation to an image
 
@@ -59,7 +70,10 @@ class VisualizeLogic:
         gaussian_filter.SetSigma(sigma_over_spacing)
         gaussian_img = gaussian_filter.Execute(img)
 
-        thresh_img = sitk.BinaryThreshold(gaussian_img, 
+        if self.auto_thresh:
+            thresh_img = self.thresh_method.Execute(gaussian_img)
+        else:
+            thresh_img = sitk.BinaryThreshold(gaussian_img, 
                                           lowerThreshold=self.lower, 
                                           upperThreshold=self.upper)
 

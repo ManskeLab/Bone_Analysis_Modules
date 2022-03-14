@@ -16,7 +16,7 @@
 #              inputMask: The input mask file path, default=[inputImage]_MASK
 #              outputImage: The output image file path, default=[inputImage]_ER
 #              seeds: The seed points csv file path, default=[inputImage]_SEEDS
-#              lowerThreshold, default=686
+#              lowerThreshold, default=530
 #              upperThreshold, default=15000
 #              sigma: Standard deviation for the Gaussian smoothing filter, default=1
 #              minimumRadius: Minimum erosion radius in voxels, default=3
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     parser.add_argument('-im', '--inputMask', help='The input mask file path, default=[inputImage]_MASK', default="_MASK.mha", metavar='')
     parser.add_argument('-oi', '--outputImage', help='The output image file path, default=[inputImage]_ER', default="_ER.nrrd", metavar='')
     parser.add_argument('-sd', '--seeds', help='The seed points csv file path, default=[inputImage]_SEEDS', default="_SEEDS.csv", metavar='')
-    parser.add_argument('-lt', '--lowerThreshold', help='default=686', type=int, default=686, metavar='')
+    parser.add_argument('-lt', '--lowerThreshold', help='default=530', type=int, default=530, metavar='')
     parser.add_argument('-ut', '--upperThreshold', help='default=15000', type=int, default=15000, metavar='')
     parser.add_argument('-sg', '--sigma', type=float, help='Standard deviation for the Gaussian smoothing filter, default=1', default=1, metavar='')
     parser.add_argument('-mr', '--minimumRadius', type=int, default=3, 
