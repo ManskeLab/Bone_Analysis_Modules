@@ -169,8 +169,8 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       return True
     return False
 
-  def setParameters(self, inputVolumeNode, outputVolumeNode, lower, upper, sigma,
-                    boneNum, dilateErodeRadius, separateMapNode):
+  def setParameters(self, inputVolumeNode, outputVolumeNode, sigma,
+                    boneNum, dilateErodeRadius, separateMapNode, method=None, lower=None, upper=None):
     """
     Set parameters to be used by the automatic contour algorithm.
 
@@ -191,9 +191,10 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       slicer.util.errorDisplay('Input volume is the same as output volume. Select a different output volume.')
       return False
     
-    if (lower > upper):
-      slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
-      return False
+    if method is None:
+      if (lower > upper):
+        slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
+        return False
 
     # images
     model_img = sitkUtils.PullVolumeFromSlicer(inputVolumeNode.GetName())
@@ -205,7 +206,10 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       self.contour.setRoughMask(sitk.Cast(separate_map, sitk.sitkUInt8))
 
     # numeric parameters
-    self.contour.setThreshold(lower, upper)
+    if method is not None:
+      self.contour.setThreshMethod(method)
+    else:
+      self.contour.setThreshold(lower, upper)
     self.contour.setSigma(sigma)
     self.contour.setBoneNum(boneNum)
     self.contour.setDilateErodeRadius(dilateErodeRadius)

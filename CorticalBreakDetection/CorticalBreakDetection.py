@@ -149,14 +149,20 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Output Volume: ", self.outputVolumeSelector)
 
+    # Automatic Threshold settings
     self.threshButton = qt.QCheckBox()
     self.threshButton.checked = True
     CorticalBreakDetectionLayout.addRow("Use Automatic Thresholding", self.threshButton)
 
     self.threshSelector = qt.QComboBox()
     self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
-    #self.threshSelector.setCurrentIndex(2)
     CorticalBreakDetectionLayout.addRow("Thresholding Method", self.threshSelector)
+
+    # Help button for thresholding methods
+    self.helpButton = qt.QPushButton("Help")
+    self.helpButton.toolTip = "Tips for selecting a thresholding method"
+    self.helpButton.setFixedSize(50, 20)
+    CorticalBreakDetectionLayout.addRow("", self.helpButton)
 
     # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
@@ -256,13 +262,28 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.outputCorticalBreaksSelector.addEnabled = True
     self.outputCorticalBreaksSelector.renameEnabled = True
     self.outputCorticalBreaksSelector.removeEnabled = True
-    self.outputCorticalBreaksSelector.noneEnabled = False
+    self.outputCorticalBreaksSelector.noneEnabled = True
     self.outputCorticalBreaksSelector.showHidden = False
     self.outputCorticalBreaksSelector.showChildNodeTypes = False
     self.outputCorticalBreaksSelector.setMRMLScene(slicer.mrmlScene)
-    self.outputCorticalBreaksSelector.setToolTip( "Select the node to store the Cortical Breaks in" )
+    self.outputCorticalBreaksSelector.setToolTip( "Select the node to store the cortical breaks in" )
     self.outputCorticalBreaksSelector.setCurrentNode(None)
     CorticalBreakDetectionLayout.addRow("Output Cortical Breaks: ", self.outputCorticalBreaksSelector)
+
+    # output Cortical Breaks selector
+    self.outputErosionsSelector = slicer.qMRMLNodeComboBox()
+    self.outputErosionsSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+    self.outputErosionsSelector.selectNodeUponCreation = True
+    self.outputErosionsSelector.addEnabled = True
+    self.outputErosionsSelector.renameEnabled = True
+    self.outputErosionsSelector.removeEnabled = True
+    self.outputErosionsSelector.noneEnabled = True
+    self.outputErosionsSelector.showHidden = False
+    self.outputErosionsSelector.showChildNodeTypes = False
+    self.outputErosionsSelector.setMRMLScene(slicer.mrmlScene)
+    self.outputErosionsSelector.setToolTip( "Select the node to store the underlying erosions in" )
+    self.outputErosionsSelector.setCurrentNode(None)
+    CorticalBreakDetectionLayout.addRow("Output Erosions: ", self.outputErosionsSelector)
 
     # output seed point selector
     self.outputFiducialSelector = slicer.qMRMLNodeComboBox()
@@ -295,7 +316,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.dilateErodeDistanceText.setMaximum(99)
     self.dilateErodeDistanceText.setSingleStep(1)
     self.dilateErodeDistanceText.setSuffix(' voxels')
-    self.dilateErodeDistanceText.value = 1
+    self.dilateErodeDistanceText.value = 2
     CorticalBreakDetectionLayout.addRow("Dilate/Erode Distance: ", self.dilateErodeDistanceText)
 
     # voxel size spin box
@@ -356,8 +377,9 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     self.inputBoneSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
     self.maskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
     self.maskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectMask)
-    self.outputCorticalBreaksSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
+    self.outputFiducialSelector.currentNodeChanged.connect(self.onSelect2)
     self.threshButton.clicked.connect(self.onAutoThresh)
+    self.helpButton.clicked.connect(self.onHelpButton)
     self.xtremeCTIButton.connect("toggled(bool)", self.onCTTypeChanged)
     self.xtremeCTIIButton.connect("toggled(bool)", self.onCTTypeChanged)
     self.cbCTButton.connect("toggled(bool)", self.onCTTypeChanged)
@@ -445,7 +467,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
     """Run this whenever the selectors in the Cortical Break Detection detection step changes state."""
     self.getCorticalBreaksButton.enabled = (self.masterVolumeSelector.currentNode() and
                                             self.inputBoneSelector.currentNode() and
-                                            self.outputCorticalBreaksSelector.currentNode())
+                                            self.outputFiducialSelector.currentNode())
 
   def onSelectSeed(self):
     """Run this whenever the seed point selected in the seed point step changes state."""
@@ -480,7 +502,7 @@ class CorticalBreakDetectionWidget(ScriptedLoadableModuleWidget):
         check = False
 
       #check intensity units and display warning if not in HU
-      if check:
+      if check and not self.threshButton.checked:
         if not self._logic.intensityCheck(inputVolumeNode):
           text = """The selected image likely does not use HU for intensity units. 
 Default thresholds are set in HU and will not generate an accurate result. 
@@ -509,6 +531,7 @@ Change the lower and upper thresholds before initializing."""
 
     if maskNode:
       self.outputCorticalBreaksSelector.baseName = (maskNode.GetName()+"_BREAKS")
+      self.outputErosionsSelector.baseName = (maskNode.GetName()+"_EROSIONS")
       self.outputFiducialSelector.baseName = (maskNode.GetName()+"_SEEDS")
   
   def onAutoThresh(self):
@@ -516,12 +539,22 @@ Change the lower and upper thresholds before initializing."""
     self.lowerThresholdText.setEnabled(not use_auto)
     self.upperThresholdText.setEnabled(not use_auto)
     self.threshSelector.setEnabled(use_auto)
+    if not use_auto:
+      self.onSelectInputVolume()
+  
+  def onHelpButton(self) -> None:
+    '''Help button is pressed'''
+    txt = """Thresholding Methods\n
+For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
+For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
+          """
+    slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
 
   def onCTTypeChanged(self):
     """Run this whenver the ct type buttons change state."""
     if self.xtremeCTIButton.checked:
       self.corticalThicknessText.value = 4
-      self.dilateErodeDistanceText.value = 1
+      self.dilateErodeDistanceText.value = 2
       self.voxelSizeText.value = 0.082
     elif self.xtremeCTIIButton.checked:
       self.corticalThicknessText.value = 5
@@ -582,6 +615,7 @@ Change the lower and upper thresholds before initializing."""
     masterVolumeNode = self.masterVolumeSelector.currentNode()
     inputBoneNode = self.inputBoneSelector.currentNode()
     outputCorticalBreaksNode = self.outputCorticalBreaksSelector.currentNode()
+    outputErosionsNode = self.outputErosionsSelector.currentNode()
     outputFiducialNode = self.outputFiducialSelector.currentNode()
     maskNode = self.maskSelector.currentNode()
     cbCT = self.cbCTButton.isChecked()
@@ -590,7 +624,10 @@ Change the lower and upper thresholds before initializing."""
     self.logger.info("Cortical Break Detection initialized with paramaters:")
     self.logger.info("Master Volume: " + masterVolumeNode.GetName())
     self.logger.info("Input Mask: " + maskNode.GetName())
-    self.logger.info("Output Mask: " + outputCorticalBreaksNode.GetName())
+    if outputCorticalBreaksNode:
+      self.logger.info("Output Cortical Breaks: " + outputCorticalBreaksNode.GetName())
+    if outputErosionsNode:
+      self.logger.info("Output Erosions Mask: " + outputErosionsNode.GetName())
     self.logger.info("Output Seeds: " + outputFiducialNode.GetName())
     self.logger.info("Cortical Thickness: " + str(self.corticalThicknessText.value))
     self.logger.info("Dilate/Erode Distance: " + str(self.dilateErodeDistanceText.value))
@@ -602,12 +639,13 @@ Change the lower and upper thresholds before initializing."""
                                                     inputBoneNode,
                                                     maskNode,
                                                     outputCorticalBreaksNode,
+                                                    outputErosionsNode,
                                                     self.corticalThicknessText.value,
                                                     self.dilateErodeDistanceText.value,
                                                     self.voxelSizeText.value,
                                                     cbCT)
     if ready:
-      success = self._logic.getCorticalBreaks(outputCorticalBreaksNode)
+      success = self._logic.getCorticalBreaks(outputCorticalBreaksNode, outputErosionsNode)
       if success:
         self._logic.getSeeds(inputBoneNode, outputFiducialNode)
         # update viewer windows
@@ -620,6 +658,8 @@ Change the lower and upper thresholds before initializing."""
                                     
     # update widgets
     self.outputCorticalBreaksSelector.setCurrentNodeID("") # reset the output volume selector
+    self.outputErosionsSelector.setCurrentNodeID("") 
+    self.outputFiducialSelector.setCurrentNodeID("")
     self.enableCorticalBreaksWidgets()
 
     self.logger.info("Finished\n")

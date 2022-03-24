@@ -50,7 +50,7 @@ class PetersCorticalBreakDetectionLogic:
         self.corticalThickness = corticaThickness       # thickness of cortical shell in voxels
         self.dilateErodeDistance = dilateErodeDistance  # morphological kernel radius in voxels
         self.seeds = []                       # seed point inside each cortical break, will modified
-        self.stepNum = 12
+        self.stepNum = 11
         self.auto_thresh = False
         self.method = 0
     
@@ -474,9 +474,6 @@ class PetersCorticalBreakDetectionLogic:
         elif step == 10:
             self.output_img = self.dilateVoidVolume(self.output_img, self.corticalThickness)
         elif step == 11:
-            self.output_img = self.combineVoidVolume(self.output_img, self.breaks_img)
-            # output_img contains cortical breaks and trabecular bone loss
-        elif step == 12:
             self.maskToSeeds(self.breaks_img)
             print(self.seeds)
         else:
@@ -628,7 +625,11 @@ class PetersCorticalBreakDetectionLogic:
         self.auto_thresh = True
         self.method = method
 
-    def getOutput(self):
+    def getOutputBreaks(self):
+        
+        return self.breaks_img
+    
+    def getOutputErosions(self):
         return self.output_img
 
     def getSeeds(self):

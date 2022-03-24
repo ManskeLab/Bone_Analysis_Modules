@@ -49,6 +49,8 @@ class VoidVolumeLogic:
             self.erosionIds = list(range(1, len(seeds)+1))
         self.stepNum = 8           # number of steps in the algorithm
         self._step = 0             # number of steps done
+        self.method = None
+        self.auto_thresh = False
     
     def denoise(self, img, sigma):
         """
@@ -71,23 +73,38 @@ class VoidVolumeLogic:
 
         return gaussian_img
 
-    def createROI(self, gaussian_img, lower, upper):
+    def createROI(self, gaussian_img):
         """
         Threshold. Label void volume in the bone and background as ROI.
 
         Args:
             gaussian_img (Image)
-            lower (int)
-            upper (int)
+            auto_thresh (bool)
 
         Returns:
             Image: All voids inside ROI are marked with the value 1, 
                    and all other regions are marked with 0.  
         """
         # binarize the bone
-        thresh_img = sitk.BinaryThreshold(gaussian_img, 
-                                          lowerThreshold=lower,
-                                          upperThreshold=upper,
+        if self.auto_thresh:
+            index = self.method
+            if index == 0:
+                thresh = sitk.OtsuThresholdImageFilter()
+            elif index == 1:
+                thresh = sitk.HuangThresholdImageFilter()
+            elif index == 2:
+                thresh = sitk.MaximumEntropyThresholdImageFilter()
+            elif index == 3:
+                thresh = sitk.MomentsThresholdImageFilter()
+            elif index == 4:
+                thresh = sitk.YenThresholdImageFilter()
+            thresh.SetOutsideValue(1)
+            thresh.SetInsideValue(0)
+            thresh_img = thresh.Execute(gaussian_img)
+        else:
+            thresh_img = sitk.BinaryThreshold(gaussian_img, 
+                                          lowerThreshold=self.lower_threshold,
+                                          upperThreshold=self.upper_threshold,
                                           insideValue=1)
 
         # invert to select background and voids in the bone
@@ -306,7 +323,7 @@ class VoidVolumeLogic:
             self._initializeParams()
             self.model_img = self.denoise(self.model_img, self.sigma)
         elif step == 2:
-            self.ero1_img = self.createROI(self.model_img, self.lower_threshold, self.upper_threshold)
+            self.ero1_img = self.createROI(self.model_img)
         elif step == 3:
             self.ero1_img = self.distanceVoidVolume(self.ero1_img, self.minimalRadius)
         elif step == 4:
@@ -406,6 +423,7 @@ class VoidVolumeLogic:
             lower_threshold (int)
             upper_threshold (int)
         """
+        self.auto_thresh = False
         self.lower_threshold = lower_threshold
         self.upper_threshold = upper_threshold
 
@@ -465,3 +483,8 @@ class VoidVolumeLogic:
 
     def getOutput(self):
         return self.output_img
+
+    def setThreshMethod(self, method):
+        '''Set automatic thresholding method'''
+        self.auto_thresh = True
+        self.method = method

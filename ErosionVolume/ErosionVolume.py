@@ -159,6 +159,22 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.setCurrentNode(None)
     erosionsLayout.addRow("Output Erosions: ", self.outputErosionSelector)
 
+    # auto-threshold options
+    self.threshButton = qt.QCheckBox()
+    self.threshButton.checked = True
+    erosionsLayout.addRow("Use Automatic Thresholding", self.threshButton)
+
+    self.threshSelector = qt.QComboBox()
+    self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
+    #self.threshSelector.setCurrentIndex(2)
+    erosionsLayout.addRow("Thresholding Method", self.threshSelector)
+
+    # Help button for thresholding methods
+    self.helpButton = qt.QPushButton("Help")
+    self.helpButton.toolTip = "Tips for selecting a thresholding method"
+    self.helpButton.setFixedSize(50, 20)
+    erosionsLayout.addRow("", self.helpButton)
+
     # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
@@ -289,9 +305,13 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.connect("nodeAddedByUser(vtkMRMLNode*)", lambda node: self.onAddOutputErosion(node))
     self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
     self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
+    self.threshButton.clicked.connect(self.onAutoThresh)
+    self.helpButton.clicked.connect(self.onHelpButton)
     self.erosionCheckBox.connect("clicked(bool)", self.onLargeErosionChecked)
     self.CBCTCheckBox.connect("clicked(bool)", self.onCBCTChecked)
     self.getErosionsButton.connect("clicked(bool)", self.onGetErosionsButton)
+
+    self.onAutoThresh()
   
   def setupManualCorrection(self):
     """Set up widgets in step 5 manual correction"""
@@ -574,7 +594,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
         check = False
 
       #check intensity units and display warning if not in HU
-      if check:
+      if check and not self.threshButton.checked:
         if not self._logic.intensityCheck(inputVolumeNode):
           text = """The selected image likely does not use HU for intensity units. 
 Default thresholds are set in HU and will not generate an accurate result. 
@@ -629,6 +649,22 @@ Change the lower and upper thresholds before initializing."""
   def onSelectSeed(self):
     """Run this whenever the seed point selector in step 4 changes"""
     self.markupsTableWidget.setCurrentNode(self.fiducialSelector.currentNode())
+  
+  def onAutoThresh(self):
+    use_auto = self.threshButton.checked
+    self.lowerThresholdText.setEnabled(not use_auto)
+    self.upperThresholdText.setEnabled(not use_auto)
+    self.threshSelector.setEnabled(use_auto)
+    if not use_auto:
+      self.onSelectInputVolume()
+
+  def onHelpButton(self) -> None:
+    '''Help button is pressed'''
+    txt = """Thresholding Methods\n
+For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
+For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
+          """
+    slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
 
   def onLargeErosionChecked(self):
     """Run this whenever the check box for large erosions in step 4 changes"""
@@ -681,14 +717,23 @@ Change the lower and upper thresholds before initializing."""
     self.logger.info("Minimum Erosion Radius: " + str(self.minimalRadiusText.value))
     self.logger.info("Dilate/Erode Distance: " + str(self.dilateErodeDistanceText.value))
 
-    ready = self._logic.setErosionParameters(inputVolumeNode, 
+    if self.threshButton.checked:
+      ready = self._logic.setErosionParameters(inputVolumeNode, 
                                             inputContourNode, 
-                                            self.lowerThresholdText.value,
-                                            self.upperThresholdText.value,
                                             self.sigmaText.value,
                                             fiducialNode,
                                             self.minimalRadiusText.value,
-                                            self.dilateErodeDistanceText.value)
+                                            self.dilateErodeDistanceText.value,
+                                            method=self.threshSelector.currentIndex)
+    else:
+      ready = self._logic.setErosionParameters(inputVolumeNode, 
+                                            inputContourNode, 
+                                            self.sigmaText.value,
+                                            fiducialNode,
+                                            self.minimalRadiusText.value,
+                                            self.dilateErodeDistanceText.value,
+                                            lower=self.lowerThresholdText.value,
+                                            upper=self.upperThresholdText.value)
     if ready:
       success = self._logic.getErosions(inputVolumeNode, inputContourNode, outputVolumeNode)
       if success:

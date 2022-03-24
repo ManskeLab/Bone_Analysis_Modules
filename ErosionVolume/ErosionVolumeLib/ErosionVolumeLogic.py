@@ -66,8 +66,8 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       dir = os.path.dirname(storageNode.GetFullNameFromFileName())
       slicer.mrmlScene.SetRootDirectory(dir)
 
-  def setErosionParameters(self, inputVolumeNode, inputContourNode,
-    lower:int, upper:int, sigma:float, fiducialNode, minimalRadius:int, dilateErodeDistance:int) -> bool:
+  def setErosionParameters(self, inputVolumeNode, inputContourNode, sigma:float, fiducialNode, minimalRadius:int, dilateErodeDistance:int,
+        method:int=None, lower:int=None, upper:int=None) -> bool:
     """
     Set parameters used by the Erosion Volume algorithm. 
 
@@ -85,9 +85,10 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       bool: True for success, False if inputs are not valid.
     """
     # check input validity
-    if (lower > upper):
-      slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
-      return False
+    if method is None:
+      if (lower > upper):
+        slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
+        return False
     
     fiducialNum = fiducialNode.GetNumberOfFiducials()
     if (fiducialNum == 0):
@@ -95,7 +96,10 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       return False
 
     # segmentation parameters
-    self.voidVolume.setThresholds(lower, upper)
+    if method is not None:
+      self.voidVolume.setThreshMethod(method)
+    else:
+      self.voidVolume.setThresholds(lower, upper)
     self.voidVolume.setSigma(sigma)
     self.voidVolume.setRadii(minimalRadius, dilateErodeDistance)
 

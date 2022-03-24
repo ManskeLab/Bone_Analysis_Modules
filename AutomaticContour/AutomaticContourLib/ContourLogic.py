@@ -46,6 +46,8 @@ class ContourLogic:
         self._margin = self.dilateErodeRadius + 2
         self._stats_filter = sitk.LabelStatisticsImageFilter()
         self._boundingbox = ()              # bounding box of extracted image, will be reused
+        self.thresh_method = None
+        self.auto_thresh = False
 
     def smoothen(self, img, sigma, lower, upper, foreground=1):
         """
@@ -76,6 +78,33 @@ class ContourLogic:
                                           insideValue=foreground)
 
         return thresh_img
+
+    def auto_smoothen(self, img:sitk.Image, sigma:float, method:int) -> sitk.Image:
+        '''Denoise and binarize with an automatic thresholding method'''
+        sigma_over_spacing = sigma * img.GetSpacing()[0]
+
+        # gaussian smoothing filter
+        print("Applying Gaussian filter")
+        gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
+        gaussian_filter.SetSigma(sigma_over_spacing)
+        gaussian_img = gaussian_filter.Execute(img)
+
+        #set thresholding method
+        if method == 0:
+            thresh = sitk.OtsuThresholdImageFilter()
+        elif method == 1:
+            thresh = sitk.HuangThresholdImageFilter()
+        elif method == 2:
+            thresh = sitk.MaximumEntropyThresholdImageFilter()
+        elif method == 3:
+            thresh = sitk.MomentsThresholdImageFilter()
+        elif method == 4:
+            thresh = sitk.YenThresholdImageFilter()
+
+        #get threshold
+        thresh.SetOutsideValue(1)
+        thresh.SetInsideValue(0)
+        return thresh.Execute(gaussian_img)
 
     def relabelWithMap(self, thresh_img, rough_mask):
         """
@@ -363,7 +392,10 @@ class ContourLogic:
         if step == 1: # step 1
             self._cleanup()
             if (self.roughMask is None):
-                self.img = self.smoothen(self.model_img, self.sigma, self.lower_threshold, self.upper_threshold)
+                if self.auto_thresh:
+                    self.img = self.auto_smoothen(self.model_img, self.sigma, self.thresh_method)
+                else:
+                    self.img = self.smoothen(self.model_img, self.sigma, self.lower_threshold, self.upper_threshold)
         elif step == 2: # step 2
             if (self.roughMask is None): # separate bones with connectivity filter
                 self.label_img = self.relabelWithConnect(self.img)
@@ -419,6 +451,7 @@ class ContourLogic:
             lower_threshold (int)
             upper_threshold (int)
         """
+        self.auto_thresh = False
         self.lower_threshold = lower_threshold
         self.upper_threshold = upper_threshold
     
@@ -464,3 +497,8 @@ class ContourLogic:
 
     def getOutput(self):
         return self.output_img
+
+    def setThreshMethod(self, method):
+        '''Change the thresholding method'''
+        self.auto_thresh = True
+        self.thresh_method = method

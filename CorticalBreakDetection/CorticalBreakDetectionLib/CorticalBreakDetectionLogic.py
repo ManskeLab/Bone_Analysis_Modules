@@ -114,7 +114,7 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
     return True
 
   def setCorticalBreaksParameters(self, lower, upper, inputVolumeNode, inputBoneNode, maskNode, 
-                                  outputCorticalBreakDetectionsNode, corticalThickness, dilateErodeDistance, 
+                                  outputCorticalBreaksNode, outputErosionsNode, corticalThickness, dilateErodeDistance, 
                                   voxelSize, cbCT):
     """
     Set parameters for automatic cortical break detection algorithm.
@@ -125,7 +125,8 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
       inputVolumeNode (vtkMRMLInputVolumeNode)
       inputBoneNode (vtkMRMLLabelMapVolumeNode)
       maskNode (vtkMRMLLabelMapVolumeNode)
-      outputCorticalBreakDetectionsNode (vtkMRMLLabelMapVolumeNode)
+      outputCorticalBreaksNode (vtkMRMLLabelMapVolumeNode)
+      outputErosionsNode (vtkMRMLLabelMapVolumeNode)
       corticalThickness (Int)
       dilateErodeDistance (Int)
       voxelSize (Float)
@@ -135,10 +136,16 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
     Returns:
       bool: True if success, False otherwise
     """
-    if (inputBoneNode.GetID() == outputCorticalBreakDetectionsNode.GetID() or
-        maskNode.GetID() == outputCorticalBreakDetectionsNode.GetID()):
-      slicer.util.errorDisplay('Input volume is the same as output volume. Select a different output volume.')
-      return False
+    if outputCorticalBreaksNode:
+      if (inputBoneNode.GetID() == outputCorticalBreaksNode.GetID() or
+          maskNode.GetID() == outputCorticalBreaksNode.GetID()):
+        slicer.util.errorDisplay('Input volume is the same as output volume. Select a different output volume.')
+        return False
+    if outputErosionsNode:
+      if (inputBoneNode.GetID() == outputErosionsNode.GetID() or
+          maskNode.GetID() == outputErosionsNode.GetID()):
+        slicer.util.errorDisplay('Input volume is the same as output volume. Select a different output volume.')
+        return False
 
     if (lower > upper):
       slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
@@ -167,7 +174,7 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def getCorticalBreaks(self, outputCorticalBreakDetectionsNode, noProgress=False):
+  def getCorticalBreaks(self, outputCorticalBreaksNode, outputErosionsNode, noProgress=False):
     """
     Run the automatic cortical break detection algorithm.
 
@@ -193,11 +200,15 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
       slicer.util.errorDisplay('Error')
       print(e)
       return False
-    cortical_breaks = self.CorticalBreakDetection.getOutput()
+    cortical_breaks = self.CorticalBreakDetection.getOutputBreaks()
+    erosions = self.CorticalBreakDetection.getOutputErosions()
 
     logging.info('Processing completed')
 
-    sitkUtils.PushVolumeToSlicer(cortical_breaks, outputCorticalBreakDetectionsNode)
+    if outputCorticalBreaksNode:
+      sitkUtils.PushVolumeToSlicer(cortical_breaks, outputCorticalBreaksNode)
+    if outputErosionsNode:
+      sitkUtils.PushVolumeToSlicer(erosions, outputErosionsNode)
 
     return True
 
@@ -211,6 +222,8 @@ class CorticalBreakDetectionLogic(ScriptedLoadableModuleLogic):
     """
     ijk2ras = vtk.vtkMatrix4x4()
     inputBoneNode.GetIJKToRASMatrix(ijk2ras)
+
+    fiducialNode.RemoveAllMarkups()
 
     for seed in self.CorticalBreakDetection.getSeeds():
       ras_coord = self.IJKToRASCoords(list(seed), ijk2ras)

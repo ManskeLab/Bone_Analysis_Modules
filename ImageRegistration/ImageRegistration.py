@@ -315,12 +315,19 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
     visualizeFormLayout.addRow("Thresholding Method", self.threshSelector)
 
+    # Help button for thresholding methods
+    self.helpButton2 = qt.QPushButton("Help")
+    self.helpButton2.toolTip = "Tips for selecting a thresholding method"
+    self.helpButton2.setFixedSize(50, 20)
+    visualizeFormLayout.addRow("", self.helpButton2)
+
+
     # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
-    self.lowerThresholdText.value = 686
+    self.lowerThresholdText.value = 500
     visualizeFormLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
@@ -358,6 +365,7 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.visualSelector1.currentNodeChanged.connect(self.onSelectVisual)
     self.visualSelector2.currentNodeChanged.connect(self.onSelectVisual)
     self.outputSelector2.currentNodeChanged.connect(self.onSelectVisual)
+    self.helpButton2.clicked.connect(self.onHelpButton2)
     self.threeDButton.clicked.connect(self.onSwitchMode)
     self.grayButton.clicked.connect(self.onSwitchMode)
     self.visualButton.clicked.connect(self.onVisualize)
@@ -576,6 +584,14 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
     self.upperThresholdText.setEnabled(not use_auto)
     self.threshSelector.setEnabled(use_auto)
 
+  def onHelpButton2(self) -> None:
+    '''Help button is pressed'''
+    txt = """Thresholding Methods\n
+For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
+For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
+          """
+    slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
+
   def onVisualize(self) -> None:
     '''Visualize button is pressed'''
 
@@ -598,6 +614,7 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
     #get output
     outnode = self.outputSelector2.currentNode()
 
+    #3D visualization
     if self.threeDButton.checked:
       self.logic.visualize(outnode)
 
@@ -605,6 +622,8 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
       volRenLogic = slicer.modules.volumerendering.logic()
       displayNode = volRenLogic.CreateDefaultVolumeRenderingNodes(outnode)
       displayNode.SetVisibility(True)
+
+    #grayscale visualization
     elif self.grayButton.checked:
       self.logic.subtractGray(outnode)
 
@@ -745,12 +764,12 @@ class ImageRegistrationTest(ScriptedLoadableModuleTest):
 
       # setup volumes
       outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index)
-      logic.setParamaters(baseVolume, followVolume, 0.001)
+      logic.setParamaters(baseVolume, followVolume, 0.005)
       logic.run(outputVolume)
       
       # check outputs against sample file
-      if not testLogic.verifyRegistration(outputVolume, i):
-        self.delayDisplay('Output segments are incorrect for test ' + index, msec = 300)
+      if not testLogic.verifyRegistration(baseVolume, outputVolume):
+        self.delayDisplay('Output registration is incorrect for test ' + index, msec = 300)
         passed = False
 
       self.delayDisplay('Test ' + index + ' complete')
@@ -770,15 +789,9 @@ class ImageRegistrationTestLogic:
     def __init__(self):
         pass
 
-    def getFilePath(self, filename):
+    def getFilePath(self, filename:str) -> str:
         '''
         Find the full filepath of a file in the samme folder
-
-        Args: 
-            filename (str): name of file (requires \'\\\\' before the name)
-
-        Returns:
-            str: full file path
         '''
         #REPLACE WHEN MOVED TO SUBCLASS
         #root = self.getParent(self.getParent(self.getParent(os.path.realpath(__file__))))
@@ -856,43 +869,37 @@ class ImageRegistrationTestLogic:
                 self.volumeFromFile(filename, volume, display)
         return volume
 
-    def padArray(self, arr1, arr2):
-        '''
-        Reformats two arrays to both be the same size
 
-        Args:
-            arr1 (NDarray): first array
-            arr2 (NDarray): second array
-
-        Returns:
-            (NDarray, NDarray): tuple of padded arrays 
-        '''
-        #find differences in array size
-        padDiff = np.subtract(np.shape(arr1), np.shape(arr2))
-        negDiff = np.negative(padDiff)
-
-        #remove negative values
-        padDiff = np.clip(padDiff, 0, None)
-        negDiff = np.clip(negDiff, 0, None)
-
-        #reshape for the pad function
-        pad1 = []
-        pad2 = []
-        for i in range(3):
-            pad1.append([negDiff[i], 0])
-            pad2.append([padDiff[i], 0])
-
-        #add padding based on array edge values
-        arr1 = np.pad(arr1, pad1, 'edge')
-        arr2 = np.pad(arr2, pad2, 'edge')
-        
-        return (arr1, arr2)
-
-    def verifyRegistration(self, erosionNode, testNum):
+    def verifyRegistration(self, baseNode, regNode):
         '''
         Check registered image against original
         '''
-        return True
+        #Pull images
+        base_img = sitkUtils.PullVolumeFromSlicer(baseNode)
+        reg_img = sitkUtils.PullVolumeFromSlicer(regNode)
+
+        #Threshold and convert to array
+        base_arr = sitk.GetArrayFromImage(self.threshold(base_img))
+        reg_arr = sitk.GetArrayFromImage(self.threshold(reg_img))
+
+        #Calculate ratios
+        subtraction = np.add(base_arr, np.multiply(reg_arr, 2))
+        base_only = np.nonzero((subtraction == 1))
+        reg_only = np.nonzero((subtraction == 2))
+
+        ratio1 = np.count_nonzero(base_only) / np.count_nonzero(subtraction) * 100
+        ratio2 = np.count_nonzero(reg_only) / np.count_nonzero(subtraction) * 100
+
+        print(str.format("{:.6f}% of voxels are in the baseline image only", ratio1))
+        print(str.format("{:.6f}% of voxels are in the registered image only", ratio2))
+
+        return ratio1 < 15 and ratio2 < 15
+
+
+    def threshold(self, img:sitk.Image) -> sitk.Image:
+        '''Apply binary threshold for test images'''
+        gauss = sitk.SmoothingRecursiveGaussian(img, 1)
+        return sitk.OtsuThreshold(gauss)
         
 
         

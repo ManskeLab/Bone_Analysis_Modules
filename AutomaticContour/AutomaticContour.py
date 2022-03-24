@@ -218,6 +218,22 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.outputVolumeSelector.setCurrentNode(None)
     automaticContourLayout.addRow("Output Contour: ", self.outputVolumeSelector)
 
+    #auto threshold dropdown and button
+    self.threshButton = qt.QCheckBox()
+    self.threshButton.checked = True
+    automaticContourLayout.addRow("Use Automatic Thresholding", self.threshButton)
+
+    self.threshSelector = qt.QComboBox()
+    self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
+    #self.threshSelector.setCurrentIndex(2)
+    automaticContourLayout.addRow("Thresholding Method", self.threshSelector)
+
+    # Help button for thresholding methods
+    self.helpButton = qt.QPushButton("Help")
+    self.helpButton.toolTip = "Tips for selecting a thresholding method"
+    self.helpButton.setFixedSize(50, 20)
+    automaticContourLayout.addRow("", self.helpButton)
+
     # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
@@ -299,6 +315,10 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.getContourButton.connect('clicked(bool)', self.onGetContour)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
     self.outputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect2)
+    self.threshButton.clicked.connect(self.onAutoThresh)
+    self.helpButton.clicked.connect(self.onHelpButton)
+
+    self.onAutoThresh()
 
   def setupManualCorrection(self):
     """Set up widgets in step 3 manual correction"""
@@ -486,7 +506,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
         check = False
 
       #check intensity units and display warning if not in HU
-      if check:
+      if check and not self.threshButton.checked:
         if not self._logic.intensityCheck(inputVolumeNode):
           text = """The selected image likely does not use HU for intensity units. 
 Default thresholds are set in HU and will not generate an accurate result. 
@@ -512,6 +532,23 @@ Change the lower and upper thresholds before initializing."""
     else:
       self.outputVolumeSelector.baseName = "MASK"
 
+  def onAutoThresh(self):
+    '''Auto-threshold checkbox is cliked'''
+    use_auto = self.threshButton.checked
+    self.lowerThresholdText.setEnabled(not use_auto)
+    self.upperThresholdText.setEnabled(not use_auto)
+    self.threshSelector.setEnabled(use_auto)
+    if not use_auto:
+      self.onSelectInputVolume()
+  
+  def onHelpButton(self) -> None:
+    '''Help button is pressed'''
+    txt = """Thresholding Methods\n
+For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
+For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
+          """
+    slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
+
   def onGetContour(self):
     """Run this whenever the get contour button in step 2 is clicked"""
     # update widgets
@@ -533,14 +570,23 @@ Change the lower and upper thresholds before initializing."""
     self.logger.info("Number of Bones: " + str(self.boneNumSpinBox.value))
     self.logger.info("Dilate/Erode Radius: " + str(self.dilateErodeRadiusText.value))
 
-    ready = self._logic.setParameters(inputVolumeNode, 
+    if self.threshButton.checked:
+      ready = self._logic.setParameters(inputVolumeNode, 
                                      outputVolumeNode,
-                                     self.lowerThresholdText.value,
-                                     self.upperThresholdText.value,
                                      self.sigmaText.value,
                                      self.boneNumSpinBox.value,
                                      self.dilateErodeRadiusText.value,
-                                     separateMapNode)
+                                     separateMapNode,
+                                     method=self.threshSelector.currentIndex,)
+    else:
+      ready = self._logic.setParameters(inputVolumeNode, 
+                                     outputVolumeNode,
+                                     self.sigmaText.value,
+                                     self.boneNumSpinBox.value,
+                                     self.dilateErodeRadiusText.value,
+                                     separateMapNode,
+                                     lower=self.lowerThresholdText.value,
+                                     upper=self.upperThresholdText.value)
     if ready:
       # run the algorithm
       success = self._logic.getContour(inputVolumeNode, outputVolumeNode)
