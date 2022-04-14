@@ -839,7 +839,7 @@ class JointSpaceMask:
         '''
         return self.working_img
 
-class JointSpaceAnalysis():
+class JointSpaceAnalysis():    
     def __init__(self) -> None:
         self.img = None
         self.stats = None
@@ -858,22 +858,25 @@ class JointSpaceAnalysis():
         dist_map = sitk.SignedMaurerDistanceMapImageFilter()
         dist_map.SetInsideIsPositive(True)
 
-        #dilate to expand edge
-        distance_map = sitk.SignedMaurerDistanceMap(self.img)
-        dilated_img = (distance_map <= 6)
-
         #use distance map to find radius of spheres for fit
-        out_img = (dist_map.Execute(dilated_img) - 6)
-        out_img = sitk.Threshold(out_img, lower=0, upper=1000)
-
-        #get eroded image
-        distance_map = sitk.SignedMaurerDistanceMap(self.img)
-        eroded_img = (distance_map <= -6)
+        dist_img = dist_map.Execute(sitk.BinaryDilate(self.img, [10, 10, 10]))
+        dist_img = sitk.Threshold(dist_img, lower=0, upper=1000)
 
         #get gradient of distance map, use to find median of joint
-        grad_img = (sitk.GradientMagnitude(out_img))
+        grad_img = (sitk.GradientMagnitudeRecursiveGaussian(dist_img, sigma=self.img.GetSpacing()[0]))
+
+        #find maximum point in image
+        arr = sitk.GetArrayFromImage(dist_img)
+        seed = np.argmax(arr)
+        seed = np.unravel_index(seed, arr.shape)
+        seed = (68, 146, 173)
+        seed = [int(seed[2 - x]) for x in range(3)]
+        print(seed)
+        print(grad_img.GetPixel(seed[0], seed[1], seed[2]))
+
         # TODO: figure out a way to get median line/curve
-        median = sitk.And(grad_img < 100, eroded_img)
+        median = sitk.ConfidenceConnected(grad_img, [seed], numberOfIterations=0, multiplier=0.2)
+        return median
 
         
         #get statistics with numpy

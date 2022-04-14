@@ -8,11 +8,11 @@
 #
 #-----------------------------------------------------
 # Usage:       This module is designed to be run on command line or terminal
-#              python ContourLogic.py inputImage [--outputImage] [--lowerThreshold] [--upperThreshold]
+#              python ContourLogic.py inputImages outputFolder [--lowerThreshold] [--upperThreshold]
 #                                     [--boneNum] [--dilateErodeRadius] [--roughMask]
 #
-# Param:       inputImage: The input greyscale image to be contoured
-#              outputImage: The output image to store the contour, default=[filename]_MASK
+# Param:       inputImages: The file path for the directory containing grayscale scans
+#              outputFolder: The output folder path
 #              sigma, default=2
 #              lowerThreshold, default=900
 #              upperThreshold, default=4000
@@ -21,7 +21,7 @@
 #              roughMask: The file path of optional rough mask that helps separate bones
 #
 #-----------------------------------------------------
-import SimpleITK as sitk
+import SimpleITK as sitk, os
 import ContourLogic
 
 class ContourLogicCmd:
@@ -35,8 +35,8 @@ if __name__ == "__main__":
 
     # Read the input arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('inputImage', help='The input image file path')
-    parser.add_argument('-oi', '--outputImage', help='The output image file path, default=[inputImage]_MASK', default=None, metavar='')
+    parser.add_argument('inputImages', help='The file path for the directory containing grayscale scans')
+    parser.add_argument('outputFolder', help='The output folder path')
     parser.add_argument('-lt', '--lowerThreshold', help='default=900', type=int, default=900, metavar='')
     parser.add_argument('-ut', '--upperThreshold', help='default=4000', type=int, default=4000, metavar='')
     parser.add_argument('-sg', '--sigma', type=float, help='Standard deviation for the Gaussian smoothing filter, default=2', default=2, metavar='')
@@ -47,8 +47,8 @@ if __name__ == "__main__":
                          help='The file path of optional rough mask that helps separate bones', metavar='')
     args = parser.parse_args()
 
-    input_dir = args.inputImage
-    output_dir = args.outputImage
+    input_dir = args.inputImages
+    output_dir = args.outputFolder
     lower = args.lowerThreshold
     upper = args.upperThreshold
     sigma = args.sigma
@@ -56,30 +56,29 @@ if __name__ == "__main__":
     dilateErodeRadius = args.dilateErodeRadius
     roughMask_dir = args.roughMask
 
-    #correct output file (default and invalid file extension)
-    if not output_dir:
-        output_dir = input_dir[:input_dir.index('.')] + '_MASK.mha'
-    elif output_dir.find('.') == -1:
-        output_dir += ".mha"
+    for file in os.listdir(input_dir):
 
-    # read images
-    print("Reading image in {}".format(input_dir))
-    model_img = sitk.ReadImage(input_dir)
-    roughMask = None
-    if (roughMask_dir != ""):
-        print("Reading rough mask in {}".format(roughMask_dir))
-        roughMask = sitk.ReadImage(roughMask_dir)
+        # read images
+        print("Reading image in {}".format(input_dir + '/' + file))
+        model_img = sitk.ReadImage(input_dir + '/' + file)
+        roughMask = None
+        if (roughMask_dir != ""):
+            print("Reading in rough mask")
+            for rough_name in os.listdir(roughMask_dir):
+                if file in rough_name:
+                    roughMask = sitk.ReadImage(roughMask_dir + '/' + rough_name)
 
-    # create contour object
-    contour = ContourLogic.ContourLogic(model_img, lower, upper, sigma, boneNum, dilateErodeRadius, roughMask)
+        # create contour object
+        contour = ContourLogic.ContourLogic(model_img, lower, upper, sigma, boneNum, dilateErodeRadius, roughMask)
 
-    # run contour algorithm
-    print("Running contour script")
-    step = 1
-    while (contour.execute(step)):
-        step += 1
-    contour_img = contour.getOutput()
+        # run contour algorithm
+        print("Running contour script")
+        step = 1
+        while (contour.execute(step)):
+            step += 1
+        contour_img = contour.getOutput()
 
-    # store contour
-    print("Storing image in {}".format(output_dir))
-    sitk.WriteImage(contour_img, output_dir)
+        # store contour
+        print("Storing image in {}".format(output_dir))
+        filename = os.path.splitext(file)[0]
+        sitk.WriteImage(contour_img, output_dir + '/' + file + '_MASK.mha')

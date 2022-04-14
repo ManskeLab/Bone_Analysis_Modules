@@ -513,14 +513,16 @@ Change the lower and upper thresholds before initializing."""
       if self.logger.hasHandlers():
         for handler in self.logger.handlers:
           self.logger.removeHandler(handler)
+      
       #initialize logger with filename
       try:
         filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
+        filename = os.path.split(filename)[0] + '/LOG_' + os.path.split(filename)[1]
+        filename = os.path.splitext(filename)[0] + '.log'
+        print(filename)
       except:
-        filename = 'share\\' + inputVolumeNode.GetName() + '.'
-      finally:
         filename = 'share/' + inputVolumeNode.GetName() + '.'
-      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
+      logHandler = logging.FileHandler(filename)
       
       self.logger.addHandler(logHandler)
       self.logger.info("Using Cortical Break Detection Module with " + inputVolumeNode.GetName() + "\n")
@@ -588,14 +590,17 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.logger.info("Segmentation initialized with paramaters:")
     self.logger.info("Input Volume: " + inputVolumeNode.GetName())
     self.logger.info("Output Volume: " + outputVolumeNode.GetName())
-    self.logger.info("Lower Theshold: " + str(self.lowerThresholdText.value))
-    self.logger.info("Upper Theshold: " + str(self.upperThresholdText.value))
+    if self.threshButton.checked:
+      self.logger.info("Automatic Threshold Method: " + self.threshSelector.currentText)
+    else:
+      self.logger.info("Lower Theshold: " + str(self.lowerThresholdText.value))
+      self.logger.info("Upper Theshold: " + str(self.upperThresholdText.value))
     self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
 
     if ready:
       success = self._logic.segment(outputVolumeNode)
       if success:
-        self.inputBoneSelector.setCurrentNode(self.outputVolumeSelector.currentNode())
+        self.inputBoneSelector.setCurrentNode(self.outputVolumeSelector.currentText())
         # update viewer windows
         slicer.util.setSliceViewerLayers(background=inputVolumeNode, 
                                          label=outputVolumeNode, 
@@ -767,7 +772,7 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
 
       # check segmenting
       processVolume = testLogic.newNode(scene, name='testProcessVolume' + index, type='labelmap')
-      logic.setSegmentParameters(inputVolume, 686, 4000, 0.8)
+      logic.setSegmentParameters(inputVolume, 0.8, lower=686, upper=4000)
       self.assertTrue(logic.segment(processVolume), 'segmenting Failed')
       
       # check cortical break detection
@@ -776,8 +781,8 @@ class CorticalBreakDetectionTest(ScriptedLoadableModuleTest):
       seedsList = testLogic.newNode(scene, name='testSeedsList' + index, type='fiducial')
 
       #get output
-      logic.setCorticalBreaksParameters(686, 4000, inputVolume, processVolume, maskVolume, outputVolume, 7, 3, 0.0607, False)
-      self.assertTrue(logic.getCorticalBreaks(outputVolume, noProgress=True), 'Cortical break detection operation failed')
+      logic.setCorticalBreaksParameters(686, 4000, inputVolume, processVolume, maskVolume, outputVolume, None, 7, 3, 0.0607, False)
+      self.assertTrue(logic.getCorticalBreaks(outputVolume, None, noProgress=True), 'Cortical break detection operation failed')
       logic.getSeeds(inputVolume, seedsList)
 
       # verify results

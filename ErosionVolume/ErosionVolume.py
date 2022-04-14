@@ -606,14 +606,16 @@ Change the lower and upper thresholds before initializing."""
         for handler in self.logger.handlers:
           self.logger.removeHandler(handler)
           
-      #initialize logger with filename
+       #initialize logger with filename
       try:
         filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
+        filename = os.path.split(filename)[0] + '/LOG_' + os.path.split(filename)[1]
+        filename = os.path.splitext(filename)[0] + '.log'
+        print(filename)
       except:
-        filename = 'share\\' + inputVolumeNode.GetName() + '.'
-      finally:
         filename = 'share/' + inputVolumeNode.GetName() + '.'
-      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
+      logHandler = logging.FileHandler(filename)
+      
       self.logger.addHandler(logHandler)
       self.logger.info("Using Erosion Volume Module with " + inputVolumeNode.GetName() + "\n")
 
@@ -711,8 +713,11 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.logger.info("Input Contour: " + inputContourNode.GetName())
     self.logger.info("Output Volume: " + outputVolumeNode.GetName())
     self.logger.info("Input Seeds: " + fiducialNode.GetName())
-    self.logger.info("Lower Threshold: " + str(self.lowerThresholdText.value))
-    self.logger.info("Upper Threshold: " + str(self.upperThresholdText.value))
+    if self.threshButton.checked:
+      self.logger.info("Automatic Threshold Method: " + self.threshSelector.currentText)
+    else:
+      self.logger.info("Lower Theshold: " + str(self.lowerThresholdText.value))
+      self.logger.info("Upper Theshold: " + str(self.upperThresholdText.value))
     self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
     self.logger.info("Minimum Erosion Radius: " + str(self.minimalRadiusText.value))
     self.logger.info("Dilate/Erode Distance: " + str(self.dilateErodeDistanceText.value))
@@ -853,9 +858,9 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
       # setup volumes
       outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index, type='segmentation')
       if i == 3:
-        logic.setErosionParameters(masterVolume, maskVolume, 530, 4000, 1, seedsList, 6, 6)
+        logic.setErosionParameters(masterVolume, maskVolume, 1, seedsList, 6, 6, lower=530, upper=4000)
       else:
-        logic.setErosionParameters(masterVolume, maskVolume, 530, 4000, 1, seedsList, 3, 4)
+        logic.setErosionParameters(masterVolume, maskVolume, 1, seedsList, 3, 4, lower=530, upper=4000)
       self.assertTrue(logic.getErosions(masterVolume, maskVolume, outputVolume, noProgress=True), 'Erosion volume operation failed')
       table = testLogic.newNode(scene, name='testTable' + index, type='table')
       logic.getStatistics(outputVolume, masterVolume, 0.0607, table)

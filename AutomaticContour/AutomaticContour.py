@@ -521,11 +521,13 @@ Change the lower and upper thresholds before initializing."""
       #initialize logger with filename
       try:
         filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
+        filename = os.path.split(filename)[0] + '/LOG_' + os.path.split(filename)[1]
+        filename = os.path.splitext(filename)[0] + '.log'
+        print(filename)
       except:
-        filename = 'share\\' + inputVolumeNode.GetName() + '.'
-      finally:
         filename = 'share/' + inputVolumeNode.GetName() + '.'
-      logHandler = logging.FileHandler(filename[:filename.rfind('.')] + '_LOG.log')
+      logHandler = logging.FileHandler(filename)
+
       self.logger.addHandler(logHandler)
       self.logger.info("Using Automatic Contour Module with " + inputVolumeNode.GetName() + "\n")
 
@@ -564,8 +566,11 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.logger.info("Output Volume: " + outputVolumeNode.GetName())
     if separateMapNode:
       self.logger.info("Rough Mask: " + separateMapNode.GetName())
-    self.logger.info("Lower Threshold: " + str(self.lowerThresholdText.value))
-    self.logger.info("Upper Threshold: " + str(self.upperThresholdText.value))
+    if self.threshButton.checked:
+      self.logger.info("Automatic Threshold Method: " + self.threshSelector.currentText)
+    else:
+      self.logger.info("Lower Theshold: " + str(self.lowerThresholdText.value))
+      self.logger.info("Upper Theshold: " + str(self.upperThresholdText.value))
     self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
     self.logger.info("Number of Bones: " + str(self.boneNumSpinBox.value))
     self.logger.info("Dilate/Erode Radius: " + str(self.dilateErodeRadiusText.value))
@@ -707,8 +712,8 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    #self.test_AutoContour()
-    self.test_AutoContourFailure()
+    self.test_AutoContour()
+    #self.test_AutoContourFailure()
 
   def test_AutoContour(self):
     '''
@@ -750,7 +755,7 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
 
       # generate mask with default settings
       outputVolume = testLogic.newNode(scene, name='testOutputVolume' + index, type='labelmap')
-      logic.setParameters(inputVolume, outputVolume, 686, 4000, 2, 1, 38, None)
+      logic.setParameters(inputVolume, outputVolume, 2, 1, 38, None, lower=686, upper=4000)
       self.assertTrue(logic.getContour(inputVolume, outputVolume, noProgress=True), "Contour operation failed")
 
       # verify mask with comparison

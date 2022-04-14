@@ -7,8 +7,7 @@
 # Description: This module sets up the interface for the Image Registration 3D Slicer extension.
 #
 #-----------------------------------------------------
-import os
-import unittest
+import os, unittest, logging
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from ImageRegistrationLib.ImageRegistrationLogic import ImageRegistrationLogic
@@ -230,7 +229,9 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
 
     self.registerCollapsibleButton.contentsCollapsed.connect(self.onCollapse1)
 
-  
+    # logger
+    self.logger = logging.getLogger("image_registration")
+
   # Visualize Registration -----------------------------------------------------------*
   
   def setupVisualization(self) -> None:
@@ -522,6 +523,26 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     if output:
       self.visualSelector2.setCurrentNode(output)
       self.checkerSelector2.setCurrentNode(output)
+    
+    if input1 and input2 and not output:
+      print("owo")
+      #remove existing loggers
+      if self.logger.hasHandlers():
+        for handler in self.logger.handlers:
+          self.logger.removeHandler(handler)
+          
+       #initialize logger with filename
+      try:
+        filename = input1.GetStorageNode().GetFullNameFromFileName()
+        filename = os.path.split(filename)[0] + '/LOG_' + os.path.split(filename)[1]
+        filename = os.path.splitext(filename)[0] + '.log'
+        print(filename)
+      except:
+        filename = 'share/' + input1.GetName() + '.'
+      logHandler = logging.FileHandler(filename)
+      
+      self.logger.addHandler(logHandler)
+      self.logger.info("Using Erosion Volume Module with " + input1.GetName() + " and " + input2.GetName() + "\n")
 
   def onHelpButton(self) -> None:
     '''Help button is pressed'''
@@ -538,6 +559,18 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
     print("\nRunning Registration Algorithm")
     self.progressBar.show()
 
+    #log parameters
+    self.logger.info("Image registration initialized with parameters:")
+    self.logger.info("Input Fixed Volume: " + self.inputSelector1.currentNode().GetName())
+    self.logger.info("Input Moving Volume: " + self.inputSelector2.currentNode().GetName())
+    self.logger.info("Output Volume: " + self.outputSelector.currentNode().GetName())
+    self.logger.info("Similarity Metric: " + self.metricSelector.currentText)
+    self.logger.info("Metric Sampling Percentage: " + str(self.samplingText.value))
+    self.logger.info("Optimizer: " + self.optimizerSelector.currentText)
+    if self.transformSelector.currentNode():
+      self.logger.info("Output Transform: " + self.transformSelector.currentNode().GetName())
+
+    #set parameters and run registration
     self.logic.setParamaters(self.inputSelector1.currentNode(), 
                         self.inputSelector2.currentNode(),
                         self.samplingText.value)
@@ -545,6 +578,7 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
     self.logic.setOptimizer(self.optimizerSelector.currentIndex)
     self.logic.run(self.outputSelector.currentNode(), self.transformSelector.currentNode())
 
+    self.logger.info("Finished\n")
     self.progressBar.hide()
   
   def onSelectVisual(self) -> None:
