@@ -1,8 +1,10 @@
-# 3DSlicer_Erosion_Analysis
+# Bone Analysis Modules (BAM)
 
-This 3D Slicer extension allows for measurement of the volume, surface area, and shape of bone erosions using HR-pQCT. Erosions are identified by placing seed points in each of them.
+This 3D Slicer extension implements algorithms for semi-automated detection of cortical breaks and bone erosions in HR-pQCT images. Additional image analysis tools, such as automatic contouring and image registration are included as well.
 
 ## Installation
+
+Install this Extension in 3D Slicer, or follow these steps to manually install:
 1. Get the latest version of the code. 
 
 cd to the directory where you want to download the code:
