@@ -1,15 +1,15 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(ErosionAnalysis)
+project(Bone Analysis Modules (BAM))
 
 #-----------------------------------------------------------------------------
 # Extension meta-information
-set(EXTENSION_HOMEPAGE "http://slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/ErosionAnalysis")
-set(EXTENSION_CATEGORY "Radiology")
-set(EXTENSION_CONTRIBUTORS "Mingjie Zhao (McCaig Institute)")
-set(EXTENSION_DESCRIPTION "The extension is developed to detect and analyze cortical interruptions and erosions. ")
-set(EXTENSION_ICONURL "http://www.example.com/Slicer/Extensions/ErosionAnalysis.png")
-set(EXTENSION_SCREENSHOTURLS "http://www.example.com/Slicer/Extensions/ErosionAnalysis/Screenshots/1.png")
+set(EXTENSION_HOMEPAGE "https://github.com/ManskeLab/Bone_Analysis_Modules/wiki")
+set(EXTENSION_CATEGORY "Bone Analysis Modules (BAM)")
+set(EXTENSION_CONTRIBUTORS "Mingjie Zhao (McCaig Institute, University of Calgary), Ryan Yan (McCaig Institute, University of Calgary)")
+set(EXTENSION_DESCRIPTION "This extensions provides algorithms for semi-automated detection of cortical breaks and bone erosions in HR-pQCT images. Also, it includes supporting image analysis tools such as automatic contouring and image registration.")
+set(EXTENSION_ICONURL "https://raw.githubusercontent.com/ManskeLab/Bone_Analysis_Modules/main/Logos/BAM_Logo.png")
+set(EXTENSION_SCREENSHOTURLS "https://raw.githubusercontent.com/ManskeLab/Bone_Analysis_Modules/main/Screenshot.png")
 set(EXTENSION_DEPENDS "NA") # Specified as a space separated string, a list or 'NA' if any
 
 #-----------------------------------------------------------------------------
@@ -19,11 +19,12 @@ include(${Slicer_USE_FILE})
 
 #-----------------------------------------------------------------------------
 # Extension modules
-add_subdirectory(LineIntensityProfile)
 add_subdirectory(AutomaticContour)
-add_subdirectory(ErosionDetection)
-
-add_subdirectory(CorticalBreak)
+add_subdirectory(ErosionVolume)
+add_subdirectory(CorticalBreakDetection)
+add_subdirectory(FileConverter)
+add_subdirectory(ImageRegistration)
+add_subdirectory(ErosionComparison)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------

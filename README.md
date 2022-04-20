@@ -2,6 +2,8 @@
 
 This 3D Slicer extension implements algorithms for semi-automated detection of cortical breaks and bone erosions in HR-pQCT images. Additional image analysis tools, such as automatic contouring and image registration are included as well.
 
+![](Screenshot.png)
+
 ## Installation
 
 Install this Extension in 3D Slicer, or follow these steps to manually install:
