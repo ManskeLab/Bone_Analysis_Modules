@@ -41,7 +41,9 @@ class CheckerboardLogic:
     '''Create a binary grid for reference'''
     #create black image and white image
     black = sitk.Image(self.base.GetSize(), 0)
+    black.CopyInformation(self.base)
     white = (black + 1)
+    white.CopyInformation(self.base)
 
     #apply checkerboard filter
     checker = sitk.CheckerBoardImageFilter()
