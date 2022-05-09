@@ -1,0 +1,5 @@
+# gitignore for python
+
+*.pyc
+__pycache__
+DS_Store
