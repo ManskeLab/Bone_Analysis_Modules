@@ -492,6 +492,12 @@ class CBCTCorticalBreakDetectionLogic:
     def getOutput(self):
         return self.output_img
 
+    def getOutputErosions(self):
+        return self.output_img
+    def getOutputBreaks(self):
+        
+        return self.breaks_img
+    
     def getSeeds(self):
         return self.seeds
 

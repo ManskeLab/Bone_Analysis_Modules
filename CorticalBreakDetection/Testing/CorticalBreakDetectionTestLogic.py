@@ -150,10 +150,15 @@ class CorticalBreakDetectionTestLogic:
         #calculate difference in arrays
         diff = np.subtract(breaksArr, compareArr)
 
+        if testNum == 3:
+            tolerance = 1.5
+        else:
+            tolerance = 0.5
+
         #find total percentage difference
         ratio = np.count_nonzero(diff) / diff.size * 100
         print('The difference between the test and comparison image is ' + str.format('{:.6f}', ratio) + '%')
-        if ratio > 0.5:
+        if ratio > tolerance:
             print("Test Failed: Difference is too large")
             return False
         else:

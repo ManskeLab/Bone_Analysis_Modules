@@ -600,7 +600,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     if ready:
       success = self._logic.segment(outputVolumeNode)
       if success:
-        self.inputBoneSelector.setCurrentNode(self.outputVolumeSelector.currentText())
+        self.inputBoneSelector.setCurrentNode(outputVolumeNode)
         # update viewer windows
         slicer.util.setSliceViewerLayers(background=inputVolumeNode, 
                                          label=outputVolumeNode, 
