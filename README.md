@@ -2,6 +2,8 @@
 
 This 3D Slicer extension implements algorithms for semi-automated detection of cortical breaks and bone erosions in HR-pQCT images. Additional image analysis tools, such as automatic contouring and image registration are included as well.
 
+These are the modules published in Bone: Zhao M, Tse JJ, Kuczynski MT, Brunet SC, Yan R, Engelke K, Peters M, van den Bergh J, van Rietbergen B, Stok KS, Barnabe C, Pauchard Y, Manske SL. Open-source image analysis tool for the identification and quantification of cortical interruptions and bone erosions in high-resolution peripheral quantitative computed tomography images of patients with rheumatoid arthritis. In Press. [doi.org/10.1016/j.bone.2022.116571](https://doi.org/10.1016/j.bone.2022.116571). While these modules may be updated over time, the original published version is available on [Zenodo](https://zenodo.org/record/6841889).
+
 ![](Screenshot.png)
 
 ## Installation
