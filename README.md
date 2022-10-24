@@ -29,4 +29,4 @@ git pull
 7. After restarting Slicer, the toolkits should be listed in the “Bone” category under the "Modules:" list. An alternative way to access the toolkits is to click the magnifying glass beside the “Modules:” list and search for “Automatic Contour” or “Erosion Volume”. 
 
 ## Usage
-Refer to [wiki](https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/The-Erosion-Analysis-User-Manual).
+Refer to [wiki](https://github.com/ManskeLab/Bone_Analysis_Modules/wiki).
