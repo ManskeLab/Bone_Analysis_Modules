@@ -160,7 +160,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       self.segmentationNodeToLabelmap(segmentNode, separateOutputNode, separateInputNode)
       
       # remove the current segmentation node in the toolkit
-      slicer.mrmlScene.RemoveNode(segmentNode)
+#       slicer.mrmlScene.RemoveNode(segmentNode)
       # update viewer windows and widgets
       slicer.util.setSliceViewerLayers(background=separateInputNode,
                                        label=separateOutputNode, 
