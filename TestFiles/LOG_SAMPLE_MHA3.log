@@ -1,0 +1,128 @@
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Output Volume: SAMPLE_MHA3_separated
+Rough Mask: SAMPLE_MHA3_separated
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Output Volume: SAMPLE_MHA3_separated
+Rough Mask: SAMPLE_MHA3_separated
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Output Volume: SAMPLE_MHA3_MASK
+Rough Mask: SAMPLE_MHA3_separated
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Output Volume: SAMPLE_MHA3_MASK
+Rough Mask: SAMPLE_MHA3_separated
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Output Volume: SAMPLE_MHA3_MASK
+Rough Mask: SAMPLE_MHA3_separated
+Lower Theshold: 900
+Upper Theshold: 4000
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Output Volume: SAMPLE_MHA3_MASK
+Rough Mask: SAMPLE_MHA3_separated
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Output Volume: SAMPLE_MHA3_MASK
+Rough Mask: SAMPLE_MHA3_separated
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Output Volume: SAMPLE_MHA3_MASK
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+

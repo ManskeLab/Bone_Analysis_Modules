@@ -5,7 +5,7 @@
 # Created on:  04-11-2020
 #
 # Description: This program simplifies the 3D Slicer built-in segmention editor
-#              to contain only the paint, draw and erase effects. 
+#              to contain only the paint, draw and erase effects.
 #              It then adds the sementation editor to a given qt layout.
 #
 #-----------------------------------------------------
@@ -36,8 +36,8 @@ class SegmentEditor:
     import qSlicerSegmentationsModuleWidgetsPythonQt
     self.editor = qSlicerSegmentationsModuleWidgetsPythonQt.qMRMLSegmentEditorWidget()
     self.editor.setMaximumNumberOfUndoStates(10)
-    self.editor.setEffectNameOrder(('Paint', 'Draw', 'Erase', 'Threshold', 
-                                    'Grow from seeds', 'Fill between slices'))
+    self.editor.setEffectNameOrder(('Paint', 'Draw', 'Erase', 'Threshold',
+                                    'Grow from seeds', 'Fill between slices','Scissors'))
     self.editor.unorderedEffectsVisible = False
     self.editor.switchToSegmentationsButtonVisible = False
     self.editor.segmentationNodeSelectorVisible = False
