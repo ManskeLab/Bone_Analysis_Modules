@@ -162,42 +162,38 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       # remove the current segmentation node in the toolkit
       # slicer.mrmlScene.RemoveNode(segmentNode)
       # update viewer windows and widgets
-      slicer.util.setSliceViewerLayers(background=separateInputNode,
-                                       label=separateOutputNode,
-                                       labelOpacity=0.5)
+      # slicer.util.setSliceViewerLayers(background=separateInputNode,
+      #                                  label=separateOutputNode,
+      #                                  labelOpacity=0.5)
 
       return True
     return False
 
-  # def deleteRoughMask(self):
-  #
-  #   segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
-  #
-  #   # remove the current segmentation node in the toolkit
-  #   if(segmentNode):
-  #       slicer.mrmlScene.RemoveNode(segmentNode)
-  #       self._segmentNodeId = segmentNode.GetID()
-  #       # set segmentation node and master volume node in segmentation editor
-  #       segmentEditor.setSegmentationNode(segmentNode)
-  #       # reduce segmentation resolution for performance
-  #       # update viewer windows and widgets
-  #       slicer.util.setSliceViewerLayers(background=separateInputNode)
-  #       return True
-  #   return False
+  def applyDeleteContour(self, start, finish, inputNode, segmentEditor):
+    #get contour segments
+    segmentationNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
+    selectedSegmentIds = vtk.vtkStringArray()
 
-  def deleteSelectContours(self, start, finish):
+    if(segmentationNode):
+        segmentationNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
 
-      segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
-      self.selectedSegmentIds = vtk.vtkStringArray()
+    for idx in range(selectedSegmentIds.GetNumberOfValues()):
+      segmentId = selectedSegmentIds.GetValue(idx)
+      segment = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName(segmentId)
 
-      if(segmentNode):
-          segmentNode.GetSegmentation().GetSegmentIDs(self.selectedSegmentIds)
+      # Get contour segment as numpy array
+      segmentArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, segment, inputNode)
 
-      print(self.selectedSegmentIds)
+      # Iterate through voxels
+      for vox in range(start, finish+1):
+        segmentArray[vox, :, :] = 0
 
-      for idx in range(self.selectedSegmentIds.GetNumberOfValues()):
-          segmentId = self.selectedSegmentIds.GetValue(idx)
-          segmentNode.GetSegmentation().RemoveSegment(segmentId)
+      # Convert back to label map array
+      slicer.util.updateSegmentBinaryLabelmapFromArray(segmentArray, segmentationNode, segment, inputNode)
+
+    # slicer.util.setSliceViewerLayers(background=inputNode,
+    #                                    label=segmentationNode,
+    #                                    labelOpacity=0.3)
 
   def getSegmentNode(self):
       return slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
@@ -395,7 +391,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     if (segmentNode and contourVolumeNode and masterVolumeNode):
       self.segmentationNodeToLabelmap(segmentNode, contourVolumeNode, masterVolumeNode)
       # remove the current segmentation node
-      slicer.mrmlScene.RemoveNode(segmentNode)
+      # slicer.mrmlScene.RemoveNode(segmentNode)
       # update viewer windows
       slicer.util.setSliceViewerLayers(background=masterVolumeNode,
                                       label=contourVolumeNode,

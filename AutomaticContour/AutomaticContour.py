@@ -179,6 +179,11 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     initApplyFrame.setLayout(initApplyGridLayout)
     boneSeparationLayout.addWidget(initApplyFrame)
 
+    self.hideButton = qt.QCheckBox()
+    self.hideButton.checked = False
+    initApplyGridLayout.addWidget(qt.QLabel("Hide Rough Mask"), 1, 0)
+    initApplyGridLayout.addWidget(self.hideButton, 1, 1)
+
     # segmentation editor
     self.segmentEditor = SegmentEditor(boneSeparationLayout)
 
@@ -188,6 +193,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.applyButton1.connect('clicked(bool)', self.onApplyButton1)
     self.deleteButton1.connect('clicked(bool)', self.onDeleteButton1)
     self.separateInputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect1)
+    self.hideButton.clicked.connect(self.onHideRoughMask)
 
   def setupAutomaticContour(self):
     """Set up widgets in step 2 automatic contour"""
@@ -495,65 +501,39 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
       self.separateMapSelector.setCurrentNodeID(separateOutputNode.GetID())
     self.disableBoneSeparationWidgets()
 
+    self.hideButton.checked = False
+    self.onHideRoughMask()
+
   def onDeleteButton1(self):
-      """Run this whenever the delete button in step 1 is clicked"""
+    """Run this whenever the delete button in step 1 is clicked"""
 
-      # volumeNode = slicer.util.getNode('MRHead')
-      # segmentationNode = slicer.util.getNode('Segmentation')
-      # segmentId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName('Segment_1')
-      contourRange = []
+    self._logic.getSegmentNode().GetSegmentation().AddEmptySegment("Delete")
+    self.segmentEditor.getEditor().setActiveEffectByName("Paint")
+    # user prompt to get start and end slices for delete
+    DeleteDialog = DeleteQtDialog()
+    DeleteDialog.exec()
+    contourRange = DeleteDialog.getNums()
 
-      DeleteDialog = DeleteQtDialog()
-      DeleteDialog.exec()
-      print('finished')
-      contourRange = DeleteDialog.getNums()
-      print(contourRange)
+    #background Image
+    volumeNode = self.separateInputSelector.currentNode()
 
-      volumeNode = self.separateInputSelector.currentNode()
-      # selectedSegmentIds = vtk.vtkStringArray()
-      #
-      # if(segmentNode):
-      #     segmentNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
+    self._logic.applyDeleteContour(contourRange[0], contourRange[1], volumeNode, self.segmentEditor)
 
-      segmentationNode = self._logic.getSegmentNode()
-      segmentId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName('Segment_1')
+    self.applyButton1.enabled = True
 
-      # Get segment as numpy array
-      segmentArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, segmentId, volumeNode)
+    self.onHideRoughMask()
 
-      for vox in range(contourRange[0], contourRange[1]+1):
-        segmentArray[vox, :, :] = 0
+  def onHideRoughMask(self):
+    checked = self.hideButton.checked
+    disp=slicer.util.getNode('VolumeDisplay_1')
+    disp.SetVisibility(not checked)
+    disp=slicer.util.getNode('Segmentation')
+    disp.SetDisplayVisibility(not checked)
+    self._logic.getSegmentNode().SetDisplayVisibility(not checked)
 
-      # print(segmentArray.shape)
-      # print(segmentArray[85,:,:])
-
-      # segmentArray[:] = 0  # clear the segmentation
-
-      slicer.util.updateSegmentBinaryLabelmapFromArray(segmentArray, segmentationNode, segmentId, volumeNode)
-
-      slicer.util.setSliceViewerLayers(background=volumeNode,
-                                       label=segmentationNode,
-                                       labelOpacity=0.5)
-      # selectedSegmentIds = vtk.vtkStringArray()
-
-      # if(segmentNode):
-      #     segmentNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
-
-      # for idx in range(selectedSegmentIds.GetNumberOfValues()):
-      #     segmentId = selectedSegmentIds.GetValue(idx)
-      #     print(segmentId)
-      #     temp = segmentNode.GetSegmentation().GetSegment(segmentId)
-      #     print(temp.GetLabelValue())
-      #     x = []
-      #     temp.GetContainedRepresentationNames(x)
-
-      #     print(temp.GetRepresentation('Binary labelmap'))
-
-      # for idx in range(selectedSegmentIds.GetNumberOfValues()):
-      #     print(idx)
-      #     segmentId = selectedSegmentIds.GetValue(idx)
-      #     segmentNode.GetSegmentation().RemoveSegment(segmentId)
-
+    slicer.util.setSliceViewerLayers(background=self.separateInputSelector.currentNode(),
+                                      label= self.separateMapSelector.currentNode(),
+                                      labelOpacity=0.5)
 
 
   def onSelectInputVolume(self):
