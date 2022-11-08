@@ -21,6 +21,7 @@ from AutomaticContourLib.AutomaticContourLogic import AutomaticContourLogic
 from AutomaticContourLib.SegmentEditor import SegmentEditor
 from AutomaticContourLib.DeleteQtDialog import DeleteQtDialog
 import os
+from time import sleep
 
 #
 # AutomaticContour
@@ -172,17 +173,30 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.deleteButton1 = qt.QPushButton("Delete Contours")
     self.deleteButton1.toolTip = "Delete all contours in all slices"
     self.deleteButton1.enabled = False
-    initApplyGridLayout.addWidget(self.deleteButton1, 0, 3)
+    initApplyGridLayout.addWidget(self.deleteButton1, 1, 0)
+
+    # delete button
+    self.eraseBetweenSlicesButton1 = qt.QPushButton("Erase Between Slices")
+    self.eraseBetweenSlicesButton1.toolTip = "Interpolates between segments between slices and erases those segments"
+    self.eraseBetweenSlicesButton1.enabled = False
+    initApplyGridLayout.addWidget(self.eraseBetweenSlicesButton1, 1, 1)
+
+    # delete button
+    self.applyEraseBetweenSlicesButton1 = qt.QPushButton("Apply Erase")
+    self.applyEraseBetweenSlicesButton1.toolTip = "Applies erase between slices"
+    self.applyEraseBetweenSlicesButton1.enabled = False
+    initApplyGridLayout.addWidget(self.applyEraseBetweenSlicesButton1, 1, 2)
+
+    # Hide rough mask checkbox
+    self.hideButton = qt.QCheckBox()
+    self.hideButton.checked = False
+    initApplyGridLayout.addWidget(qt.QLabel("Hide Rough Mask"), 0, 3)
+    initApplyGridLayout.addWidget(self.hideButton, 0, 4)
 
     # frame with initialize and apply buttons
     initApplyFrame = qt.QFrame()
     initApplyFrame.setLayout(initApplyGridLayout)
     boneSeparationLayout.addWidget(initApplyFrame)
-
-    self.hideButton = qt.QCheckBox()
-    self.hideButton.checked = False
-    initApplyGridLayout.addWidget(qt.QLabel("Hide Rough Mask"), 1, 0)
-    initApplyGridLayout.addWidget(self.hideButton, 1, 1)
 
     # segmentation editor
     self.segmentEditor = SegmentEditor(boneSeparationLayout)
@@ -191,7 +205,9 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.initButton1.connect('clicked(bool)', self.onInitButton1)
     self.cancelButton1.connect('clicked(bool)', self.onCancelButton1)
     self.applyButton1.connect('clicked(bool)', self.onApplyButton1)
-    self.deleteButton1.connect('clicked(bool)', self.onDeleteButton1)
+    self.deleteButton1.connect('clicked(bool)', self.onDeleteButton)
+    self.eraseBetweenSlicesButton1.connect('clicked(bool)', self.onEraseBetweenSlicesButton)
+    self.applyEraseBetweenSlicesButton1.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
     self.separateInputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect1)
     self.hideButton.clicked.connect(self.onHideRoughMask)
 
@@ -504,11 +520,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.hideButton.checked = False
     self.onHideRoughMask()
 
-  def onDeleteButton1(self):
+  def onDeleteButton(self):
     """Run this whenever the delete button in step 1 is clicked"""
-
-    self._logic.getSegmentNode().GetSegmentation().AddEmptySegment("Delete")
-    self.segmentEditor.getEditor().setActiveEffectByName("Paint")
     # user prompt to get start and end slices for delete
     DeleteDialog = DeleteQtDialog()
     DeleteDialog.exec()
@@ -522,6 +535,108 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.applyButton1.enabled = True
 
     self.onHideRoughMask()
+
+  def onEraseBetweenSlicesButton(self):
+    
+    segmentationNode = self._logic.getSegmentNode()
+
+    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
+    self.segmentEditor.getEditor().setCurrentSegmentID(eraseNodeID)
+    self.segmentEditor.getEditor().setActiveEffectByName("Paint")
+    self.applyEraseBetweenSlicesButton1.enabled = True
+
+    #TODO make slicer wait until you have atleast 2 slices with segments before enabling apply button
+
+  def onApplyEraseBetweenSlicesButton(self):
+
+    volumeNode = self.separateInputSelector.currentNode()
+    segmentationNode = self._logic.getSegmentNode()
+    eraseId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName("Delete")
+    self.segmentEditor.getEditor().setCurrentSegmentID(eraseId)
+
+    self.segmentEditor.getEditor().setActiveEffectByName("Fill between slices")
+    effect = self.segmentEditor.getEditor().activeEffect()
+    effect.self().onPreview()
+    effect.self().onApply()
+
+    # Get erase mask segment as numpy array
+    eraseArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, eraseId, volumeNode)
+
+    # startOfEraseMask = 0
+    # endOfEraseMask = startOfEraseMask
+    row = eraseArray.shape[1]
+    col = eraseArray.shape[2]
+
+    # print(eraseArray.shape)
+    # # Iterate through voxels
+    # for slice in range(eraseArray.shape[0]):
+    #   if np.any(eraseArray[slice]):
+    #     if not startOfEraseMask:
+    #       startOfEraseMask = slice
+    #       endOfEraseMask = slice
+    #     else:
+    #       endOfEraseMask = endOfEraseMask+1
+    #     continue
+    #   if startOfEraseMask:
+    #     break
+
+    # print(startOfEraseMask)
+    # print(endOfEraseMask)
+
+    selectedSegmentIds = vtk.vtkStringArray()
+
+    if(segmentationNode):
+        segmentationNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
+
+    segmentArrays = []
+    segments = []
+    segmentIds = []
+
+    for idx in range(selectedSegmentIds.GetNumberOfValues()):
+      segmentName = selectedSegmentIds.GetValue(idx)
+      if segmentName == "Delete":
+        continue
+
+      segmentId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName(segmentName)
+
+      # Get mask segment as numpy array
+      segmentArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, segmentId, volumeNode)
+
+      segmentArrays.append(segmentArray)
+      segments.append(segmentationNode.GetSegmentation().GetSegment(segmentId))
+      segmentIds.append(segmentId)
+      segmentationNode.GetSegmentation().RemoveSegment(segmentId)
+
+    self.segmentEditor.getEditor().setActiveEffectByName("Fill between slices")
+    effect = self.segmentEditor.getEditor().activeEffect()
+    effect.self().onPreview()
+    effect.self().onApply()
+
+    # Get erase mask segment as numpy array
+    eraseArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, eraseId, volumeNode)
+
+    # # startOfEraseMask = 0
+    # # endOfEraseMask = startOfEraseMask
+    slices = eraseArray.shape[0]
+    row = eraseArray.shape[1]
+    col = eraseArray.shape[2]
+
+    idx = 0
+    for segmentArray in segmentArrays:
+      segmentationNode.GetSegmentation().AddSegment(segments[idx], segmentIds[idx])
+
+      # Iterate through voxels
+      for i in range(slices):
+        for j in range(row):
+          for k in range(col):
+            if(eraseArray[i, j, k]):
+              segmentArray[i, j, k] = 0
+
+      # Convert back to label map array
+      slicer.util.updateSegmentBinaryLabelmapFromArray(segmentArray, segmentationNode, segmentIds[idx], volumeNode)
+      idx = idx + 1
+
+    segmentationNode.GetSegmentation().RemoveSegment(eraseId)
 
   def onHideRoughMask(self):
     checked = self.hideButton.checked
@@ -698,6 +813,8 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.cancelButton1.enabled = True
     self.applyButton1.enabled = True
     self.deleteButton1.enabled = True
+    self.eraseBetweenSlicesButton1.enabled = True
+    self.applyEraseBetweenSlicesButton1.enabled = False
     self.separateInputSelector.enabled = False
     self.initButton3.enabled = False
     self.contourVolumeSelector.enabled = False
@@ -708,6 +825,9 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.onSelect1()
     self.cancelButton1.enabled = False
     self.applyButton1.enabled = False
+    self.deleteButton1.enabled = False
+    self.eraseBetweenSlicesButton1.enabled = False
+    self.applyEraseBetweenSlicesButton1.enabled = False
     self.separateInputSelector.enabled = True
     self.onSelect3()
     self.contourVolumeSelector.enabled = True

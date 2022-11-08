@@ -69,7 +69,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     segmentEditor.enter()
     segmentEditor.setMasterVolumeIntensityMask(False)
     segmentEditor.setOverWriteMode(slicer.vtkMRMLSegmentEditorNode.OverwriteAllSegments)
-    segmentEditor.setMaskMode(slicer.vtkMRMLSegmentEditorNode.PaintAllowedEverywhere)
+    segmentEditor.setMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
     if segmentNode: # if the segmentation node exists, switch to it
       self.segmentEditor.setSegmentationNode(segmentNode)
 
