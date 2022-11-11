@@ -108,14 +108,14 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       if not segmentNode:
         segmentNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
         segmentNode.SetReferenceImageGeometryParameterFromVolumeNode(separateInputNode)
-      self._segmentNodeId = segmentNode.GetID()
-      # set segmentation node and master volume node in segmentation editor
-      segmentEditor.setSegmentationNode(segmentNode)
-      segmentEditor.setMasterVolumeNode(separateInputNode)
-      # reduce segmentation resolution for performance
-      segmentEditor.setSegmentationGeometry(segmentNode, separateInputNode, oversamplingFactor=0.5)
-      # update viewer windows and widgets
-      slicer.util.setSliceViewerLayers(background=separateInputNode)
+        self._segmentNodeId = segmentNode.GetID()
+        # set segmentation node and master volume node in segmentation editor
+        segmentEditor.setSegmentationNode(segmentNode)
+        segmentEditor.setMasterVolumeNode(separateInputNode)
+        # reduce segmentation resolution for performance
+        segmentEditor.setSegmentationGeometry(segmentNode, separateInputNode, oversamplingFactor=0.5)
+        # update viewer windows and widgets
+        slicer.util.setSliceViewerLayers(background=separateInputNode)
 
       return True
     return False
@@ -196,8 +196,10 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     #                                    labelOpacity=0.3)
 
   def getSegmentNode(self):
-      return slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
+    return slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
 
+  def setSegmentNodeFromLabelMap(self, labelMapNode):
+    self.labelmapToSegmentationNode(labelMapNode, slicer.mrmlScene.GetNodeByID(self._segmentNodeId))
 
   def setParameters(self, inputVolumeNode, outputVolumeNode, sigma,
                     boneNum, dilateErodeRadius, separateMapNode, method=None, lower=None, upper=None):

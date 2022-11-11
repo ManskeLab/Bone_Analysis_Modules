@@ -85,6 +85,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self._logic = AutomaticContourLogic()
     self._logic.progressCallBack = self.setProgress
 
+    self.applyPressed = False
+
     ScriptedLoadableModuleWidget.__init__(self, parent)
 
   def setup(self):
@@ -142,6 +144,18 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.separateInputSelector.setToolTip("Select the input scan")
     selectorFormLayout.addRow("Input Volume: ", self.separateInputSelector)
 
+    self.separateRoughMaskSelector = slicer.qMRMLNodeComboBox()
+    self.separateRoughMaskSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+    self.separateRoughMaskSelector.selectNodeUponCreation = False
+    self.separateRoughMaskSelector.addEnabled = False
+    self.separateRoughMaskSelector.removeEnabled = False
+    self.separateRoughMaskSelector.noneEnabled = True
+    self.separateRoughMaskSelector.showHidden = False
+    self.separateRoughMaskSelector.showChildNodeTypes = False
+    self.separateRoughMaskSelector.setMRMLScene(slicer.mrmlScene)
+    self.separateRoughMaskSelector.setToolTip("Select the rough mask segment")
+    selectorFormLayout.addRow("Rough Mask: ", self.separateRoughMaskSelector)
+
     # frame with selectors
     selectorFrame = qt.QFrame()
     selectorFrame.setLayout(selectorFormLayout)
@@ -175,13 +189,13 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.deleteButton1.enabled = False
     initApplyGridLayout.addWidget(self.deleteButton1, 1, 0)
 
-    # delete button
+    # Erase between slices button
     self.eraseBetweenSlicesButton1 = qt.QPushButton("Erase Between Slices")
     self.eraseBetweenSlicesButton1.toolTip = "Interpolates between segments between slices and erases those segments"
     self.eraseBetweenSlicesButton1.enabled = False
     initApplyGridLayout.addWidget(self.eraseBetweenSlicesButton1, 1, 1)
 
-    # delete button
+    # Apply erase button
     self.applyEraseBetweenSlicesButton1 = qt.QPushButton("Apply Erase")
     self.applyEraseBetweenSlicesButton1.toolTip = "Applies erase between slices"
     self.applyEraseBetweenSlicesButton1.enabled = False
@@ -206,9 +220,10 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.cancelButton1.connect('clicked(bool)', self.onCancelButton1)
     self.applyButton1.connect('clicked(bool)', self.onApplyButton1)
     self.deleteButton1.connect('clicked(bool)', self.onDeleteButton)
-    self.eraseBetweenSlicesButton1.connect('clicked(bool)', self.onEraseBetweenSlicesButton)
+    self.eraseBetweenSlicesButton1.connect('clicked(bool)', self.onEraseBetweenSlicesButton1)
     self.applyEraseBetweenSlicesButton1.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
     self.separateInputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect1)
+    self.separateRoughMaskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectRoughMask)
     self.hideButton.clicked.connect(self.onHideRoughMask)
 
   def setupAutomaticContour(self):
@@ -422,6 +437,24 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.applyButton3.enabled = False
     initApplyGridLayout.addWidget(self.applyButton3, 0, 2)
 
+    # delete button
+    self.deleteButton3 = qt.QPushButton("Delete Contours")
+    self.deleteButton3.toolTip = "Delete all contours in all slices"
+    self.deleteButton3.enabled = False
+    initApplyGridLayout.addWidget(self.deleteButton3, 1, 0)
+
+    # Erase between slices button
+    self.eraseBetweenSlicesButton3 = qt.QPushButton("Erase Between Slices")
+    self.eraseBetweenSlicesButton3.toolTip = "Interpolates between segments between slices and erases those segments"
+    self.eraseBetweenSlicesButton3.enabled = False
+    initApplyGridLayout.addWidget(self.eraseBetweenSlicesButton3, 1, 1)
+
+    # Apply erase button
+    self.applyEraseBetweenSlicesButton3 = qt.QPushButton("Apply Erase")
+    self.applyEraseBetweenSlicesButton3.toolTip = "Applies erase between slices"
+    self.applyEraseBetweenSlicesButton3.enabled = False
+    initApplyGridLayout.addWidget(self.applyEraseBetweenSlicesButton3, 1, 2)
+
     # frame with initialize and apply buttons
     initApplyFrame = qt.QFrame()
     initApplyFrame.setLayout(initApplyGridLayout)
@@ -435,6 +468,9 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.initButton3.connect('clicked(bool)', self.onInitButton3)
     self.applyButton3.connect('clicked(bool)', self.onApplyButton3)
     self.cancelButton3.connect('clicked(bool)', self.onCancelButton3)
+    self.deleteButton3.connect('clicked(bool)', self.onDeleteButton)
+    self.eraseBetweenSlicesButton3.connect('clicked(bool)', self.onEraseBetweenSlicesButton3)
+    self.applyEraseBetweenSlicesButton3.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
     self.contourVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect3)
     self.masterVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect3)
 
@@ -471,6 +507,28 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
   def onSelect1(self):
     """Update the state of the initialize button whenever the selector in step 1 change"""
     self.initButton1.enabled = self.separateInputSelector.currentNode()
+
+  def onSelectRoughMask(self):
+    if self.applyPressed:
+      self.applyPressed = False
+      return
+
+    displayMask = self.separateRoughMaskSelector.currentNode()
+
+    #  Remove current SegmentationNode and create a new node from the rough mask
+    slicer.mrmlScene.RemoveNode(self._logic.getSegmentNode())
+    if displayMask:
+      self.onInitButton1()
+      self._logic.setSegmentNodeFromLabelMap(displayMask)
+
+      # add temperory node and delete to prevent duplicate colors
+      tempNode = self._logic.getSegmentNode().GetSegmentation().AddEmptySegment("temp")
+      self._logic.getSegmentNode().GetSegmentation().RemoveSegment(tempNode)
+
+    slicer.util.setSliceViewerLayers(background=self.separateInputSelector.currentNode(),
+                                      label= displayMask,
+                                      labelOpacity=0.5)
+    slicer.util.resetSliceViews()
 
   def onSelect2(self):
     """Update the state of the get contour button whenever the selectors in step 2 change"""
@@ -515,10 +573,11 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     if separateOutputNode:
       self.inputVolumeSelector.setCurrentNodeID(separateInputNode.GetID())
       self.separateMapSelector.setCurrentNodeID(separateOutputNode.GetID())
+      self.separateRoughMaskSelector.setCurrentNodeID(separateOutputNode.GetID())
     self.disableBoneSeparationWidgets()
 
     self.hideButton.checked = False
-    self.onHideRoughMask()
+    self.onSelectRoughMask()
 
   def onDeleteButton(self):
     """Run this whenever the delete button in step 1 is clicked"""
@@ -536,14 +595,21 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
     self.onHideRoughMask()
 
-  def onEraseBetweenSlicesButton(self):
+  def onEraseBetweenSlicesButton1(self):
+    self.applyEraseBetweenSlicesButton1.enabled = True
+    self.onEraseBetweenSlices()
+
+  def onEraseBetweenSlicesButton3(self):
+    self.applyEraseBetweenSlicesButton3.enabled = True
+    self.onEraseBetweenSlices()
+
+  def onEraseBetweenSlices(self):
     
     segmentationNode = self._logic.getSegmentNode()
 
     eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
     self.segmentEditor.getEditor().setCurrentSegmentID(eraseNodeID)
     self.segmentEditor.getEditor().setActiveEffectByName("Paint")
-    self.applyEraseBetweenSlicesButton1.enabled = True
 
     #TODO make slicer wait until you have atleast 2 slices with segments before enabling apply button
 
@@ -553,35 +619,6 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     segmentationNode = self._logic.getSegmentNode()
     eraseId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName("Delete")
     self.segmentEditor.getEditor().setCurrentSegmentID(eraseId)
-
-    self.segmentEditor.getEditor().setActiveEffectByName("Fill between slices")
-    effect = self.segmentEditor.getEditor().activeEffect()
-    effect.self().onPreview()
-    effect.self().onApply()
-
-    # Get erase mask segment as numpy array
-    eraseArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, eraseId, volumeNode)
-
-    # startOfEraseMask = 0
-    # endOfEraseMask = startOfEraseMask
-    row = eraseArray.shape[1]
-    col = eraseArray.shape[2]
-
-    # print(eraseArray.shape)
-    # # Iterate through voxels
-    # for slice in range(eraseArray.shape[0]):
-    #   if np.any(eraseArray[slice]):
-    #     if not startOfEraseMask:
-    #       startOfEraseMask = slice
-    #       endOfEraseMask = slice
-    #     else:
-    #       endOfEraseMask = endOfEraseMask+1
-    #     continue
-    #   if startOfEraseMask:
-    #     break
-
-    # print(startOfEraseMask)
-    # print(endOfEraseMask)
 
     selectedSegmentIds = vtk.vtkStringArray()
 
@@ -640,16 +677,18 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
   def onHideRoughMask(self):
     checked = self.hideButton.checked
-    disp=slicer.util.getNode('VolumeDisplay_1')
-    disp.SetVisibility(not checked)
-    disp=slicer.util.getNode('Segmentation')
-    disp.SetDisplayVisibility(not checked)
-    self._logic.getSegmentNode().SetDisplayVisibility(not checked)
+    if checked:
+      displayMask = None
+    else:
+      displayMask = self.separateRoughMaskSelector.currentNode()
+
+    if self._logic.getSegmentNode():
+      self._logic.getSegmentNode().SetDisplayVisibility(not checked)
 
     slicer.util.setSliceViewerLayers(background=self.separateInputSelector.currentNode(),
-                                      label= self.separateMapSelector.currentNode(),
+                                      label= displayMask,
                                       labelOpacity=0.5)
-
+    slicer.util.resetSliceViews()
 
   def onSelectInputVolume(self):
     """Run this whenever the input volume selector in step 2 changes"""
@@ -766,6 +805,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
       if success:
         # update widgets
         self.contourVolumeSelector.setCurrentNodeID(self.outputVolumeSelector.currentNodeID)
+        print(outputVolumeNode.GetDisplayNode().GetName())
         self.masterVolumeSelector.setCurrentNodeID(self.inputVolumeSelector.currentNodeID)
         self.outputVolumeSelector.setCurrentNodeID("") # reset the output volume selector
     # update widgets
