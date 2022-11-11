@@ -416,11 +416,39 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     # segmentation editor
     self.segmentEditor = SegmentEditor(self.manualCorrectionCollapsibleButton)
 
+    initApplyGridLayout = qt.QGridLayout()
+    initApplyGridLayout.setContentsMargins(0, 5, 0, 5)
+
+    # # delete button
+    # self.deleteButton1 = qt.QPushButton("Delete Contours")
+    # self.deleteButton1.toolTip = "Delete all contours in all slices"
+    # self.deleteButton1.enabled = False
+    # initApplyGridLayout.addWidget(self.deleteButton1, 1, 0)
+
+    # Erase between slices button
+    self.eraseBetweenSlicesButton = qt.QPushButton("Erase Between Slices")
+    self.eraseBetweenSlicesButton.toolTip = "Interpolates between segments between slices and erases those segments"
+    self.eraseBetweenSlicesButton.enabled = False
+    initApplyGridLayout.addWidget(self.eraseBetweenSlicesButton, 0, 0)
+
+    # Apply erase button
+    self.applyEraseBetweenSlicesButton = qt.QPushButton("Apply Erase")
+    self.applyEraseBetweenSlicesButton.toolTip = "Applies erase between slices"
+    self.applyEraseBetweenSlicesButton.enabled = False
+    initApplyGridLayout.addWidget(self.applyEraseBetweenSlicesButton, 0, 1)
+
+    initApplyFrame = qt.QFrame()
+    initApplyFrame.setLayout(initApplyGridLayout)
+    manualCorrectionLayout.addWidget(initApplyFrame)
+
     # connections
     self.manualCorrectionCollapsibleButton.connect('contentsCollapsed(bool)', self.onCollapsed5)
     self.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect5)
     self.labelMapSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect5)
     self.importExportButton.connect("clicked(bool)", self.onImportExportButton)
+    # self.deleteButton1.connect('clicked(bool)', self.onDeleteButton)
+    self.eraseBetweenSlicesButton.connect('clicked(bool)', self.onEraseBetweenSlicesButton)
+    self.applyEraseBetweenSlicesButton.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
 
   def setupStats(self):
     """Set up widgets in step 6 statistics"""
@@ -746,6 +774,8 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
         self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
         self.segmentEditor.setSegmentationNode(outputVolumeNode)
         self.segmentEditor.setMasterVolumeNode(inputVolumeNode)
+
+        self.enableEraseWidgets()
     
     # store thresholds 
     inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
@@ -765,6 +795,94 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     else:                              # label map to segmentation
       self._logic.labelmapToSegmentationNode(labelMapNode, segmentationNode)
 
+  def onEraseBetweenSlicesButton(self):
+    
+    segmentationNode = self.segmentEditor.getEditor().segmentationNode()
+    self.segmentIdToErase = self.segmentEditor.getEditor().currentSegmentID()
+
+    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
+    self.segmentEditor.getEditor().setCurrentSegmentID(eraseNodeID)
+    self.segmentEditor.getEditor().setActiveEffectByName("Paint")
+
+    maskMode = segmentationNode.EditAllowedEverywhere
+    self.segmentEditor.setMaskMode(maskMode, self.segmentIdToErase)
+
+    self.applyEraseBetweenSlicesButton.enabled = True
+
+    #TODO make slicer wait until you have atleast 2 slices with segments before enabling apply button
+
+  def onApplyEraseBetweenSlicesButton(self):
+
+    volumeNode = self.segmentEditor.getEditor().masterVolumeNode()
+    segmentationNode = self.segmentEditor.getEditor().segmentationNode()
+    eraseId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName("Delete")
+    self.segmentEditor.getEditor().setCurrentSegmentID(eraseId)
+
+    selectedSegmentIds = vtk.vtkStringArray()
+
+    if(segmentationNode):
+        segmentationNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
+
+    segmentArrays = []
+    segments = []
+    segmentIds = []
+
+    # remove all segments
+    for idx in range(selectedSegmentIds.GetNumberOfValues()):
+      segmentId = selectedSegmentIds.GetValue(idx)
+      if segmentId == "Delete":
+        continue
+
+      # Get mask segment as numpy array
+      segmentArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, segmentId, volumeNode)
+
+      segmentArrays.append(segmentArray)
+      segments.append(segmentationNode.GetSegmentation().GetSegment(segmentId))
+      segmentIds.append(segmentId)
+      segmentationNode.GetSegmentation().RemoveSegment(segmentId)
+
+    maskMode = segmentationNode.EditAllowedEverywhere
+    self.segmentEditor.setMaskMode(maskMode, "")
+
+    self.segmentEditor.getEditor().setActiveEffectByName("Fill between slices")
+    effect = self.segmentEditor.getEditor().activeEffect()
+    effect.self().onPreview()
+    effect.self().onApply()
+
+    # Get erase mask segment as numpy array
+    eraseArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, eraseId, volumeNode)
+
+    slices = eraseArray.shape[0]
+    row = eraseArray.shape[1]
+    col = eraseArray.shape[2]
+
+    # Add all segments back but after erasing
+    idx = 0
+    for segmentArray in segmentArrays:
+      segmentationNode.GetSegmentation().AddSegment(segments[idx], segmentIds[idx])
+
+      if segmentIds[idx] == self.segmentIdToErase:
+        # Iterate through voxels
+        for i in range(slices):
+          for j in range(row):
+            for k in range(col):
+              if(eraseArray[i, j, k]):
+                segmentArray[i, j, k] = 0
+
+      # Convert back to label map array
+      slicer.util.updateSegmentBinaryLabelmapFromArray(segmentArray, segmentationNode, segmentIds[idx], volumeNode)
+      idx = idx + 1
+
+    segmentationNode.GetSegmentation().RemoveSegment(eraseId)
+    maskSegmentId = segmentationNode.GetSegmentation().GetNthSegmentID(0)
+
+    maskMode = segmentationNode.EditAllowedInsideSingleSegment
+    self.segmentEditor.setMaskMode(maskMode, maskSegmentId)
+
+    segmentationNode.GetDisplayNode().SetSegmentVisibility(maskSegmentId, False)
+    self.segmentEditor.getEditor().setCurrentSegmentID(self.segmentIdToErase)
+    print(maskSegmentId)
+
   def onGetStatsButton(self):
     """Run this whenever the get statistics button in step 6 is clicked"""
     inputErosionNode = self.inputErosionSelector.currentNode()
@@ -779,6 +897,9 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     # update widgets
     self.segmentEditor.setSegmentationNode(inputErosionNode)
     self.segmentEditor.setMasterVolumeNode(masterVolumeNode)
+
+  def enableEraseWidgets(self):
+    self.eraseBetweenSlicesButton.enabled = True
 
   def enableErosionsWidgets(self):
     """Enable widgets in the erosions layout in step 4"""

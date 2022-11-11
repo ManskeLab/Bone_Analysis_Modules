@@ -91,6 +91,9 @@ class SegmentEditor:
     self.editor.setSegmentationNode(segmentationNode)
     self.onSegmentationNodeChanged()
 
+  def getEditor(self):
+    return self.editor
+
   def setMasterVolumeNode(self, masterVolumeNode):
     self.editor.setMasterVolumeNode(masterVolumeNode)
     self.onMasterVolumeNodeChanged()
@@ -110,20 +113,21 @@ class SegmentEditor:
     """
     Set the segmentation editor mask mode. 
     Mode options are:
-      - PaintAllowedEverywhere 
-      - PaintAllowedInsideAllSegments
-      - PaintAllowedInsideVisibleSegments
-      - PaintAllowedOutsideAllSegments
-      - PaintAllowedOutsideVisibleSegments 
-      - PaintAllowedInsideSingleSegment
+      - EditAllowedEverywhere 
+      - EditAllowedInsideAllSegments
+      - EditAllowedInsideVisibleSegments
+      - EditAllowedOutsideAllSegments
+      - EditAllowedOutsideVisibleSegments 
+      - EditAllowedInsideSingleSegment
 
     Args:
-      mode (slicer.vtkMRMLSegmentEditorNode Enum): eg. slicer.vtkMRMLSegmentEditorNode.PaintAllowedEverywhere
-      segId (Str): must be provided if and only if mode is PaintAllowedInsideSingleSegment
+      mode (slicer.vtkMRMLSegmentEditorNode Enum): eg. slicer.vtkMRMLSegmentEditorNode.EditAllowedEverywhere
+      segId (Str): must be provided if and only if mode is EditAllowedInsideSingleSegment
     """
-    insideSingleSegment = slicer.vtkMRMLSegmentEditorNode.PaintAllowedInsideSingleSegment
+    insideSingleSegment = self.editor.segmentationNode().EditAllowedInsideSingleSegment
     if mode == insideSingleSegment:
       if segId == "":
+        # self.parameterSetNode.SetMaskMode(insideSingleSegment)
         return
       self.parameterSetNode.SetMaskSegmentID(segId)
       self.parameterSetNode.SetMaskMode(insideSingleSegment)
@@ -164,7 +168,7 @@ class SegmentEditor:
       if (segmentation.GetNumberOfSegments()):
         maskSegment = segmentation.GetNthSegment(0)   # the first segment will be the mask
         if ('mask' in maskSegment.GetName().lower()): # the first segment is the mask
-          insideSingleSegment = slicer.vtkMRMLSegmentEditorNode.PaintAllowedInsideSingleSegment
+          insideSingleSegment = segmentationNode.EditAllowedInsideSingleSegment
           self.setMaskMode(insideSingleSegment, segmentation.GetNthSegmentID(0))
 
   def onMasterVolumeNodeChanged(self):

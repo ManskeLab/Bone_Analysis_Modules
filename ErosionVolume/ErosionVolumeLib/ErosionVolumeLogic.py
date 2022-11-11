@@ -271,7 +271,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       segmentEditor (SegmentEditor): will be modified
     """
     segmentEditor.enter()
-    segmentEditor.setMasterVolumeIntensityMask(True)
+    segmentEditor.setMasterVolumeIntensityMask(False)
     segmentEditor.setOverWriteMode(slicer.vtkMRMLSegmentEditorNode.OverwriteVisibleSegments)
 
   def exitSegmentEditor(self, segmentEditor):
