@@ -167,9 +167,7 @@ class ContourLogic:
         """
         margin = self._margin
 
-        print(foreground)
         boundingbox = self._stats_filter.GetBoundingBox(foreground)
-        
         self._boundingbox = boundingbox
         
         label_img = sitk.BinaryThreshold(label_img, 
@@ -393,20 +391,17 @@ class ContourLogic:
         
         if step == 1: # step 1
             self._cleanup()
-            print("step1")
             if (self.roughMask is None):
                 if self.auto_thresh:
                     self.img = self.auto_smoothen(self.model_img, self.sigma, self.thresh_method)
                 else:
                     self.img = self.smoothen(self.model_img, self.sigma, self.lower_threshold, self.upper_threshold)
         elif step == 2: # step 2
-            print("step2")
             if (self.roughMask is None): # separate bones with connectivity filter
                 self.label_img = self.relabelWithConnect(self.img)
             else:                        # separate bones with rough mask
                 self.label_img = self.roughMask
         elif actual_step == 3: # step 3
-            print("step3")
             if (self.roughMask is None):
                 self.img = self.extract(self.label_img, self.label_img, foreground=self.boneNum)
             else:
@@ -415,16 +410,12 @@ class ContourLogic:
                 self.img = self.smoothen(self.img, self.sigma, self.lower_threshold, self.upper_threshold,
                                         foreground=self.boneNum)
         elif actual_step == 4: # step 4
-            print("step4")
             self.img = self.inflate(self.img, radius=self.dilateErodeRadius, foreground=self.boneNum)
         elif actual_step == 5: # step 5
-            print("step5")
             self.img = self.fillHole(self.img, self.boneNum)
         elif actual_step == 6: # step 6
-            print("step6")
             self.img = self.deflate(self.img, radius=self.dilateErodeRadius, foreground=self.boneNum)
         elif actual_step == 7: # step 7
-            print("step7")
             # one bone structure completed
             if (self.output_img is None): # store first bone in output_img
                 self.output_img = self.pasteBack(self.img)
@@ -435,7 +426,6 @@ class ContourLogic:
                                             outsideValue=self.boneNum, 
                                             maskingValue=self.boneNum)
             self.boneNum -= 1
-        print("out")
         if (self.boneNum > 0):
             return True
         else:
