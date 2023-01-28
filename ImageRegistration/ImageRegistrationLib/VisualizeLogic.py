@@ -89,7 +89,7 @@ class VisualizeLogic:
         Returns:
             (SimpleITK image, SimpleITK Image): Images after threshold
         '''
-        return (self.threshold(self.baseImg), self.threshold(self.regImg))
+        return self.threshold(self.baseImg), self.threshold(self.regImg)
 
     def edgeTrim(self, baseImg:sitk.Image, regImg:sitk.Image):
         '''
@@ -113,7 +113,7 @@ class VisualizeLogic:
         baseCrop = np.multiply(maskArr, baseArr)
         regCrop = np.multiply(maskArr, regArr)
 
-        return (sitk.GetImageFromArray(baseCrop), sitk.GetImageFromArray(regCrop))
+        return sitk.GetImageFromArray(baseCrop), sitk.GetImageFromArray(regCrop)
     
     def subtract(self) -> sitk.Image:
         gauss = sitk.SmoothingRecursiveGaussianImageFilter()
@@ -121,5 +121,17 @@ class VisualizeLogic:
         smooth_base = gauss.Execute(self.baseImg)
         smooth_reg = gauss.Execute(self.regImg)
         return (smooth_base - smooth_reg)
+
+    def border(self, thresh):
+        filter = sitk.BinaryContourImageFilter()
+        contour = filter.Execute(thresh)
+
+        return contour
+
+    def getBorders(self, baseThresh, regThresh):
+        baseContour = self.border(baseThresh)
+        regContour = self.border(regThresh)
+
+        return baseContour, regContour
     
 

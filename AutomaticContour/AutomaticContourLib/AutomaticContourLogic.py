@@ -17,6 +17,7 @@ import sitkUtils
 import logging
 import os
 import numpy as np
+import traceback
 from .ContourLogic import ContourLogic
 from .SegmentEditor import SegmentEditor
 
@@ -71,7 +72,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     segmentEditor.setOverWriteMode(slicer.vtkMRMLSegmentEditorNode.OverwriteAllSegments)
     segmentEditor.setMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
     if segmentNode: # if the segmentation node exists, switch to it
-      self.segmentEditor.setSegmentationNode(segmentNode)
+      segmentEditor.setSegmentationNode(segmentNode)
 
       return True
     return False
@@ -198,8 +199,26 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
   def getSegmentNode(self):
     return slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
 
-  def setSegmentNodeFromLabelMap(self, labelMapNode):
-    self.labelmapToSegmentationNode(labelMapNode, slicer.mrmlScene.GetNodeByID(self._segmentNodeId))
+  def changeRoughMask(self, roughMaskNode, masterVolumeNode, segmentEditor):
+    segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
+    slicer.mrmlScene.RemoveNode(segmentNode)
+
+    if (roughMaskNode and masterVolumeNode):
+      segmentNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+      segmentNode.SetReferenceImageGeometryParameterFromVolumeNode(masterVolumeNode)
+      self._segmentNodeId = segmentNode.GetID()
+      self.labelmapToSegmentationNode(roughMaskNode, segmentNode)
+      # set segmentation node and master volume node in segmentation editor
+      segmentEditor.setSegmentationNode(segmentNode)
+      segmentEditor.setMasterVolumeNode(masterVolumeNode)
+      # update viewer windows
+      slicer.util.setSliceViewerLayers(background=masterVolumeNode,
+                                      label= segmentNode,
+                                      labelOpacity=0.5)
+      slicer.util.resetSliceViews()
+
+      return True
+    return False
 
   def setParameters(self, inputVolumeNode, outputVolumeNode, sigma,
                     boneNum, dilateErodeRadius, separateMapNode, method=None, lower=None, upper=None):
@@ -229,7 +248,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
         return False
 
     # images
-    model_img = sitkUtils.PullVolumeFromSlicer(inputVolumeNode.GetName())
+    model_img = sitk.ReadImage(sitkUtils.GetSlicerITKReadWriteAddress(inputVolumeNode.GetName()), sitk.sitkFloat32)
     self.contour.setModel(model_img)
     if (separateMapNode is None):
       self.contour.setRoughMask(None)
@@ -248,7 +267,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def getContour(self, inputVolumeNode, outputVolumeNode, noProgress=False):
+  def getContour(self, inputVolumeNode, outputVolumeNode, algorithm, noProgress=False):
     """
     Run the automatic contour algorithm.
 
@@ -259,30 +278,70 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     Returns:
       bool: True for success, False otherwise.
     """
-    # initialize progress value
-    increment = 100 // self.contour.getStepNum() # progress bar increment value
-    progress = 0
-    if not noProgress:
-      self.progressCallBack(progress)
-    logging.info('Processing started')
 
-    # run the automatic contour algorithm
-    try:
-      step = 1
-      while (self.contour.execute(step)): # execute the next step
-        progress += increment
-        if not noProgress:
-          self.progressCallBack(progress) # update progress bar
-        step += 1
-    except Exception as e:
-      slicer.util.errorDisplay('Error')
-      print(e)
-      return False
+    if(algorithm == 1):
+      # initialize progress value
+      increment = 100 // self.contour.getStepNum() # progress bar increment value
+      progress = 0
+      if not noProgress:
+        self.progressCallBack(progress)
+      logging.info('Processing started')
+
+      # run the automatic contour algorithm
+      try:
+        step = 1
+        while (self.contour.execute(step, algorithm)): # execute the next step
+          logging.info("in while loop")
+          progress += increment
+          if not noProgress:
+            self.progressCallBack(progress) # update progress bar
+          step += 1
+      except Exception as e:
+        slicer.util.errorDisplay('Error')
+        print(e)
+        print(traceback.format_exc())
+        return False
+
+    if(algorithm == 0):
+      self.contour.execute(0, algorithm)
+
+    dir = os.path.split(inputVolumeNode.GetStorageNode().GetFullNameFromFileName())
 
     # push result to outputVolumeNode
-    contour_img = self.contour.getOutput()
+    contour_img = self.contour.getMask()
     sitkUtils.PushVolumeToSlicer(contour_img, outputVolumeNode)
+    sitk.WriteImage(contour_img, dir[0]+'/'+os.path.splitext(dir[1])[0]+"_Segment_Mask.nrrd")
     logging.info('Processing completed')
+
+    # #get contour segments
+    # individual_masks = self.contour.getIndividualMasks()
+    # for idx in range(len(individual_masks)):
+    #   sitk.WriteImage(individual_masks[idx], dir[0]+'/'+os.path.splitext(dir[1])[0]+"_Segment_Mask"+str(idx)+".nrrd")
+    
+    segmentationNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+    segmentationNode.SetReferenceImageGeometryParameterFromVolumeNode(inputVolumeNode)
+    self.labelmapToSegmentationNode(outputVolumeNode, segmentationNode)
+    selectedSegmentIds = vtk.vtkStringArray()
+
+    if(segmentationNode):
+        segmentationNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
+
+    for idx in range(selectedSegmentIds.GetNumberOfValues()):
+      segmentId = selectedSegmentIds.GetValue(idx)
+      visibleSegmentIds = vtk.vtkStringArray()
+      visibleSegmentIds.InsertValue(0, segmentId)
+
+      segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
+
+      slicer.vtkSlicerSegmentationsModuleLogic.ExportSegmentsToLabelmapNode(segmentationNode,
+                                                                          visibleSegmentIds,
+                                                                          segmentLabelMapNode,
+                                                                          inputVolumeNode)
+
+      storageNode = segmentLabelMapNode.CreateDefaultStorageNode()
+      storageNode.SetFileName(dir[0]+'/'+os.path.splitext(dir[1])[0]+"_Segment_Mask_"+str(idx)+".nrrd")
+
+      storageNode.WriteData(segmentLabelMapNode)
 
     # update viewer windows
     slicer.util.setSliceViewerLayers(background=inputVolumeNode,
@@ -391,6 +450,26 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
 
     if (segmentNode and contourVolumeNode and masterVolumeNode):
+
+      #get contour segments
+      selectedSegmentIds = vtk.vtkStringArray()
+
+      segmentNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
+
+      dir = os.path.split(masterVolumeNode.GetStorageNode().GetFullNameFromFileName())
+
+      for idx in range(selectedSegmentIds.GetNumberOfValues()):
+        segmentId = selectedSegmentIds.GetValue(idx)
+        segment = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, segmentId, outputVolumeNode)
+
+        segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
+        slicer.util.updateVolumeFromArray(segmentLabelMapNode, segment)
+
+        storageNode = segmentLabelMapNode.CreateDefaultStorageNode()
+        storageNode.SetFileName(dir[0]+'/'+os.path.splitext(dir[1])[0]+"_Segment_Mask_"+str(idx)+".nrrd")
+
+        storageNode.WriteData(segmentLabelMapNode)
+
       self.segmentationNodeToLabelmap(segmentNode, contourVolumeNode, masterVolumeNode)
       # remove the current segmentation node
       # slicer.mrmlScene.RemoveNode(segmentNode)

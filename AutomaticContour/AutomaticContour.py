@@ -337,6 +337,11 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.separateMapSelector.setToolTip( "Select the rough mask from Step 1" )
     automaticContourLayout.addRow("Rough Mask(Optional): ", self.separateMapSelector)
 
+    self.algorithmSelector = qt.QComboBox()
+    self.algorithmSelector.addItems(['Ormir', 'Dual Threshold'])
+    self.algorithmSelector.setCurrentIndex(0)
+    automaticContourLayout.addRow("Contouring Algorithm", self.algorithmSelector)
+
     # Execution layout
     executeGridLayout = qt.QGridLayout()
     executeGridLayout.setRowMinimumHeight(0,20)
@@ -508,6 +513,9 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     """Update the state of the initialize button whenever the selector in step 1 change"""
     self.initButton1.enabled = self.separateInputSelector.currentNode()
 
+    slicer.util.setSliceViewerLayers(background=self.separateInputSelector.currentNode())
+    slicer.util.resetSliceViews()
+
   def onSelectRoughMask(self):
     if self.applyPressed:
       self.applyPressed = False
@@ -516,19 +524,12 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     displayMask = self.separateRoughMaskSelector.currentNode()
 
     #  Remove current SegmentationNode and create a new node from the rough mask
-    slicer.mrmlScene.RemoveNode(self._logic.getSegmentNode())
     if displayMask:
-      self.onInitButton1()
-      self._logic.setSegmentNodeFromLabelMap(displayMask)
+      self._logic.changeRoughMask(displayMask, self.separateInputSelector.currentNode(), self.segmentEditor)
 
       # add temperory node and delete to prevent duplicate colors
       tempNode = self._logic.getSegmentNode().GetSegmentation().AddEmptySegment("temp")
       self._logic.getSegmentNode().GetSegmentation().RemoveSegment(tempNode)
-
-    slicer.util.setSliceViewerLayers(background=self.separateInputSelector.currentNode(),
-                                      label= displayMask,
-                                      labelOpacity=0.5)
-    slicer.util.resetSliceViews()
 
   def onSelect2(self):
     """Update the state of the get contour button whenever the selectors in step 2 change"""
@@ -578,6 +579,14 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
     self.hideButton.checked = False
     self.onSelectRoughMask()
+
+    segmentLabelMapNode = self._logic.getSegmentNode()
+
+    dir = os.path.split(separateInputNode.GetStorageNode().GetFullNameFromFileName())
+    storageNode = segmentLabelMapNode.CreateDefaultStorageNode()
+    storageNode.SetFileName(dir[0]+'/'+os.path.splitext(dir[1])[0]+"_RoughMask.sig.nrrd")
+
+    storageNode.WriteData(segmentLabelMapNode)
 
   def onDeleteButton(self):
     """Run this whenever the delete button in step 1 is clicked"""
@@ -760,6 +769,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
 
   def onGetContour(self):
     """Run this whenever the get contour button in step 2 is clicked"""
+    print("hello")
     # update widgets
     self.disableAutomaticContourWidgets()
 
@@ -801,7 +811,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
                                      upper=self.upperThresholdText.value)
     if ready:
       # run the algorithm
-      success = self._logic.getContour(inputVolumeNode, outputVolumeNode)
+      success = self._logic.getContour(inputVolumeNode, outputVolumeNode, self.algorithmSelector.currentIndex)
       if success:
         # update widgets
         self.contourVolumeSelector.setCurrentNodeID(self.outputVolumeSelector.currentNodeID)
@@ -890,6 +900,8 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.initButton3.enabled = False
     self.cancelButton3.enabled = True
     self.applyButton3.enabled = True
+    self.deleteButton1.enabled = True
+    self.eraseBetweenSlicesButton1.enabled = True
     self.contourVolumeSelector.enabled = False
     self.masterVolumeSelector.enabled = False
 
@@ -900,6 +912,8 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.onSelect3()
     self.cancelButton3.enabled = False
     self.applyButton3.enabled = False
+    self.deleteButton1.enabled = False
+    self.eraseBetweenSlicesButton1.enabled = False
     self.contourVolumeSelector.enabled = True
     self.masterVolumeSelector.enabled = True
 

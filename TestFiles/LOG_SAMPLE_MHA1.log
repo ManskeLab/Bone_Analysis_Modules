@@ -147,3 +147,206 @@ Using Automatic Contour Module with SAMPLE_MHA1
 
 Using Automatic Contour Module with SAMPLE_MHA1
 
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA1
+Output Volume: SAMPLE_MHA1_MASK
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA1
+Output Volume: SAMPLE_MHA1_MASK_1
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA1
+Output Volume: SAMPLE_MHA1_MASK_2
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA1
+Output Volume: SAMPLE_MHA1_MASK_3
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA1
+Output Volume: SAMPLE_MHA1_MASK_4
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
+Using Erosion Volume Module with SAMPLE_MHA1
+
+Using Erosion Volume Module with SAMPLE_MHA1
+
+Using Erosion Volume Module with SAMPLE_MHA1
+
+Erosion Volume initialized with parameters:
+Input Volume: SAMPLE_MHA1
+Input Contour: SAMPLE_MASK1
+Output Volume: SAMPLE_MASK1_ER_1
+Input Seeds: SAMPLE_MASK1_SEEDS
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 1.0
+Minimum Erosion Radius: 3
+Dilate/Erode Distance: 4
+Finished
+
+Erosion Volume initialized with parameters:
+Input Volume: SAMPLE_MHA1
+Input Contour: SAMPLE_MASK1
+Output Volume: SAMPLE_MASK1_ER_1
+Input Seeds: SAMPLE_MASK1_SEEDS
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 1.0
+Minimum Erosion Radius: 3
+Dilate/Erode Distance: 4
+Finished
+
+Erosion Volume initialized with parameters:
+Input Volume: SAMPLE_MHA1
+Input Contour: SAMPLE_MASK1
+Output Volume: SAMPLE_MASK1_ER_1
+Input Seeds: SAMPLE_MASK1_SEEDS
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 1.0
+Minimum Erosion Radius: 3
+Dilate/Erode Distance: 4
+Finished
+
+Using Automatic Contour Module with SAMPLE_MHA1
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA1
+Output Volume: SAMPLE_MHA1_MASK
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+
