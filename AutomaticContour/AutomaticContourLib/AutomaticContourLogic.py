@@ -378,7 +378,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
                                                                           labelMapNode,
                                                                           referenceVolumeNode)
 
-  def initManualCorrection(self, segmentEditor, contourVolumeNode, masterVolumeNode):
+  def initManualCorrection(self, segmentEditor, maskSegmentNode, contourVolumeNode, masterVolumeNode):
     """
     Set up the segmentation editor for manual correction of contour.
     Create new segmentation node if not created.
@@ -407,6 +407,11 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       slicer.util.setSliceViewerLayers(background=masterVolumeNode)
 
       return True
+    elif (maskSegmentNode and masterVolumeNode):
+      segmentEditor.setSegmentationNode(maskSegmentNode)
+      segmentEditor.setMasterVolumeNode(masterVolumeNode)
+      # update viewer windows
+      slicer.util.setSliceViewerLayers(background=masterVolumeNode)
     return False
 
   def cancelManualCorrection(self, contourVolumeNode, masterVolumeNode):

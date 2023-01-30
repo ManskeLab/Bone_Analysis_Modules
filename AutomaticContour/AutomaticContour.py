@@ -388,6 +388,23 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     selectorFormLayout = qt.QFormLayout()
     selectorFormLayout.setContentsMargins(0, 0, 0, 0)
 
+    selectorFormLayout.addRow("Import segmentations from external contour mask:", None)
+
+    # mask volume selector
+    self.maskVolumeSelector = slicer.qMRMLNodeComboBox()
+    self.maskVolumeSelector.nodeTypes = ["vtkMRMLSegmentationNode"]
+    self.maskVolumeSelector.selectNodeUponCreation = False
+    self.maskVolumeSelector.addEnabled = False
+    self.maskVolumeSelector.removeEnabled = False
+    self.maskVolumeSelector.noneEnabled = True
+    self.maskVolumeSelector.showHidden = False
+    self.maskVolumeSelector.showChildNodeTypes = False
+    self.maskVolumeSelector.setMRMLScene( slicer.mrmlScene )
+    self.maskVolumeSelector.setToolTip("Select the scan associated with the contour")
+    selectorFormLayout.addRow("Mask Volume: ", self.maskVolumeSelector)
+
+    selectorFormLayout.addRow("Or", None)
+
     # contour selector
     self.contourVolumeSelector = slicer.qMRMLNodeComboBox()
     self.contourVolumeSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
@@ -395,12 +412,14 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.contourVolumeSelector.addEnabled = False
     self.contourVolumeSelector.removeEnabled = False
     self.contourVolumeSelector.renameEnabled = False
-    self.contourVolumeSelector.noneEnabled = False
+    self.contourVolumeSelector.noneEnabled = True
     self.contourVolumeSelector.showHidden = False
     self.contourVolumeSelector.showChildNodeTypes = False
     self.contourVolumeSelector.setMRMLScene( slicer.mrmlScene )
     self.contourVolumeSelector.setToolTip( "Select the contour to be corrected" )
     selectorFormLayout.addRow("Contour to be Corrected: ", self.contourVolumeSelector)
+
+    selectorFormLayout.addRow("", None)
 
     # master volume selector
     self.masterVolumeSelector = slicer.qMRMLNodeComboBox()
@@ -476,7 +495,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.deleteButton3.connect('clicked(bool)', self.onDeleteButton)
     self.eraseBetweenSlicesButton3.connect('clicked(bool)', self.onEraseBetweenSlicesButton3)
     self.applyEraseBetweenSlicesButton3.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
-    self.contourVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect3)
+    self.maskVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectExternalMask)
+    self.contourVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInternalContour)
     self.masterVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect3)
 
     #logger
@@ -536,9 +556,18 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.getContourButton.enabled = (self.inputVolumeSelector.currentNode() and
                                      self.outputVolumeSelector.currentNode())
 
+  def onSelectExternalMask(self):
+    self.contourVolumeSelector.enabled = False
+    self.onSelect3()
+
+  def onSelectInternalContour(self):
+    self.maskVolumeSelector.enabled = False
+    self.onSelect3()
+
   def onSelect3(self):
     """Update the state of the initialize button whenever the selectors in step 3 change"""
-    self.initButton3.enabled = (self.contourVolumeSelector.currentNode() and
+    self.initButton3.enabled = ((self.contourVolumeSelector.currentNode() or 
+                                self.maskVolumeSelector.currentNode()) and
                                self.masterVolumeSelector.currentNode())
 
   def onInitButton1(self):
@@ -828,10 +857,18 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
 
   def onInitButton3(self):
     """Run this whenever the initialize button in step 3 is clicked"""
+    maskSegmentNode = self.maskVolumeSelector.currentNode()
     contourVolumeNode = self.contourVolumeSelector.currentNode()
     masterVolumeNode = self.masterVolumeSelector.currentNode()
 
-    success = self._logic.initManualCorrection(self.segmentEditor,
+    if(self.maskVolumeSelector.enabled):
+      success = self._logic.initManualCorrection(self.segmentEditor,
+                                              maskSegmentNode,
+                                              None,
+                                              masterVolumeNode)
+    elif(self.contourVolumeSelector.enabled):
+      success = self._logic.initManualCorrection(self.segmentEditor,
+                                              None,
                                               contourVolumeNode,
                                               masterVolumeNode)
 
