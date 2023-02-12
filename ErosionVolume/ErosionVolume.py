@@ -159,34 +159,34 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.setCurrentNode(None)
     erosionsLayout.addRow("Output Erosions: ", self.outputErosionSelector)
 
-    # auto-threshold options
-    self.threshButton = qt.QCheckBox()
-    self.threshButton.checked = True
-    erosionsLayout.addRow("Use Automatic Thresholding", self.threshButton)
+    # # auto-threshold options
+    # self.threshButton = qt.QCheckBox()
+    # self.threshButton.checked = True
+    # erosionsLayout.addRow("Use Automatic Thresholding", self.threshButton)
 
-    self.threshSelector = qt.QComboBox()
-    self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
-    #self.threshSelector.setCurrentIndex(2)
-    erosionsLayout.addRow("Thresholding Method", self.threshSelector)
+    # self.threshSelector = qt.QComboBox()
+    # self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
+    # #self.threshSelector.setCurrentIndex(2)
+    # erosionsLayout.addRow("Thresholding Method", self.threshSelector)
 
-    # Help button for thresholding methods
-    self.helpButton = qt.QPushButton("Help")
-    self.helpButton.toolTip = "Tips for selecting a thresholding method"
-    self.helpButton.setFixedSize(50, 20)
-    erosionsLayout.addRow("", self.helpButton)
+    # # Help button for thresholding methods
+    # self.helpButton = qt.QPushButton("Help")
+    # self.helpButton.toolTip = "Tips for selecting a thresholding method"
+    # self.helpButton.setFixedSize(50, 20)
+    # erosionsLayout.addRow("", self.helpButton)
 
     # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
-    self.lowerThresholdText.value = 530
+    self.lowerThresholdText.value = 800
     erosionsLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
-    self.upperThresholdText.value = 4000
+    self.upperThresholdText.value = 9999
     erosionsLayout.addRow("Upper Threshold: ", self.upperThresholdText)
 
     # gaussian sigma spin box
@@ -196,22 +196,6 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.sigmaText.value = 1
     self.sigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
     erosionsLayout.addRow("Gaussian Sigma: ", self.sigmaText)
-
-    # seed point selector
-    # self.fiducialSelector = slicer.qMRMLNodeComboBox()
-    # self.fiducialSelector.nodeTypes = ["vtkMRMLMarkupsFiducialNode"]
-    # self.fiducialSelector.selectNodeUponCreation = True
-    # self.fiducialSelector.addEnabled = True
-    # self.fiducialSelector.removeEnabled = True
-    # self.fiducialSelector.renameEnabled = True
-    # self.fiducialSelector.noneEnabled = False
-    # self.fiducialSelector.showHidden = False
-    # self.fiducialSelector.showChildNodeTypes = False
-    # self.fiducialSelector.setMRMLScene(slicer.mrmlScene)
-    # self.fiducialSelector.baseName = "SEEDS"
-    # self.fiducialSelector.setToolTip( "Pick the seed points" )
-    # self.fiducialSelector.setCurrentNode(None)
-    # erosionsLayout.addRow("Seed Points: ", self.fiducialSelector)
 
     # seed point table
     self.markupsTableWidget = MarkupsTable(self.erosionsCollapsibleButton)
@@ -225,36 +209,32 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     # horizontal white space
     erosionsLayout.addRow(qt.QLabel(""))
 
+    # check box for Large erosions
+    self.LargeErosionsCheckBox = qt.QCheckBox('Large Erosions')
+    self.LargeErosionsCheckBox.checked = False
+    self.LargeErosionsCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
+    erosionsLayout.addRow(self.LargeErosionsCheckBox)
+
+    # check box for CBCT scans
+    self.SmallErosionsCheckBox = qt.QCheckBox('Small Erosions')
+    self.SmallErosionsCheckBox.checked = False
+    self.SmallErosionsCheckBox.setToolTip('Set internal parameters for segmenting small erosions')
+    erosionsLayout.addRow(self.SmallErosionsCheckBox)
+
+    # glyph size 
+    self.glyphSizeBox = qt.QDoubleSpinBox()
+    self.glyphSizeBox.setMinimum(0.5)
+    self.glyphSizeBox.setMaximum(25)
+    self.glyphSizeBox.setSingleStep(0.5)
+    self.glyphSizeBox.setSuffix(' %')
+    self.glyphSizeBox.value = 1.0
+    erosionsLayout.addRow("Seed Point Size ", self.glyphSizeBox)
+
     # advanced box
     self.advancedCheckBox = qt.QCheckBox('Advanced Parameters')
     self.advancedCheckBox.checked = False
     self.advancedCheckBox.setToolTip('Set internal parameters for segmenting erosions')
     erosionsLayout.addRow(self.advancedCheckBox)
-
-    # check box for CBCT scans
-    self.CBCTCheckBox = qt.QCheckBox('CBCT')
-    self.CBCTCheckBox.checked = False
-    self.CBCTCheckBox.setToolTip('Set internal parameters for segmenting CBCT scans')
-    erosionsLayout.addRow(self.CBCTCheckBox)
-
-    # advanced parameter box
-    self.advancedParameterBox = ctk.ctkCollapsibleGroupBox()
-    self.advancedParameterBox.title = "Advanced"
-    self.advancedParameterBox.collapsed = True
-    erosionsLayout.addRow(self.advancedParameterBox)
-
-    # advanced parameter layout
-    advancedParameterLayout = qt.QGridLayout(self.advancedParameterBox)
-    advancedParameterLayout.setColumnMinimumWidth(2, 15)
-
-    # advanced parameter instructions
-    advancedParameterLayout.addWidget(qt.QLabel(
-      "Larger values for less leakage into the trabecular structure;"
-      ), 0, 0, 1, 2)
-    advancedParameterLayout.addWidget(qt.QLabel(
-      "smaller values for more cortical breaks to be labeled."
-      ), 1, 0, 1, 2)
-    advancedParameterLayout.addWidget(qt.QLabel(""), 2, 0) # horizontal white space
 
     # advanced parameter spin boxes
     self.minimalRadiusText = []
@@ -307,15 +287,16 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.outputErosionSelector.connect("nodeAddedByUser(vtkMRMLNode*)", lambda node: self.onAddOutputErosion(node))
     self.markupsTableWidget.getMarkupsSelector().connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
-    # self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
-    # self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
-    self.threshButton.clicked.connect(self.onAutoThresh)
-    self.helpButton.clicked.connect(self.onHelpButton)
+    self.markupsTableWidget.getMarkupsSelector().connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
+    # self.threshButton.clicked.connect(self.onAutoThresh)
+    # self.helpButton.clicked.connect(self.onHelpButton)
+    self.LargeErosionsCheckBox.connect("clicked(bool)", self.onLargeErosionsChecked)
+    self.SmallErosionsCheckBox.connect("clicked(bool)", self.onSmallErosionsChecked)
+    self.glyphSizeBox.valueChanged.connect(self.onGlyphSizeChanged)
     self.advancedCheckBox.connect("clicked(bool)", self.onAdvancedChecked)
-    self.CBCTCheckBox.connect("clicked(bool)", self.onCBCTChecked)
     self.getErosionsButton.connect("clicked(bool)", self.onGetErosionsButton)
 
-    self.onAutoThresh()
+    # self.onAutoThresh()
   
   def setupManualCorrection(self):
     """Set up widgets in step 5 manual correction"""
@@ -420,39 +401,14 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     # segmentation editor
     self.segmentEditor = SegmentEditor(self.manualCorrectionCollapsibleButton)
 
-    initApplyGridLayout = qt.QGridLayout()
-    initApplyGridLayout.setContentsMargins(0, 5, 0, 5)
-
-    # # delete button
-    # self.deleteButton1 = qt.QPushButton("Delete Contours")
-    # self.deleteButton1.toolTip = "Delete all contours in all slices"
-    # self.deleteButton1.enabled = False
-    # initApplyGridLayout.addWidget(self.deleteButton1, 1, 0)
-
-    # Erase between slices button
-    self.eraseBetweenSlicesButton = qt.QPushButton("Erase Between Slices")
-    self.eraseBetweenSlicesButton.toolTip = "Interpolates between segments between slices and erases those segments"
-    self.eraseBetweenSlicesButton.enabled = False
-    initApplyGridLayout.addWidget(self.eraseBetweenSlicesButton, 0, 0)
-
-    # Apply erase button
-    self.applyEraseBetweenSlicesButton = qt.QPushButton("Apply Erase")
-    self.applyEraseBetweenSlicesButton.toolTip = "Applies erase between slices"
-    self.applyEraseBetweenSlicesButton.enabled = False
-    initApplyGridLayout.addWidget(self.applyEraseBetweenSlicesButton, 0, 1)
-
-    initApplyFrame = qt.QFrame()
-    initApplyFrame.setLayout(initApplyGridLayout)
-    manualCorrectionLayout.addWidget(initApplyFrame)
-
     # connections
     self.manualCorrectionCollapsibleButton.connect('contentsCollapsed(bool)', self.onCollapsed5)
     self.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect5)
     self.labelMapSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect5)
     self.importExportButton.connect("clicked(bool)", self.onImportExportButton)
     # self.deleteButton1.connect('clicked(bool)', self.onDeleteButton)
-    self.eraseBetweenSlicesButton.connect('clicked(bool)', self.onEraseBetweenSlicesButton)
-    self.applyEraseBetweenSlicesButton.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
+    # self.eraseBetweenSlicesButton.connect('clicked(bool)', self.onEraseBetweenSlicesButton)
+    # self.applyEraseBetweenSlicesButton.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
 
   def setupStats(self):
     """Set up widgets in step 6 statistics"""
@@ -688,23 +644,48 @@ Change the lower and upper thresholds before initializing."""
 
   def onSelectSeed(self):
     """Run this whenever the seed point selector in step 4 changes"""
-    self.markupsTableWidget.setCurrentNode(self.fiducialSelector.currentNode())
+    self.markupsTableWidget.onMarkupsNodeChanged()
+    markupsDisplayNode = self.markupsTableWidget.getCurrentNode().GetMarkupsDisplayNode()
+    markupsDisplayNode.SetGlyphScale(self.glyphSizeBox.value)
   
-  def onAutoThresh(self):
-    use_auto = self.threshButton.checked
-    self.lowerThresholdText.setEnabled(not use_auto)
-    self.upperThresholdText.setEnabled(not use_auto)
-    self.threshSelector.setEnabled(use_auto)
-    if not use_auto:
-      self.onSelectInputVolume()
+#   def onAutoThresh(self):
+#     use_auto = self.threshButton.checked
+#     self.lowerThresholdText.setEnabled(not use_auto)
+#     self.upperThresholdText.setEnabled(not use_auto)
+#     self.threshSelector.setEnabled(use_auto)
+#     if not use_auto:
+#       self.onSelectInputVolume()
 
-  def onHelpButton(self) -> None:
-    '''Help button is pressed'''
-    txt = """Thresholding Methods\n
-For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
-For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
-          """
-    slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
+#   def onHelpButton(self) -> None:
+#     '''Help button is pressed'''
+#     txt = """Thresholding Methods\n
+# For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
+# For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
+#           """
+#     slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
+  def onLargeErosionsChecked(self):
+    """Run this whenever the check box for Large Erosions in step 4 changes"""
+    if self.LargeErosionsCheckBox.checked:
+      self.minimalRadiusText = 6
+      self.dilateErodeDistanceText = 6
+      self.SmallErosionsCheckBox.checked = False
+    else:
+      self.minimalRadiusText = 3
+      self.dilateErodeDistanceText = 4
+
+  def onSmallErosionsChecked(self):
+    """Run this whenever the check box for Small Erosions in step 4 changes"""
+    if self.SmallErosionsCheckBox.checked:
+      self.minimalRadiusText = 2
+      self.dilateErodeDistanceText = 3
+      self.LargeErosionsCheckBox.checked = False
+    else:
+      self.minimalRadiusText = 3
+      self.dilateErodeDistanceText = 4
+  
+  def onGlyphSizeChanged(self):
+    markupsDisplayNode = self.markupsTableWidget.getCurrentNode().GetMarkupsDisplayNode()
+    markupsDisplayNode.SetGlyphScale(self.glyphSizeBox.value)
 
   def onAdvancedChecked(self):
     """Run this whenever the check box for large erosions in step 4 changes"""
@@ -718,16 +699,6 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
       self.markupsTableWidget.normalMarkupsControlPointsTableView()
       # self.minimalRadiusText.value = 3
       # self.dilateErodeDistanceText.value = 4
-  
-  def onCBCTChecked(self):
-    """Run this whenever the check box for CBCT in step 4 changes"""
-    if self.CBCTCheckBox.checked:
-      self.minimalRadiusText.value = 1
-      self.dilateErodeDistanceText.value = 0
-      self.advancedCheckBox.checked = False
-    else:
-      self.minimalRadiusText.value = 3
-      self.dilateErodeDistanceText.value = 4
 
   def onSelectInputErosion(self):
     """Run this whenever the input erosion selector in step 6 changes"""
@@ -793,8 +764,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
         self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
         self.segmentEditor.setSegmentationNode(outputVolumeNode)
         self.segmentEditor.setMasterVolumeNode(inputVolumeNode)
-
-        self.enableEraseWidgets()
+        self.segmentEditor.checkEraseButtons()
     
     # store thresholds 
     inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
@@ -814,93 +784,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     else:                              # label map to segmentation
       self._logic.labelmapToSegmentationNode(labelMapNode, segmentationNode)
 
-  def onEraseBetweenSlicesButton(self):
-    
-    segmentationNode = self.segmentEditor.getEditor().segmentationNode()
-    self.segmentIdToErase = self.segmentEditor.getEditor().currentSegmentID()
-
-    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
-    self.segmentEditor.getEditor().setCurrentSegmentID(eraseNodeID)
-    self.segmentEditor.getEditor().setActiveEffectByName("Paint")
-
-    maskMode = segmentationNode.EditAllowedEverywhere
-    self.segmentEditor.setMaskMode(maskMode, self.segmentIdToErase)
-
-    self.applyEraseBetweenSlicesButton.enabled = True
-
-    #TODO make slicer wait until you have atleast 2 slices with segments before enabling apply button
-
-  def onApplyEraseBetweenSlicesButton(self):
-
-    volumeNode = self.segmentEditor.getEditor().masterVolumeNode()
-    segmentationNode = self.segmentEditor.getEditor().segmentationNode()
-    eraseId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName("Delete")
-    self.segmentEditor.getEditor().setCurrentSegmentID(eraseId)
-
-    selectedSegmentIds = vtk.vtkStringArray()
-
-    if(segmentationNode):
-        segmentationNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
-
-    segmentArrays = []
-    segments = []
-    segmentIds = []
-
-    # remove all segments
-    for idx in range(selectedSegmentIds.GetNumberOfValues()):
-      segmentId = selectedSegmentIds.GetValue(idx)
-      if segmentId == "Delete":
-        continue
-
-      # Get mask segment as numpy array
-      segmentArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, segmentId, volumeNode)
-
-      segmentArrays.append(segmentArray)
-      segments.append(segmentationNode.GetSegmentation().GetSegment(segmentId))
-      segmentIds.append(segmentId)
-      segmentationNode.GetSegmentation().RemoveSegment(segmentId)
-
-    maskMode = segmentationNode.EditAllowedEverywhere
-    self.segmentEditor.setMaskMode(maskMode, "")
-
-    self.segmentEditor.getEditor().setActiveEffectByName("Fill between slices")
-    effect = self.segmentEditor.getEditor().activeEffect()
-    effect.self().onPreview()
-    effect.self().onApply()
-
-    # Get erase mask segment as numpy array
-    eraseArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, eraseId, volumeNode)
-
-    slices = eraseArray.shape[0]
-    row = eraseArray.shape[1]
-    col = eraseArray.shape[2]
-
-    # Add all segments back but after erasing
-    idx = 0
-    for segmentArray in segmentArrays:
-      segmentationNode.GetSegmentation().AddSegment(segments[idx], segmentIds[idx])
-
-      if segmentIds[idx] == self.segmentIdToErase:
-        # Iterate through voxels
-        for i in range(slices):
-          for j in range(row):
-            for k in range(col):
-              if(eraseArray[i, j, k]):
-                segmentArray[i, j, k] = 0
-
-      # Convert back to label map array
-      slicer.util.updateSegmentBinaryLabelmapFromArray(segmentArray, segmentationNode, segmentIds[idx], volumeNode)
-      idx = idx + 1
-
-    segmentationNode.GetSegmentation().RemoveSegment(eraseId)
-    maskSegmentId = segmentationNode.GetSegmentation().GetNthSegmentID(0)
-
-    maskMode = segmentationNode.EditAllowedInsideSingleSegment
-    self.segmentEditor.setMaskMode(maskMode, maskSegmentId)
-
-    segmentationNode.GetDisplayNode().SetSegmentVisibility(maskSegmentId, False)
-    self.segmentEditor.getEditor().setCurrentSegmentID(self.segmentIdToErase)
-    print(maskSegmentId)
+  
 
   def onGetStatsButton(self):
     """Run this whenever the get statistics button in step 6 is clicked"""
@@ -916,9 +800,6 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     # update widgets
     self.segmentEditor.setSegmentationNode(inputErosionNode)
     self.segmentEditor.setMasterVolumeNode(masterVolumeNode)
-
-  def enableEraseWidgets(self):
-    self.eraseBetweenSlicesButton.enabled = True
 
   def enableErosionsWidgets(self):
     """Enable widgets in the erosions layout in step 4"""

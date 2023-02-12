@@ -47,7 +47,7 @@ class SegmentEditor:
 
     # connections
     self.editor.connect('segmentationNodeChanged(vtkMRMLSegmentationNode *)', self.onSegmentationNodeChanged)
-    self.editor.connect('segmentationNodeChanged(vtkMRMLSegmentationNode *)', self.onMasterVolumeNodeChanged)
+    self.editor.connect('masterVolumeNodeChanged (vtkMRMLVolumeNode *)', self.onMasterVolumeNodeChanged)
     self.editor.connect('currentSegmentIDChanged(const QString &)', 
                          lambda segmentId: self.onCurrentSegmentIDChanged(segmentId))
 
@@ -55,6 +55,29 @@ class SegmentEditor:
     self.selectParameterNode()
     self.editor.setMRMLScene(slicer.mrmlScene)
     self.layout.addWidget(self.editor)
+
+    eraseGridLayout = qt.QGridLayout()
+    eraseGridLayout.setContentsMargins(0, 5, 0, 5)
+
+    # Erase between slices button
+    self.eraseBetweenSlicesButton = qt.QPushButton("Erase Between Slices")
+    self.eraseBetweenSlicesButton.toolTip = "Interpolates between segments between slices and erases those segments"
+    self.eraseBetweenSlicesButton.enabled = False
+    eraseGridLayout.addWidget(self.eraseBetweenSlicesButton, 0, 0)
+
+    # Apply erase button
+    self.applyEraseBetweenSlicesButton = qt.QPushButton("Apply Erase")
+    self.applyEraseBetweenSlicesButton.toolTip = "Applies erase between slices"
+    self.applyEraseBetweenSlicesButton.enabled = False
+    eraseGridLayout.addWidget(self.applyEraseBetweenSlicesButton, 0, 1)
+
+    eraseFrame = qt.QFrame()
+    eraseFrame.setLayout(eraseGridLayout)
+
+    self.layout.addWidget(eraseFrame)
+
+    self.eraseBetweenSlicesButton.connect('clicked(bool)', self.onEraseBetweenSlicesButton)
+    self.applyEraseBetweenSlicesButton.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
 
     # Observe editor effect registrations to make sure that any effects that are registered
     # later will show up in the segment editor widget. For example, if Segment Editor is set
@@ -170,6 +193,8 @@ class SegmentEditor:
         if ('mask' in maskSegment.GetName().lower()): # the first segment is the mask
           insideSingleSegment = segmentationNode.EditAllowedInsideSingleSegment
           self.setMaskMode(insideSingleSegment, segmentation.GetNthSegmentID(0))
+      
+    self.checkEraseButtons()
 
   def onMasterVolumeNodeChanged(self):
     """
@@ -180,6 +205,8 @@ class SegmentEditor:
     if masterVolumeNode:
       # display master volume
       slicer.util.setSliceViewerLayers(background=masterVolumeNode, label=None)
+
+    self.checkEraseButtons()
 
   def onCurrentSegmentIDChanged(self, segmentId):
     """
@@ -194,6 +221,97 @@ class SegmentEditor:
     if centroid:
       markupsLogic = slicer.modules.markups.logic()
       markupsLogic.JumpSlicesToLocation(centroid[0], centroid[1], centroid[2], False)
+
+  def checkEraseButtons(self):
+    print(self.editor.masterVolumeNode() and self.editor.segmentationNode())
+    self.eraseBetweenSlicesButton.enabled = self.editor.masterVolumeNode() and self.editor.segmentationNode()
+
+  def onEraseBetweenSlicesButton(self):
+    
+    segmentationNode = self.editor.segmentationNode()
+    self.segmentIdToErase = self.editor.currentSegmentID()
+
+    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
+    segmentationNode.GetSegmentation().RemoveSegment(eraseNodeID)
+    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
+    self.editor.setCurrentSegmentID(eraseNodeID)
+    self.editor.setActiveEffectByName("Paint")
+
+    self.applyEraseBetweenSlicesButton.enabled = True
+
+    #TODO make slicer wait until you have atleast 2 slices with segments before enabling apply button
+
+  def onApplyEraseBetweenSlicesButton(self):
+
+    volumeNode = self.editor.masterVolumeNode()
+    segmentationNode = self.editor.segmentationNode()
+    eraseId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName("Delete")
+    self.editor.setCurrentSegmentID(eraseId)
+
+    selectedSegmentIds = vtk.vtkStringArray()
+
+    if(segmentationNode):
+        segmentationNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
+
+    segmentArrays = []
+    segments = []
+    segmentIds = []
+
+    # remove all segments
+    for idx in range(selectedSegmentIds.GetNumberOfValues()):
+      segmentId = selectedSegmentIds.GetValue(idx)
+      if segmentId == "Delete":
+        continue
+
+      # Get mask segment as numpy array
+      segmentArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, segmentId, volumeNode)
+
+      segmentArrays.append(segmentArray)
+      segments.append(segmentationNode.GetSegmentation().GetSegment(segmentId))
+      segmentIds.append(segmentId)
+      segmentationNode.GetSegmentation().RemoveSegment(segmentId)
+
+    maskMode = segmentationNode.EditAllowedEverywhere
+    self.setMaskMode(maskMode, "")
+
+    self.editor.setActiveEffectByName("Fill between slices")
+    effect = self.editor.activeEffect()
+    effect.self().onPreview()
+    effect.self().onApply()
+
+    # Get erase mask segment as numpy array
+    eraseArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, eraseId, volumeNode)
+
+    slices = eraseArray.shape[0]
+    row = eraseArray.shape[1]
+    col = eraseArray.shape[2]
+
+    # Add all segments back but after erasing
+    idx = 0
+    for segmentArray in segmentArrays:
+      segmentationNode.GetSegmentation().AddSegment(segments[idx], segmentIds[idx])
+
+      if segmentIds[idx] == self.segmentIdToErase:
+        # Iterate through voxels
+        for i in range(slices):
+          for j in range(row):
+            for k in range(col):
+              if(eraseArray[i, j, k]):
+                segmentArray[i, j, k] = 0
+
+      # Convert back to label map array
+      slicer.util.updateSegmentBinaryLabelmapFromArray(segmentArray, segmentationNode, segmentIds[idx], volumeNode)
+      idx = idx + 1
+
+    segmentationNode.GetSegmentation().RemoveSegment(eraseId)
+    maskSegmentId = segmentationNode.GetSegmentation().GetNthSegmentID(0)
+
+    maskMode = segmentationNode.EditAllowedInsideSingleSegment
+    self.setMaskMode(maskMode, maskSegmentId)
+
+    segmentationNode.GetDisplayNode().SetSegmentVisibility(maskSegmentId, False)
+    self.editor.setCurrentSegmentID(self.segmentIdToErase)
+    print(maskSegmentId)
 
   def enter(self):
     """

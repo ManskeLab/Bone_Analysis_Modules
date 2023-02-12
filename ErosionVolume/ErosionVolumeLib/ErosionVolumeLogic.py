@@ -121,7 +121,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       seeds.append(itk_coord)
       # store seed point numbers in the variable erosion_ids
       seed_id = markupsNode.GetNthControlPointID(i)
-      print(minimalRadius[i])
+      print(minimalRadius)
       # erosion_id_max = 0
       # try:
       #   erosion_id = int(seed_id)
@@ -364,8 +364,8 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       except ValueError:
         pass
       # record advanced parameters
-      segment.SetTag("MinimalRadius", minimalRadius[i])
-      segment.SetTag("DilateErodeDistance", dilateErodeDistance[i])
+      segment.SetTag("MinimalRadius", minimalRadius)
+      segment.SetTag("DilateErodeDistance", dilateErodeDistance)
       # record name of erosion source node
       segment.SetTag("Source", erosionSource)
 

@@ -16,9 +16,7 @@ import sitkUtils
 import numpy as np
 from numpy import copy
 import logging, os
-from ErosionVolumeLib.SegmentEditor import SegmentEditor
-from ErosionVolumeLib.VoidVolumeLogic import VoidVolumeLogic
-from ErosionVolumeLib.ErosionStatisticsLogic import ErosionStatisticsLogic
+from TrainingLib.VoidVolumeLogic import VoidVolumeLogic
 
 #
 # ErosionVolumeLogic
@@ -35,7 +33,6 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     self.progressCallBack = None
 
     self.voidVolume = VoidVolumeLogic()
-    self.erosionStatistics = ErosionStatisticsLogic()
 
   def RASToIJKCoords(self, ras_3coords:list, ras2ijk) -> tuple:
     """
@@ -121,7 +118,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       seeds.append(itk_coord)
       # store seed point numbers in the variable erosion_ids
       seed_id = markupsNode.GetNthControlPointID(i)
-      print(minimalRadius[i])
+      
       # erosion_id_max = 0
       # try:
       #   erosion_id = int(seed_id)
@@ -176,10 +173,9 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     print(np.count_nonzero(erosion_arr), np.count_nonzero(contour_arr), contour_arr.size * 0.05)
     if abs(np.count_nonzero(erosion_arr) - np.count_nonzero(contour_arr)) < contour_arr.size * 0.05:
       text = """Unable to detect erosions. Check the set parameters in the module.\n
--Thresholds may be incorrect for the image
--Seed points may be incorrect
--Minimum erosion radius may need to be increased or decreased
--Large erosion may need to be enabled"""
+- Thresholds may be incorrect for the image
+- Seed points may be incorrect
+- Large or small erosions check box may need to be enabled"""
       slicer.util.errorDisplay(text, "Erosion Analysis Failed")
       return False
 
@@ -364,8 +360,8 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       except ValueError:
         pass
       # record advanced parameters
-      segment.SetTag("MinimalRadius", minimalRadius[i])
-      segment.SetTag("DilateErodeDistance", dilateErodeDistance[i])
+      segment.SetTag("MinimalRadius", minimalRadius)
+      segment.SetTag("DilateErodeDistance", dilateErodeDistance)
       # record name of erosion source node
       segment.SetTag("Source", erosionSource)
 

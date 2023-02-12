@@ -121,14 +121,24 @@ class ContourLogic:
         Returns:
             Image
         """
-        sitk.Resample(thresh_img, rough_mask, sitk.Transform(), sitk.NearestNeighbour, 0, thresh_img.GetPixelID())
+        print("thresh:\n#########################")
+        print(thresh_img)
+        # resampler = sitk.ResampleImageFilter()
+        # resampler.SetReferenceImage(thresh_img)
+        # resampler.SetInterpolator(sitk.sitkLinear)
+        # resampler.SetDefaultPixelValue(0)
+        # resampler.SetTransform(sitk.Transform())
+
+        # rough_mask = resampler.Execute(rough_mask)
+        print("rough mask:\n#########################")
+        print(rough_mask)
         self._stats_filter.Execute(thresh_img, rough_mask)
         boneNum = self._stats_filter.GetNumberOfLabels() - 1
         print(boneNum)
 
         self.setBoneNum(boneNum)
 
-        # return label_img
+        return rough_mask
 
     def relabelWithConnect(self, img):
         """
@@ -444,11 +454,11 @@ class ContourLogic:
                     self.label_img = self.relabelWithConnect(self.img)
                 else:                        # separate bones with rough mask
                     self.label_img = self.roughMask
+                    self.label_image = self.relabelWithMap(self.img, self.roughMask)
             elif actual_step == 3: # step 3
                 if (self.roughMask is None):
                     self.img = self.extract(self.label_img, self.label_img, foreground=self.boneNum)
                 else:
-                    self.relabelWithMap(self.img, self.roughMask)
                     self.img = self.extract(self.model_img, self.label_img, foreground=self.boneNum)
                     self.img = self.smoothen(self.img, self.sigma, self.lower_threshold, self.upper_threshold,
                                             foreground=self.boneNum)

@@ -5,13 +5,18 @@ CONTROL_POINT_LABEL_COLUMN = 0
 CONTROL_POINT_BONE_NUM_COLUMN = 1
 CONTROL_POINT_IS_EROSION = 2
 CONTROL_POINT_EROSION_IN_FOV= 3
-CONTROL_POINT_LARGE_EROSION =  4
-CONTROL_POINT_MINIMUM_RADIUS = 4
-CONTROL_POINT_ERODE_DISTANCE = 5
-CONTROL_POINT_X_COLUMN = 5
-CONTROL_POINT_Y_COLUMN = 6
-CONTROL_POINT_Z_COLUMN = 7
-CONTROL_POINT_COLUMNS = 8
+CONTROL_POINT_X_COLUMN = 4
+CONTROL_POINT_Y_COLUMN = 5
+CONTROL_POINT_Z_COLUMN = 6
+CONTROL_POINT_COLUMNS = 7
+
+# CONTROL_POINT_LARGE_EROSION =  4
+# CONTROL_POINT_MINIMUM_RADIUS = 4
+# CONTROL_POINT_ERODE_DISTANCE = 5
+# CONTROL_POINT_X_COLUMN = 5
+# CONTROL_POINT_Y_COLUMN = 6
+# CONTROL_POINT_Z_COLUMN = 7
+# CONTROL_POINT_COLUMNS = 8
 
 #
 # MarkupsTableWidget
@@ -90,6 +95,7 @@ class MarkupsTable:
     self.markupsControlPointsTableWidget.setContextMenuPolicy(qt.Qt.CustomContextMenu)
     self.markupsControlPointsTableWidget.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
     self.layout.addRow(self.markupsControlPointsTableWidget)
+    self.markupsControlPointsTableWidget.setMinimumHeight(200)
 
     # connections
     self.markupsSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onMarkupsNodeChanged)
@@ -104,7 +110,7 @@ class MarkupsTable:
     """Reset the appearence of the markups control points table widget"""
     self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS)
     self.markupsControlPointsTableWidget.setRowCount(0)
-    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Is Erosion', 'Erosion in FOV', 'Large Erosion', 'X', 'Y', 'Z'])
+    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Is Erosion', 'Erosion in FOV', 'X', 'Y', 'Z'])
     # self.markupsControlPointsTableWidget.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
 
   def onDeleteAllButton(self):
@@ -191,7 +197,6 @@ class MarkupsTable:
         # remove the point at that row
         self._currentNode.RemoveNthControlPoint(deleteControlPoints[i])
 
-        print(deleteControlPoints[i])
         self.markupsControlPointsTableWidget.removeRow(deleteControlPoints[i])
       self._currentNode.EndModify(wasModifying)
     
@@ -208,10 +213,16 @@ class MarkupsTable:
 
   def onMarkupsNodeChanged(self):
     """Run this whenever the markup node selector changes"""
+    if not self.markupsSelector.currentNode():
+      return
+
+    if self._currentNode:
+      self._currentNode.SetDisplayVisibility(False)
+
     self.markupsControlPointsTableWidget.clear()
     self.setupMarkupsControlPointsTableWidget()
     self.setCurrentNode(self.markupsSelector.currentNode())
-    print(self._currentNode.GetNumberOfControlPoints())
+    self._currentNode.SetDisplayVisibility(True)
     self.updateWidget()
     self.markupsControlPointsTableWidget.scrollToBottom()
 
@@ -362,7 +373,7 @@ class MarkupsTable:
       minimalRadiusText.setSingleStep(1)
       minimalRadiusText.setSuffix(' voxels')
       minimalRadiusText.value = 3
-      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_MINIMUM_RADIUS, minimalRadiusText)
+      # self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_MINIMUM_RADIUS, minimalRadiusText)
 
       dilateErodeDistanceText = qt.QSpinBox()
       dilateErodeDistanceText.setMinimum(0)
@@ -370,7 +381,7 @@ class MarkupsTable:
       dilateErodeDistanceText.setSingleStep(1)
       dilateErodeDistanceText.setSuffix(' voxels')
       dilateErodeDistanceText.value = 4
-      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_ERODE_DISTANCE, dilateErodeDistanceText)
+      # self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_ERODE_DISTANCE, dilateErodeDistanceText)
 
       controlPointPosition = [0, 0, 0]
       currentNode.GetNthControlPointPosition(i, controlPointPosition)
@@ -424,7 +435,6 @@ class MarkupsTable:
     currentNode = self._currentNode
 
     controlPointsNum = currentNode.GetNumberOfControlPoints()
-    print(controlPointsNum)
     for i in range(controlPointsNum):
       if self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN):
         controlPointLabel = currentNode.GetNthControlPointLabel(i)
@@ -462,13 +472,11 @@ class MarkupsTable:
         self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_Z_COLUMN).setText('%.3f' % (ITKCoord[2]))
     else:
       if(not self.markupsControlPointsTableWidget.rowCount):
-        print("yoo")
         for i in range(controlPointsNum):
           self.markupsControlPointsTableWidget.insertRow(i)
           self.insertPoint(i, controlPointsNum)
 
       elif(controlPointsNum > self.markupsControlPointsTableWidget.rowCount):
-        print("hello")
         self.markupsControlPointsTableWidget.insertRow(controlPointsNum-1)
         self.insertPoint(controlPointsNum-1, controlPointsNum)
     self.markupsControlPointsTableWidget.blockSignals(wasBlockedTableWidget)
@@ -495,28 +503,28 @@ class MarkupsTable:
     isErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
     self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_EROSION_IN_FOV, isErosionInFOVCheckBox)
 
-    if(self.advanced):
-      minimalRadiusText = qt.QSpinBox()
-      minimalRadiusText.setMinimum(1)
-      minimalRadiusText.setMaximum(99)
-      minimalRadiusText.setSingleStep(1)
-      minimalRadiusText.setSuffix(' voxels')
-      minimalRadiusText.value = 3
-      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_MINIMUM_RADIUS, minimalRadiusText)
+    # if(self.advanced):
+    #   minimalRadiusText = qt.QSpinBox()
+    #   minimalRadiusText.setMinimum(1)
+    #   minimalRadiusText.setMaximum(99)
+    #   minimalRadiusText.setSingleStep(1)
+    #   minimalRadiusText.setSuffix(' voxels')
+    #   minimalRadiusText.value = 3
+    #   self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_MINIMUM_RADIUS, minimalRadiusText)
 
-      dilateErodeDistanceText = qt.QSpinBox()
-      dilateErodeDistanceText.setMinimum(0)
-      dilateErodeDistanceText.setMaximum(99)
-      dilateErodeDistanceText.setSingleStep(1)
-      dilateErodeDistanceText.setSuffix(' voxels')
-      dilateErodeDistanceText.value = 4
-      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_ERODE_DISTANCE, dilateErodeDistanceText)
+    #   dilateErodeDistanceText = qt.QSpinBox()
+    #   dilateErodeDistanceText.setMinimum(0)
+    #   dilateErodeDistanceText.setMaximum(99)
+    #   dilateErodeDistanceText.setSingleStep(1)
+    #   dilateErodeDistanceText.setSuffix(' voxels')
+    #   dilateErodeDistanceText.value = 4
+    #   self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_ERODE_DISTANCE, dilateErodeDistanceText)
 
-    else:
-      largeErosionCheckBox = qt.QCheckBox()
-      largeErosionCheckBox.checked = False
-      largeErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
-      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_LARGE_EROSION, largeErosionCheckBox)
+    # else:
+    #   largeErosionCheckBox = qt.QCheckBox()
+    #   largeErosionCheckBox.checked = False
+    #   largeErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
+    #   self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_LARGE_EROSION, largeErosionCheckBox)
       
     xItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[0]))
     yItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[1]))

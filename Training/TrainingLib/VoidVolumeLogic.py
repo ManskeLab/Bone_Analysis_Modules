@@ -212,10 +212,10 @@ class VoidVolumeLogic:
         distance_img = distance_filter.Execute(seeds_img)
 
         # inflate seed points
-        upper = self.dilateErodeDistance[0] if self.dilateErodeDistance[0] != 0 else 1
+        upper = self.dilateErodeDistance if self.dilateErodeDistance != 0 else 1
         seeds_img = sitk.BinaryThreshold(distance_img, 
                                          lowerThreshold=0, 
-                                         upperThreshold=self.dilateErodeDistance[0], 
+                                         upperThreshold=self.dilateErodeDistance, 
                                          insideValue=1)
 
         # combine inflated seed points and voids in the bone
@@ -325,7 +325,7 @@ class VoidVolumeLogic:
                 relabel_map[key] = erosionId
         
         relabel_filter = sitk.ChangeLabelImageFilter()
-        print(relabel_map)
+
         relabel_filter.SetChangeMap(relabel_map)
         relabeled_img = relabel_filter.Execute(relabeled_img)
 
@@ -346,13 +346,13 @@ class VoidVolumeLogic:
         elif step == 2:
             self.ero1_img = self.createROI(self.model_img)
         elif step == 3:
-            self.ero1_img = self.distanceVoidVolume(self.ero1_img, self.minimalRadius[0])
+            self.ero1_img = self.distanceVoidVolume(self.ero1_img, self.minimalRadius)
         elif step == 4:
-            self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.dilateErodeDistance[0])
+            self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.dilateErodeDistance)
         elif step == 5:
             self.ero1_img = self.connectVoidVolume(self.ero1_img)
         elif step == 6:
-            self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.dilateErodeDistance[0])
+            self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.dilateErodeDistance)
         elif step == 7:
             iterations = 100
             self.output_img = self.growVoidVolume(self.ero1_img, iterations)
@@ -413,8 +413,7 @@ class VoidVolumeLogic:
         destination_x = round((model_origin[0] - contour_origin[0]) / spacing)
         destination_y = round((model_origin[1] - contour_origin[1]) / spacing)
         destination_z = round((model_origin[2] - contour_origin[2]) / spacing)
-        print(destination_x, destination_y, destination_z)
-        print(model_origin)
+
         r = sitk.VersorTransform()
         r.SetMatrix(direction)
         destination_index = r.TransformPoint((destination_x, destination_y, destination_z))
@@ -423,7 +422,6 @@ class VoidVolumeLogic:
         paste_filter.SetDestinationIndex(destination_index)
         paste_filter.SetSourceSize(model_size)
         self.model_img = paste_filter.Execute(model_img, self.model_img)
-        print(model_img.GetOrigin())
         
         # update seed points
         destination_x *= int(direction[0])
@@ -495,8 +493,8 @@ class VoidVolumeLogic:
         self._seeds_crop.pop(n)
         self.seeds.pop(n)
         self.erosionIds.pop(n)
-        self.minimalRadius.pop(n)
-        self.dilateErodeDistance.pop(n)
+        # self.minimalRadius.pop(n)
+        # self.dilateErodeDistance.pop(n)
 
     def _cleanup(self):
         """

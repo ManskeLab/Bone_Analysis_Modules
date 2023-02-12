@@ -388,7 +388,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     selectorFormLayout = qt.QFormLayout()
     selectorFormLayout.setContentsMargins(0, 0, 0, 0)
 
-    selectorFormLayout.addRow("Import segmentations from external contour mask:", None)
+    selectorFormLayout.addRow(qt.QLabel("Import segmentations from external contour mask:"))
 
     # mask volume selector
     self.maskVolumeSelector = slicer.qMRMLNodeComboBox()
@@ -403,7 +403,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.maskVolumeSelector.setToolTip("Select the scan associated with the contour")
     selectorFormLayout.addRow("Mask Volume: ", self.maskVolumeSelector)
 
-    selectorFormLayout.addRow("Or", None)
+    selectorFormLayout.addRow(qt.QLabel("Or"))
 
     # contour selector
     self.contourVolumeSelector = slicer.qMRMLNodeComboBox()
@@ -419,7 +419,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.contourVolumeSelector.setToolTip( "Select the contour to be corrected" )
     selectorFormLayout.addRow("Contour to be Corrected: ", self.contourVolumeSelector)
 
-    selectorFormLayout.addRow("", None)
+    selectorFormLayout.addRow(qt.QLabel(""))
 
     # master volume selector
     self.masterVolumeSelector = slicer.qMRMLNodeComboBox()
@@ -485,7 +485,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     manualCorrectionLayout.addWidget(initApplyFrame)
 
     # segmentation editor
-    self.segmentEditor = SegmentEditor(manualCorrectionLayout)
+    self.segmentEditor3 = SegmentEditor(manualCorrectionLayout)
 
     # connections
     self.manualCorrectionCollapsibleButton.connect('contentsCollapsed(bool)', self.onCollapsed3)
@@ -558,10 +558,12 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
   def onSelectExternalMask(self):
     self.contourVolumeSelector.enabled = False
+    self.segmentEditor3.setSegmentationNode(self.maskVolumeSelector.currentNode())
     self.onSelect3()
 
   def onSelectInternalContour(self):
     self.maskVolumeSelector.enabled = False
+    self.segmentEditor3.setSegmentationNode(self.contourVolumeSelector.currentNode())
     self.onSelect3()
 
   def onSelect3(self):
@@ -569,6 +571,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.initButton3.enabled = ((self.contourVolumeSelector.currentNode() or 
                                 self.maskVolumeSelector.currentNode()) and
                                self.masterVolumeSelector.currentNode())
+
+    self.segmentEditor3.setMasterVolumeNode(self.masterVolumeSelector.currentNode())
 
   def onInitButton1(self):
     """Run this whenever the initialize button in step 1 is clicked"""
@@ -639,7 +643,14 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
 
   def onEraseBetweenSlicesButton3(self):
     self.applyEraseBetweenSlicesButton3.enabled = True
-    self.onEraseBetweenSlices()
+
+    segmentationNode = self.segmentEditor3.getEditor().segmentationNode()
+
+    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
+    segmentationNode.GetSegmentation().RemoveSegment(eraseNodeID)
+    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
+    self.segmentEditor3.getEditor().setCurrentSegmentID(eraseNodeID)
+    self.segmentEditor3.getEditor().setActiveEffectByName("Paint")
 
   def onEraseBetweenSlices(self):
     
@@ -937,8 +948,8 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.initButton3.enabled = False
     self.cancelButton3.enabled = True
     self.applyButton3.enabled = True
-    self.deleteButton1.enabled = True
-    self.eraseBetweenSlicesButton1.enabled = True
+    self.deleteButton3.enabled = True
+    self.eraseBetweenSlicesButton3.enabled = True
     self.contourVolumeSelector.enabled = False
     self.masterVolumeSelector.enabled = False
 

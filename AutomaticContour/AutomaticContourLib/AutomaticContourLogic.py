@@ -280,6 +280,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
     """
 
     if(algorithm == 1):
+      print("Using Dual Threshold Algorithm.")
       # initialize progress value
       increment = 100 // self.contour.getStepNum() # progress bar increment value
       progress = 0
@@ -291,6 +292,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       try:
         step = 1
         while (self.contour.execute(step, algorithm)): # execute the next step
+          print(step)
           logging.info("in while loop")
           progress += increment
           if not noProgress:
@@ -412,6 +414,8 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       segmentEditor.setMasterVolumeNode(masterVolumeNode)
       # update viewer windows
       slicer.util.setSliceViewerLayers(background=masterVolumeNode)
+      
+      return True
     return False
 
   def cancelManualCorrection(self, contourVolumeNode, masterVolumeNode):

@@ -93,12 +93,12 @@ class AutocontourKnee:
         in_value=127,
         peri_s1_sigma=1.5,
         peri_s1_support=1,
-        peri_s1_lower=350,  # 919, # was 350 mgHA/ccm
+        peri_s1_lower=250,  # 919, # was 350 mgHA/ccm
         peri_s1_upper=10000,  # very high value
         peri_s1_radius=35,
         peri_s2_sigma=1.5,
         peri_s2_support=1,
-        peri_s2_lower=250,  # 660, # was 250 mgHA/ccm
+        peri_s2_lower=150,  # 660, # was 250 mgHA/ccm
         peri_s2_upper=10000,
         peri_s2_radius=10,
         peri_s3_sigma=1.5,
@@ -599,7 +599,10 @@ class AutocontourKnee:
         # step 1
         peri_mask = sitk.Mask(peri_mask, img_segmented_s1)
 
-        return peri_mask
+        #fill any holes in final mask
+        fill_hole_mask = sitk.BinaryFillhole(peri_mask)
+
+        return fill_hole_mask
 
     def get_endosteal_mask(self, img, peri):
         """

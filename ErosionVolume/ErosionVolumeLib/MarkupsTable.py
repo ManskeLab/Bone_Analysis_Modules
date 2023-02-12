@@ -208,10 +208,12 @@ class MarkupsTable:
 
   def onMarkupsNodeChanged(self):
     """Run this whenever the markup node selector changes"""
+    if(self._currentNode):
+      self._currentNode.SetDisplayVisibility(False)
     self.markupsControlPointsTableWidget.clear()
     self.setupMarkupsControlPointsTableWidget()
     self.setCurrentNode(self.markupsSelector.currentNode())
-    print(self._currentNode.GetNumberOfControlPoints())
+    self._currentNode.SetDisplayVisibility(True)
     self.updateWidget()
     self.markupsControlPointsTableWidget.scrollToBottom()
 
@@ -462,13 +464,11 @@ class MarkupsTable:
         self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_Z_COLUMN).setText('%.3f' % (ITKCoord[2]))
     else:
       if(not self.markupsControlPointsTableWidget.rowCount):
-        print("yoo")
         for i in range(controlPointsNum):
           self.markupsControlPointsTableWidget.insertRow(i)
           self.insertPoint(i, controlPointsNum)
 
       elif(controlPointsNum > self.markupsControlPointsTableWidget.rowCount):
-        print("hello")
         self.markupsControlPointsTableWidget.insertRow(controlPointsNum-1)
         self.insertPoint(controlPointsNum-1, controlPointsNum)
     self.markupsControlPointsTableWidget.blockSignals(wasBlockedTableWidget)
