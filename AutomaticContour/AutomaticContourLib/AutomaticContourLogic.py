@@ -409,13 +409,6 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       slicer.util.setSliceViewerLayers(background=masterVolumeNode)
 
       return True
-    elif (maskSegmentNode and masterVolumeNode):
-      segmentEditor.setSegmentationNode(maskSegmentNode)
-      segmentEditor.setMasterVolumeNode(masterVolumeNode)
-      # update viewer windows
-      slicer.util.setSliceViewerLayers(background=masterVolumeNode)
-      
-      return True
     return False
 
   def cancelManualCorrection(self, contourVolumeNode, masterVolumeNode):

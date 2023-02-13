@@ -9,6 +9,7 @@
 #-----------------------------------------------------
 from sre_constants import SUCCESS
 import vtk, qt, ctk, slicer
+import SimpleITK as sitk
 import sitkUtils
 import sys
 
@@ -84,6 +85,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     # Initialize logics object
     self._logic = AutomaticContourLogic()
     self._logic.progressCallBack = self.setProgress
+
+    self.loadContoursPath = os.path.join(os.path.split(os.path.dirname(os.path.abspath(__file__)))[0], 'LOAD_CONTOURS')
 
     self.applyPressed = False
 
@@ -388,22 +391,12 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     selectorFormLayout = qt.QFormLayout()
     selectorFormLayout.setContentsMargins(0, 0, 0, 0)
 
-    selectorFormLayout.addRow(qt.QLabel("Import segmentations from external contour mask:"))
+    selectorFormLayout.addRow(qt.QLabel("Load contours from directory <BAM directory>/LOAD_CONTOURS:"))
 
-    # mask volume selector
-    self.maskVolumeSelector = slicer.qMRMLNodeComboBox()
-    self.maskVolumeSelector.nodeTypes = ["vtkMRMLSegmentationNode"]
-    self.maskVolumeSelector.selectNodeUponCreation = False
-    self.maskVolumeSelector.addEnabled = False
-    self.maskVolumeSelector.removeEnabled = False
-    self.maskVolumeSelector.noneEnabled = True
-    self.maskVolumeSelector.showHidden = False
-    self.maskVolumeSelector.showChildNodeTypes = False
-    self.maskVolumeSelector.setMRMLScene( slicer.mrmlScene )
-    self.maskVolumeSelector.setToolTip("Select the scan associated with the contour")
-    selectorFormLayout.addRow("Mask Volume: ", self.maskVolumeSelector)
-
-    selectorFormLayout.addRow(qt.QLabel("Or"))
+    self.loadContours = qt.QPushButton("Load")
+    self.loadContours.toolTip = "Load contours from the directory <BAM directory>/LOAD_CONTOURS"
+    self.loadContours.enabled = True
+    selectorFormLayout.addRow(self.loadContours)
 
     # contour selector
     self.contourVolumeSelector = slicer.qMRMLNodeComboBox()
@@ -495,7 +488,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.deleteButton3.connect('clicked(bool)', self.onDeleteButton)
     self.eraseBetweenSlicesButton3.connect('clicked(bool)', self.onEraseBetweenSlicesButton3)
     self.applyEraseBetweenSlicesButton3.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
-    self.maskVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectExternalMask)
+    self.loadContours.connect('clicked(bool)', self.onLoadContours)
     self.contourVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInternalContour)
     self.masterVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect3)
 
@@ -556,20 +549,35 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.getContourButton.enabled = (self.inputVolumeSelector.currentNode() and
                                      self.outputVolumeSelector.currentNode())
 
-  def onSelectExternalMask(self):
-    self.contourVolumeSelector.enabled = False
-    self.segmentEditor3.setSegmentationNode(self.maskVolumeSelector.currentNode())
-    self.onSelect3()
+  def onLoadContours(self):
+    for image in os.listdir(self.loadContoursPath):
+      image_lower = image.lower()
+      image_dir = os.path.join(self.loadContoursPath, image)
+
+      binaryThresh = sitk.BinaryThresholdImageFilter()
+      binaryThresh.SetLowerThreshold(1)
+      binaryThresh.SetUpperThreshold(255)
+      binaryThresh.SetInsideValue(1)
+
+      segmentor = sitk.ConnectedComponentImageFilter()
+
+
+      if ('nrrd' in image_lower) or ('nii' in image_lower) or ('mha' in image_lower) or ('aim' in image_lower):
+        outBasename, outExtension = os.path.splitext(image)
+        out_dir = os.path.join(self.loadContoursPath, outBasename+'.nrrd')
+        temp = sitk.ReadImage(image_dir, sitk.sitkInt32)
+        out = binaryThresh.Execute(temp)
+        out = segmentor.Execute(out)
+        sitk.WriteImage(out, out_dir)
+        node = slicer.util.loadLabelVolume(out_dir)
 
   def onSelectInternalContour(self):
-    self.maskVolumeSelector.enabled = False
     self.segmentEditor3.setSegmentationNode(self.contourVolumeSelector.currentNode())
     self.onSelect3()
 
   def onSelect3(self):
     """Update the state of the initialize button whenever the selectors in step 3 change"""
-    self.initButton3.enabled = ((self.contourVolumeSelector.currentNode() or 
-                                self.maskVolumeSelector.currentNode()) and
+    self.initButton3.enabled = (self.contourVolumeSelector.currentNode() and
                                self.masterVolumeSelector.currentNode())
 
     self.segmentEditor3.setMasterVolumeNode(self.masterVolumeSelector.currentNode())
@@ -868,17 +876,11 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
 
   def onInitButton3(self):
     """Run this whenever the initialize button in step 3 is clicked"""
-    maskSegmentNode = self.maskVolumeSelector.currentNode()
     contourVolumeNode = self.contourVolumeSelector.currentNode()
     masterVolumeNode = self.masterVolumeSelector.currentNode()
 
-    if(self.maskVolumeSelector.enabled):
-      success = self._logic.initManualCorrection(self.segmentEditor,
-                                              maskSegmentNode,
-                                              None,
-                                              masterVolumeNode)
-    elif(self.contourVolumeSelector.enabled):
-      success = self._logic.initManualCorrection(self.segmentEditor,
+    if(self.contourVolumeSelector.enabled):
+      success = self._logic.initManualCorrection(self.segmentEditor3,
                                               None,
                                               contourVolumeNode,
                                               masterVolumeNode)
