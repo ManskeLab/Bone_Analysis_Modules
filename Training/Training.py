@@ -108,10 +108,13 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
     slicer.mrmlScene.Clear(False)
 
     for image in os.listdir(self.images_dir):
-      if not ('mha' in image):
+      if not ('nii.gz' in image):
         continue
+      image_name = os.path.splitext(image)[0]
       image = os.path.join(self.images_dir, image)
-      slicer.util.loadVolume(image)
+      image = sitk.ReadImage(image)
+      volume_node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode', image_name)
+      sitkUtils.PushVolumeToSlicer(image, volume_node)
 
     for markup in os.listdir(self.seed_points_dir):
       if not ('json' in markup):
@@ -471,8 +474,11 @@ Change the lower and upper thresholds before initializing."""
           error_message = ""
 
           print("")
+          error_flag = True
 
           if num_control_points != ref_num_erosions:
+            print(num_control_points)
+            print(ref_num_erosions)
             error_message += "Error: Incorrect amount of seed points placed.\n\n"
 
             if(num_control_points < ref_num_erosions):
@@ -482,7 +488,8 @@ Change the lower and upper thresholds before initializing."""
 
           elif num_control_points > num_erosions:
             error_message += "Error: Erosions not identified at all placed seed points. But, correct number of seed points placed.\n\n"
-            error_message += "If erosion exists at each seed points with no erosion volume, try the following:\n\n"
+            error_message += "It is possible that multiple seed points have identified the same erosion leading to this error.\nIf so, please seperate the seed points to identify different erosion volumes.\n\n"
+            error_message += "If unique erosion exists at each seed points with no erosion volume, try the following:\n\n"
             error_message += "- Reposition seed point to be located deeper into the erosion.\n"
             error_message += "  Make sure the seed point is located within the mask.\n"
             error_message += "- Enable one of the large or small erosions check boxes."
@@ -506,13 +513,14 @@ Change the lower and upper thresholds before initializing."""
 
             similarity_index = filter.GetSimilarityIndex()
 
-            error_message += "Correct number of erosions identified.\n\n"
+            error_message += "Number of seed points placed match number of reference erosions.\n\n"
             error_message += "Similarity Index = {}\n\n".format(similarity_index)
             
-            if(similarity_index>=0.9):
+            if(similarity_index>=0.93):
               error_message += "Seed points placed successfully!\n" 
-            elif(similarity_index>=0.5):
-              error_message += "Erosions locations were identified correctly however erosion volume does not match reference erosion volumes.\n\n"
+              error_flag = False
+            elif(similarity_index>=0.85):
+              error_message += "Erosions locations were identified correctly but erosion volume does not match reference erosion volumes.\n\n"
               error_message += "Try the following to improve erosion detection:\n\n"
               error_message += "\t- Reposition seed point to be located deeper within the erosion.\n"
               error_message += "- If erosions look too big:\n"
@@ -524,10 +532,13 @@ Change the lower and upper thresholds before initializing."""
             else:
               error_message += "Incorrect erosions identified, erosion locations do not match reference locations.\n\n"
               error_message += "Seed points needs to be repositioned to another site on the bone.\n\n"
-              error_message += "Load reference erosion segmentation file if you would liek to see the reference erosion volumes.\n"
-        
-        print(error_message)
-        slicer.util.errorDisplay(error_message, 'Seed point Feedback')
+              error_message += "Load reference erosion segmentation file if you would like to see the reference erosion volumes.\n"
+
+          print(error_message)
+          if(error_flag):
+            slicer.util.errorDisplay(error_message, 'Incorrect Erosion Analysis')
+          else:
+            slicer.util.infoDisplay(error_message, 'Seed Point Feedback')
 
         self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
             
