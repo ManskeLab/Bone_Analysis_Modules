@@ -31,6 +31,9 @@ class SegmentEditor:
       self.layout = parent.layout()
     self.setup()
 
+  def getEditor(self):
+    return self.editor
+
   def setup(self):
     # Segment editor widget
     import qSlicerSegmentationsModuleWidgetsPythonQt

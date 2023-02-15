@@ -11,6 +11,7 @@ import os, unittest, logging
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from ImageRegistrationLib.ImageRegistrationLogic import ImageRegistrationLogic
+from ImageRegistrationLib.MarkupsTable import MarkupsTable
 import sitkUtils
 
 #
@@ -83,16 +84,19 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     # Instantiate and connect widgets ...
 
     
-    self.registerCollapsibleButton = ctk.ctkCollapsibleButton()
-    self.registerCollapsibleButton.text = "Register Images"
-    self.visualizeCollapsibleButton = ctk.ctkCollapsibleButton()
-    self.visualizeCollapsibleButton.text = "Subtraction View"
+    self.registrationCollapsibleButton = ctk.ctkCollapsibleButton()
+    self.registrationCollapsibleButton.text = "Register Images"
+    self.borderCollapsibleButton = ctk.ctkCollapsibleButton()
+    self.borderCollapsibleButton.text = "Contour Border View"
+    self.subtractionCollapsibleButton = ctk.ctkCollapsibleButton()
+    self.subtractionCollapsibleButton.text = "Subtraction View"
     self.checkerboardCollapsibleButton = ctk.ctkCollapsibleButton()
     self.checkerboardCollapsibleButton.text = "Checkerboard View"
 
     # Setup collapsibles
     self.setupRegistration()
-    self.setupVisualization()
+    self.setupContourBorderView()
+    self.setupSubtractionView()
     self.setupCheckerboard()
 
     # Add vertical spacer
@@ -103,9 +107,22 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
   
   def setupRegistration(self) -> None:
     # Layout within the dummy collapsible button
-    registerFormLayout = qt.QFormLayout(self.registerCollapsibleButton)
+    registerFormLayout = qt.QFormLayout(self.registrationCollapsibleButton)
     registerFormLayout.setVerticalSpacing(5)
-    self.layout.addWidget(self.registerCollapsibleButton)
+    self.layout.addWidget(self.registrationCollapsibleButton)
+
+    # master volume selector
+    self.backgroundInputSelector = slicer.qMRMLNodeComboBox()
+    self.backgroundInputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.backgroundInputSelector.selectNodeUponCreation = False
+    self.backgroundInputSelector.addEnabled = False
+    self.backgroundInputSelector.removeEnabled = False
+    self.backgroundInputSelector.noneEnabled = False
+    self.backgroundInputSelector.showHidden = False
+    self.backgroundInputSelector.showChildNodeTypes = False
+    self.backgroundInputSelector.setMRMLScene(slicer.mrmlScene)
+    self.backgroundInputSelector.setToolTip("Select the input scan")
+    registerFormLayout.addRow("Background Volume: ", self.backgroundInputSelector)
 
     #
     # First input volume selector
@@ -139,6 +156,41 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.inputSelector2.setCurrentNode(None)
     registerFormLayout.addRow("Follow-up (moving): ", self.inputSelector2)
 
+    # 
+    # bone selector
+    # 
+    self.boneSelector = qt.QComboBox()
+    self.boneSelector.addItems(['Metacarpal', 'Phalanx'])
+    self.boneSelector.setEnabled(True)
+    self.boneSelector.currentTextChanged(self.boneChanged())
+    registerFormLayout.addRow("Bone: ", self.boneSelector)
+    self.maskedBone = self.boneSelector.currentText
+
+    # seed point selector
+    self.fiducialSelector = slicer.qMRMLNodeComboBox()
+    self.fiducialSelector.nodeTypes = ["vtkMRMLMarkupsFiducialNode"]
+    self.fiducialSelector.selectNodeUponCreation = True
+    self.fiducialSelector.addEnabled = True
+    self.fiducialSelector.removeEnabled = True
+    self.fiducialSelector.renameEnabled = True
+    self.fiducialSelector.noneEnabled = False
+    self.fiducialSelector.showHidden = False
+    self.fiducialSelector.showChildNodeTypes = False
+    self.fiducialSelector.setMRMLScene(slicer.mrmlScene)
+    self.fiducialSelector.baseName = "SEEDS"
+    self.fiducialSelector.setToolTip( "Pick the seed points" )
+    self.fiducialSelector.setCurrentNode(None)
+    registerFormLayout.addRow("Seed Points: ", self.fiducialSelector)
+
+    # seed point table
+    self.markupsTableWidget = MarkupsTable(self.registrationCollapsibleButton)
+    self.markupsTableWidget.setMRMLScene(slicer.mrmlScene)
+    self.markupsTableWidget.setNodeSelectorVisible(False) # use the above selector instead
+    self.markupsTableWidget.setButtonsVisible(False)
+    self.markupsTableWidget.setPlaceButtonVisible(True)
+    self.markupsTableWidget.setDeleteAllButtonVisible(True)
+    self.markupsTableWidget.setJumpToSliceEnabled(True)
+
     #
     # Registration similarity metric selector
     #
@@ -167,26 +219,26 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.optimizerSelector = qt.QComboBox()
     self.optimizerSelector.addItems(['Amoeba', 'Exhaustive', 'Powell', '1 + 1 Evolutionary', 
                                     'Gradient Descent', 'Gradient Descent Line Search', 'Regular Step Gradient Descent', 'L-BFGS'])
-    self.optimizerSelector.setCurrentIndex(2)
+    self.optimizerSelector.setCurrentIndex(4)
     registerFormLayout.addRow("Similarity Metric: ", self.optimizerSelector)
 
     #
     # Output volume selector
     #
-    self.outputSelector = slicer.qMRMLNodeComboBox()
-    self.outputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-    self.outputSelector.selectNodeUponCreation = True
-    self.outputSelector.addEnabled = True
-    self.outputSelector.renameEnabled = True
-    self.outputSelector.removeEnabled = True
-    self.outputSelector.noneEnabled = False
-    self.outputSelector.showHidden = False
-    self.outputSelector.showChildNodeTypes = False
-    self.outputSelector.setMRMLScene( slicer.mrmlScene )
-    self.outputSelector.setToolTip( "Select the output image" )
-    self.outputSelector.setCurrentNode(None)
-    self.outputSelector.baseName = 'REG'
-    registerFormLayout.addRow("Output: ", self.outputSelector)
+    self.regstrationOutputSelector = slicer.qMRMLNodeComboBox()
+    self.regstrationOutputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.regstrationOutputSelector.selectNodeUponCreation = True
+    self.regstrationOutputSelector.addEnabled = True
+    self.regstrationOutputSelector.renameEnabled = True
+    self.regstrationOutputSelector.removeEnabled = True
+    self.regstrationOutputSelector.noneEnabled = False
+    self.regstrationOutputSelector.showHidden = False
+    self.regstrationOutputSelector.showChildNodeTypes = False
+    self.regstrationOutputSelector.setMRMLScene( slicer.mrmlScene )
+    self.regstrationOutputSelector.setToolTip( "Select the output image" )
+    self.regstrationOutputSelector.setCurrentNode(None)
+    self.regstrationOutputSelector.baseName = 'REG'
+    registerFormLayout.addRow("Output: ", self.regstrationOutputSelector)
 
     #
     # Output transform selector
@@ -223,158 +275,283 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     self.helpButton.clicked.connect(self.onHelpButton)
     self.applyButton.clicked.connect(self.onApplyButton)
     
+    self.backgroundInputSelector.currentNodeChanged.connect(self.onSelect)
     self.inputSelector1.currentNodeChanged.connect(self.onSelect)
     self.inputSelector2.currentNodeChanged.connect(self.onSelect)
-    self.outputSelector.currentNodeChanged.connect(self.onSelect)
+    self.fiducialSelector.currentNodeChanged.connect(self.onSelectSeed)
+    self.regstrationOutputSelector.currentNodeChanged.connect(self.onSelect)
 
-    self.registerCollapsibleButton.contentsCollapsed.connect(self.onCollapse1)
+    self.registrationCollapsibleButton.contentsCollapsed.connect(self.onCollapseRegister)
 
     # logger
     self.logger = logging.getLogger("image_registration")
 
   # Visualize Registration -----------------------------------------------------------*
-  
-  def setupVisualization(self) -> None:
-    '''Setup Subtraction View collapsible'''
-    self.visualizeCollapsibleButton.collapsed = True
-    self.layout.addWidget(self.visualizeCollapsibleButton)
+  def setupContourBorderView(self):
+    '''Setup Contours' Border View'''
+    self.borderCollapsibleButton.collapsed = True
+    self.layout.addWidget(self.borderCollapsibleButton)
 
     # Layout within the dummy collapsible button
-    visualizeFormLayout = qt.QFormLayout(self.visualizeCollapsibleButton)
-    visualizeFormLayout.setVerticalSpacing(5)
+    borderFormLayout = qt.QFormLayout(self.borderCollapsibleButton)
+    borderFormLayout.setVerticalSpacing(5)
 
     #
     # First input volume selector
     #
-    self.visualSelector1 = slicer.qMRMLNodeComboBox()
-    self.visualSelector1.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-    self.visualSelector1.selectNodeUponCreation = True
-    self.visualSelector1.addEnabled = False
-    self.visualSelector1.removeEnabled = False
-    self.visualSelector1.noneEnabled = False
-    self.visualSelector1.showHidden = False
-    self.visualSelector1.showChildNodeTypes = False
-    self.visualSelector1.setMRMLScene( slicer.mrmlScene )
-    self.visualSelector1.setToolTip( "Select the baseline image" )
-    self.visualSelector1.setCurrentNode(None)
-    visualizeFormLayout.addRow("Baseline: ", self.visualSelector1)
+    self.borderSelector1 = slicer.qMRMLNodeComboBox()
+    self.borderSelector1.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.borderSelector1.selectNodeUponCreation = True
+    self.borderSelector1.addEnabled = False
+    self.borderSelector1.removeEnabled = False
+    self.borderSelector1.noneEnabled = False
+    self.borderSelector1.showHidden = False
+    self.borderSelector1.showChildNodeTypes = False
+    self.borderSelector1.setMRMLScene( slicer.mrmlScene )
+    self.borderSelector1.setToolTip( "Select the baseline image" )
+    self.borderSelector1.setCurrentNode(None)
+    borderFormLayout.addRow("Baseline: ", self.borderSelector1)
 
     #
     # Second input volume selector
     #
-    self.visualSelector2 = slicer.qMRMLNodeComboBox()
-    self.visualSelector2.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-    self.visualSelector2.selectNodeUponCreation = True
-    self.visualSelector2.addEnabled = False
-    self.visualSelector2.removeEnabled = False
-    self.visualSelector2.noneEnabled = False
-    self.visualSelector2.showHidden = False
-    self.visualSelector2.showChildNodeTypes = False
-    self.visualSelector2.setMRMLScene( slicer.mrmlScene )
-    self.visualSelector2.setToolTip( "Select the follow-up image" )
-    self.visualSelector2.setCurrentNode(None)
-    visualizeFormLayout.addRow("Registered Follow-up: ", self.visualSelector2)
+    self.borderSelector2 = slicer.qMRMLNodeComboBox()
+    self.borderSelector2.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.borderSelector2.selectNodeUponCreation = True
+    self.borderSelector2.addEnabled = False
+    self.borderSelector2.removeEnabled = False
+    self.borderSelector2.noneEnabled = False
+    self.borderSelector2.showHidden = False
+    self.borderSelector2.showChildNodeTypes = False
+    self.borderSelector2.setMRMLScene( slicer.mrmlScene )
+    self.borderSelector2.setToolTip( "Select the follow-up image" )
+    self.borderSelector2.setCurrentNode(None)
+    borderFormLayout.addRow("Registered Follow-up: ", self.borderSelector2)
 
     # visualization type button layout
-    visualTypeLayout = qt.QGridLayout()
+    borderTypeLayout = qt.QGridLayout()
+
+    #
+    # Output Segmenation selector
+    #
+    self.borderOutputSelector = slicer.qMRMLNodeComboBox()
+    self.borderOutputSelector.nodeTypes = ["vtkMRMLSegmentationNode"]
+    self.borderOutputSelector.selectNodeUponCreation = True
+    self.borderOutputSelector.addEnabled = True
+    self.borderOutputSelector.renameEnabled = True
+    self.borderOutputSelector.removeEnabled = True
+    self.borderOutputSelector.noneEnabled = False
+    self.borderOutputSelector.showHidden = False
+    self.borderOutputSelector.showChildNodeTypes = False
+    self.borderOutputSelector.setMRMLScene( slicer.mrmlScene )
+    self.borderOutputSelector.setToolTip( "Select the output segmenation" )
+    self.borderOutputSelector.setCurrentNode(None)
+    self.borderOutputSelector.baseName = ('BORDER')
+    borderFormLayout.addRow("Output: ", self.borderOutputSelector)
+
+    self.borderThreshButton = qt.QCheckBox()
+    self.borderThreshButton.checked = True
+    borderFormLayout.addRow("Use Automatic Thresholding", self.borderThreshButton)
+
+    self.borderThreshSelector = qt.QComboBox()
+    self.borderThreshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
+    borderFormLayout.addRow("Thresholding Method", self.borderThreshSelector)
+
+    # Help button for thresholding methods
+    self.borderHelpButton = qt.QPushButton("Help")
+    self.borderHelpButton.toolTip = "Tips for selecting a thresholding method"
+    self.borderHelpButton.setFixedSize(50, 20)
+    borderFormLayout.addRow("", self.borderHelpButton)
+
+    # threshold spin boxes (default unit is HU)
+    self.borderLowerThresholdText = qt.QSpinBox()
+    self.borderLowerThresholdText.setMinimum(-9999)
+    self.borderLowerThresholdText.setMaximum(999999)
+    self.borderLowerThresholdText.setSingleStep(10)
+    self.borderLowerThresholdText.value = 500
+    borderFormLayout.addRow("Lower Threshold: ", self.borderLowerThresholdText)
+    self.borderUpperThresholdText = qt.QSpinBox()
+    self.borderUpperThresholdText.setMinimum(-9999)
+    self.borderUpperThresholdText.setMaximum(999999)
+    self.borderUpperThresholdText.setSingleStep(10)
+    self.borderUpperThresholdText.value = 4000
+    borderFormLayout.addRow("Upper Threshold: ", self.borderUpperThresholdText)
+
+    # gaussian sigma spin box
+    self.borderSigmaText = qt.QDoubleSpinBox()
+    self.borderSigmaText.setRange(0.0001, 10)
+    self.borderSigmaText.setDecimals(4)
+    self.borderSigmaText.value = 1
+    self.borderSigmaText.setSingleStep(0.1)
+    self.borderSigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
+    borderFormLayout.addRow("Gaussian Sigma: ", self.borderSigmaText)
+
+    #
+    # Visualize Button
+    #
+    self.borderVisualizeButton = qt.QPushButton("Visualize")
+    self.borderVisualizeButton.toolTip = "Visualize contours of baseline and registered follow up image."
+    self.borderVisualizeButton.enabled = False
+    borderFormLayout.addRow(self.borderVisualizeButton)
+
+    # Progress Bar
+    self.progressBar2 = qt.QProgressBar()
+    self.progressBar2.hide()
+    borderFormLayout.addRow(self.progressBar2)
+
+    # connections
+    self.borderSelector1.currentNodeChanged.connect(self.onSelectBorder)
+    self.borderSelector2.currentNodeChanged.connect(self.onSelectBorder)
+    self.borderOutputSelector.currentNodeChanged.connect(self.onSelectBorder)
+    self.borderHelpButton.clicked.connect(self.onThreshHelpButton)
+    self.borderVisualizeButton.clicked.connect(self.onBorderVisualizeButton)
+    self.borderThreshButton.clicked.connect(self.onAutoThreshBorder)
+
+    self.borderCollapsibleButton.contentsCollapsed.connect(self.onCollapseBorder)
+
+    self.onAutoThreshBorder
+
+  def setupSubtractionView(self) -> None:
+    '''Setup Subtraction View collapsible'''
+    self.subtractionCollapsibleButton.collapsed = True
+    self.layout.addWidget(self.subtractionCollapsibleButton)
+
+    # Layout within the dummy collapsible button
+    subtractionFormLayout = qt.QFormLayout(self.subtractionCollapsibleButton)
+    subtractionFormLayout.setVerticalSpacing(5)
+
+    #
+    # First input volume selector
+    #
+    self.subtractionSelector1 = slicer.qMRMLNodeComboBox()
+    self.subtractionSelector1.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.subtractionSelector1.selectNodeUponCreation = True
+    self.subtractionSelector1.addEnabled = False
+    self.subtractionSelector1.removeEnabled = False
+    self.subtractionSelector1.noneEnabled = False
+    self.subtractionSelector1.showHidden = False
+    self.subtractionSelector1.showChildNodeTypes = False
+    self.subtractionSelector1.setMRMLScene( slicer.mrmlScene )
+    self.subtractionSelector1.setToolTip( "Select the baseline image" )
+    self.subtractionSelector1.setCurrentNode(None)
+    subtractionFormLayout.addRow("Baseline: ", self.subtractionSelector1)
+
+    #
+    # Second input volume selector
+    #
+    self.subtractionSelector2 = slicer.qMRMLNodeComboBox()
+    self.subtractionSelector2.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.subtractionSelector2.selectNodeUponCreation = True
+    self.subtractionSelector2.addEnabled = False
+    self.subtractionSelector2.removeEnabled = False
+    self.subtractionSelector2.noneEnabled = False
+    self.subtractionSelector2.showHidden = False
+    self.subtractionSelector2.showChildNodeTypes = False
+    self.subtractionSelector2.setMRMLScene( slicer.mrmlScene )
+    self.subtractionSelector2.setToolTip( "Select the follow-up image" )
+    self.subtractionSelector2.setCurrentNode(None)
+    subtractionFormLayout.addRow("Registered Follow-up: ", self.subtractionSelector2)
+
+    # visualization type button layout
+    subtractionTypeLayout = qt.QGridLayout()
 
     # visualization type buttons
     self.threeDButton = qt.QRadioButton("3D")
     self.threeDButton.setChecked(True)
     self.grayButton = qt.QRadioButton("Grayscale")
     self.grayButton.setChecked(False)
-    visualTypeLayout.addWidget(self.threeDButton, 0, 0)
-    visualTypeLayout.addWidget(self.grayButton, 0, 1)
+    subtractionTypeLayout.addWidget(self.threeDButton, 0, 0)
+    subtractionTypeLayout.addWidget(self.grayButton, 0, 1)
     # visualization type button frame
     fileTypeFrame = qt.QFrame()
-    fileTypeFrame.setLayout(visualTypeLayout)
-    visualizeFormLayout.addRow("Output Format: ", fileTypeFrame)
+    fileTypeFrame.setLayout(subtractionTypeLayout)
+    subtractionFormLayout.addRow("Output Format: ", fileTypeFrame)
 
     #
     # Output volume selector
     #
-    self.outputSelector2 = slicer.qMRMLNodeComboBox()
-    self.outputSelector2.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
-    self.outputSelector2.selectNodeUponCreation = True
-    self.outputSelector2.addEnabled = True
-    self.outputSelector2.renameEnabled = True
-    self.outputSelector2.removeEnabled = True
-    self.outputSelector2.noneEnabled = False
-    self.outputSelector2.showHidden = False
-    self.outputSelector2.showChildNodeTypes = False
-    self.outputSelector2.setMRMLScene( slicer.mrmlScene )
-    self.outputSelector2.setToolTip( "Select the output image" )
-    self.outputSelector2.setCurrentNode(None)
-    self.outputSelector2.baseName = ('SUBTRACTION')
-    visualizeFormLayout.addRow("Output: ", self.outputSelector2)
+    self.subtractionOutputSelector = slicer.qMRMLNodeComboBox()
+    self.subtractionOutputSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+    self.subtractionOutputSelector.selectNodeUponCreation = True
+    self.subtractionOutputSelector.addEnabled = True
+    self.subtractionOutputSelector.renameEnabled = True
+    self.subtractionOutputSelector.removeEnabled = True
+    self.subtractionOutputSelector.noneEnabled = False
+    self.subtractionOutputSelector.showHidden = False
+    self.subtractionOutputSelector.showChildNodeTypes = False
+    self.subtractionOutputSelector.setMRMLScene( slicer.mrmlScene )
+    self.subtractionOutputSelector.setToolTip( "Select the output image" )
+    self.subtractionOutputSelector.setCurrentNode(None)
+    self.subtractionOutputSelector.baseName = ('SUBTRACTION')
+    subtractionFormLayout.addRow("Output: ", self.subtractionOutputSelector)
 
-    self.threshButton = qt.QCheckBox()
-    self.threshButton.checked = True
-    visualizeFormLayout.addRow("Use Automatic Thresholding", self.threshButton)
+    self.subtractionThreshButton = qt.QCheckBox()
+    self.subtractionThreshButton.checked = True
+    subtractionFormLayout.addRow("Use Automatic Thresholding", self.subtractionThreshButton)
 
-    self.threshSelector = qt.QComboBox()
-    self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
-    visualizeFormLayout.addRow("Thresholding Method", self.threshSelector)
+    self.subtractionThreshSelector = qt.QComboBox()
+    self.subtractionThreshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
+    subtractionFormLayout.addRow("Thresholding Method", self.subtractionThreshSelector)
 
     # Help button for thresholding methods
-    self.helpButton2 = qt.QPushButton("Help")
-    self.helpButton2.toolTip = "Tips for selecting a thresholding method"
-    self.helpButton2.setFixedSize(50, 20)
-    visualizeFormLayout.addRow("", self.helpButton2)
+    self.subtractionHelpButton = qt.QPushButton("Help")
+    self.subtractionHelpButton.toolTip = "Tips for selecting a thresholding method"
+    self.subtractionHelpButton.setFixedSize(50, 20)
+    subtractionFormLayout.addRow("", self.subtractionHelpButton)
 
 
     # threshold spin boxes (default unit is HU)
-    self.lowerThresholdText = qt.QSpinBox()
-    self.lowerThresholdText.setMinimum(-9999)
-    self.lowerThresholdText.setMaximum(999999)
-    self.lowerThresholdText.setSingleStep(10)
-    self.lowerThresholdText.value = 500
-    visualizeFormLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
-    self.upperThresholdText = qt.QSpinBox()
-    self.upperThresholdText.setMinimum(-9999)
-    self.upperThresholdText.setMaximum(999999)
-    self.upperThresholdText.setSingleStep(10)
-    self.upperThresholdText.value = 4000
-    visualizeFormLayout.addRow("Upper Threshold: ", self.upperThresholdText)
+    self.subtractionLowerThresholdText = qt.QSpinBox()
+    self.subtractionLowerThresholdText.setMinimum(-9999)
+    self.subtractionLowerThresholdText.setMaximum(999999)
+    self.subtractionLowerThresholdText.setSingleStep(10)
+    self.subtractionLowerThresholdText.value = 500
+    subtractionFormLayout.addRow("Lower Threshold: ", self.subtractionLowerThresholdText)
+    self.subtractionUpperThresholdText = qt.QSpinBox()
+    self.subtractionUpperThresholdText.setMinimum(-9999)
+    self.subtractionUpperThresholdText.setMaximum(999999)
+    self.subtractionUpperThresholdText.setSingleStep(10)
+    self.subtractionUpperThresholdText.value = 4000
+    subtractionFormLayout.addRow("Upper Threshold: ", self.subtractionUpperThresholdText)
 
     # gaussian sigma spin box
-    self.sigmaText = qt.QDoubleSpinBox()
-    self.sigmaText.setRange(0.0001, 10)
-    self.sigmaText.setDecimals(4)
-    self.sigmaText.value = 1
-    self.sigmaText.setSingleStep(0.1)
-    self.sigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
-    visualizeFormLayout.addRow("Gaussian Sigma: ", self.sigmaText)
+    self.subtractionSigmaText = qt.QDoubleSpinBox()
+    self.subtractionSigmaText.setRange(0.0001, 10)
+    self.subtractionSigmaText.setDecimals(4)
+    self.subtractionSigmaText.value = 1
+    self.subtractionSigmaText.setSingleStep(0.1)
+    self.subtractionSigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
+    subtractionFormLayout.addRow("Gaussian Sigma: ", self.subtractionSigmaText)
 
     #store labels
-    self.labels = [visualizeFormLayout.itemAt(i, 0) for i in range(4, 8)]
+    self.labels = [subtractionFormLayout.itemAt(i, 0) for i in range(4, 8)]
 
     #
     # Visualize Button
     #
-    self.visualButton = qt.QPushButton("Visualize")
-    self.visualButton.toolTip = "Visualize difference in images after registration."
-    self.visualButton.enabled = False
-    visualizeFormLayout.addRow(self.visualButton)
+    self.subtractionVisualizeButton = qt.QPushButton("Visualize")
+    self.subtractionVisualizeButton.toolTip = "Visualize difference in images after registration."
+    self.subtractionVisualizeButton.enabled = False
+    subtractionFormLayout.addRow(self.subtractionVisualizeButton)
 
     # Progress Bar
-    self.progressBar2 = qt.QProgressBar()
-    self.progressBar2.hide()
-    visualizeFormLayout.addRow(self.progressBar2)
+    self.progressBar3 = qt.QProgressBar()
+    self.progressBar3.hide()
+    subtractionFormLayout.addRow(self.progressBar3)
 
     # connections
-    self.visualSelector1.currentNodeChanged.connect(self.onSelectVisual)
-    self.visualSelector2.currentNodeChanged.connect(self.onSelectVisual)
-    self.outputSelector2.currentNodeChanged.connect(self.onSelectVisual)
-    self.helpButton2.clicked.connect(self.onHelpButton2)
+    self.subtractionSelector1.currentNodeChanged.connect(self.onSelectSubtraction)
+    self.subtractionSelector2.currentNodeChanged.connect(self.onSelectSubtraction)
+    self.subtractionOutputSelector.currentNodeChanged.connect(self.onSelectSubtraction)
+    self.subtractionHelpButton.clicked.connect(self.onThreshHelpButton)
     self.threeDButton.clicked.connect(self.onSwitchMode)
     self.grayButton.clicked.connect(self.onSwitchMode)
-    self.visualButton.clicked.connect(self.onVisualize)
-    self.threshButton.clicked.connect(self.onAutoThresh)
+    self.subtractionVisualizeButton.clicked.connect(self.onSubtractionVisualizeButton)
+    self.subtractionThreshButton.clicked.connect(self.onAutoThreshSubtraction)
 
-    self.visualizeCollapsibleButton.contentsCollapsed.connect(self.onCollapse2)
+    self.subtractionCollapsibleButton.contentsCollapsed.connect(self.onCollapseSubtraction)
 
-    self.onAutoThresh()
+    self.onAutoThreshSubtraction
   
   def setupCheckerboard(self) -> None:
     self.checkerboardCollapsibleButton.collapsed = True
@@ -418,20 +595,20 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     #
     # Output volume selector
     #
-    self.outputSelector3 = slicer.qMRMLNodeComboBox()
-    self.outputSelector3.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-    self.outputSelector3.selectNodeUponCreation = True
-    self.outputSelector3.addEnabled = True
-    self.outputSelector3.renameEnabled = True
-    self.outputSelector3.removeEnabled = True
-    self.outputSelector3.noneEnabled = False
-    self.outputSelector3.showHidden = False
-    self.outputSelector3.showChildNodeTypes = False
-    self.outputSelector3.setMRMLScene( slicer.mrmlScene )
-    self.outputSelector3.setToolTip( "Select the output image" )
-    self.outputSelector3.setCurrentNode(None) 
-    self.outputSelector3.baseName = ('CHECKERBOARD')
-    checkerLayout.addRow("Output: ", self.outputSelector3)
+    self.checkerOutputSelector = slicer.qMRMLNodeComboBox()
+    self.checkerOutputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.checkerOutputSelector.selectNodeUponCreation = True
+    self.checkerOutputSelector.addEnabled = True
+    self.checkerOutputSelector.renameEnabled = True
+    self.checkerOutputSelector.removeEnabled = True
+    self.checkerOutputSelector.noneEnabled = False
+    self.checkerOutputSelector.showHidden = False
+    self.checkerOutputSelector.showChildNodeTypes = False
+    self.checkerOutputSelector.setMRMLScene( slicer.mrmlScene )
+    self.checkerOutputSelector.setToolTip( "Select the output image" )
+    self.checkerOutputSelector.setCurrentNode(None) 
+    self.checkerOutputSelector.baseName = ('CHECKERBOARD')
+    checkerLayout.addRow("Output: ", self.checkerOutputSelector)
 
     # Checkerboard size
     self.checkerSizeText = qt.QSpinBox()
@@ -484,19 +661,19 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
     checkerLayout.addRow(self.checkerButton)
 
     # Progress Bar
-    self.progressBar3 = qt.QProgressBar()
-    self.progressBar3.hide()
-    checkerLayout.addRow(self.progressBar3)
+    self.progressBar4 = qt.QProgressBar()
+    self.progressBar4.hide()
+    checkerLayout.addRow(self.progressBar4)
 
     # Connections
     self.checkerSelector1.currentNodeChanged.connect(self.onSelectChecker)
     self.checkerSelector2.currentNodeChanged.connect(self.onSelectChecker)
-    self.outputSelector3.currentNodeChanged.connect(self.onSelectChecker)
+    self.checkerOutputSelector.currentNodeChanged.connect(self.onSelectChecker)
 
     self.gridCheckBox.clicked.connect(self.onGridChecked)
-    self.checkerButton.clicked.connect(self.onCheckerButton)
+    self.checkerButton.clicked.connect(self.onCheckerVisualizeButton)
 
-    self.checkerboardCollapsibleButton.contentsCollapsed.connect(self.onCollapse3)
+    self.checkerboardCollapsibleButton.contentsCollapsed.connect(self.onCollapseChecker)
 
 
 
@@ -506,26 +683,32 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
   def onSelect(self) -> None:
     '''Node for registration is selected'''
     #get selected nodes
+    background = self.backgroundInputSelector.currentNode()
     input1 = self.inputSelector1.currentNode()
     input2 = self.inputSelector2.currentNode()
-    output = self.outputSelector.currentNode()
+    output = self.regstrationOutputSelector.currentNode()
 
     #enable register button if both nodes selected
     self.applyButton.enabled = input1 and input2 and output
 
     #auto-fill nodes in other collapsibles, set output basename
     if input1:
-      self.visualSelector1.setCurrentNode(input1)
+      self.borderSelector1.setCurrentNode(input1)
+      self.subtractionSelector1.setCurrentNode(input1)
       self.checkerSelector1.setCurrentNode(input1)
     if input2:
-      self.outputSelector.baseName = input2.GetName() + '_REG'
+      self.regstrationOutputSelector.baseName = input2.GetName() + '_REG'
       self.transformSelector.baseName = input2.GetName() + "_TRF"
     if output:
-      self.visualSelector2.setCurrentNode(output)
+      self.borderSelector2.setCurrentNode(output)
+      self.subtractionSelector2.setCurrentNode(output)
       self.checkerSelector2.setCurrentNode(output)
+
+    slicer.util.resetSliceViews()
+    slicer.util.setSliceViewerLayers(background=background)
+    slicer.util.resetSliceViews()
     
     if input1 and input2 and not output:
-      print("owo")
       #remove existing loggers
       if self.logger.hasHandlers():
         for handler in self.logger.handlers:
@@ -543,6 +726,40 @@ class ImageRegistrationWidget(ScriptedLoadableModuleWidget):
       
       self.logger.addHandler(logHandler)
       self.logger.info("Using Erosion Volume Module with " + input1.GetName() + " and " + input2.GetName() + "\n")
+
+  def onSelectSeed(self):
+    """Run this whenever the seed point selector in step 5 changes"""
+    fiducialNode = self.fiducialSelector.currentNode()
+
+    if fiducialNode:
+      if(fiducialNode.GetName().split('_')[0] == 'separated'):
+        # do nothing if the current node is already seperated
+        return
+
+    separatedFiducialNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+    
+    controlPointPosition = [0,0,0]
+    for i in range(fiducialNode.GetNumberOfControlPoints()):
+      controlPointLabel = fiducialNode.GetNthControlPointLabel(i)
+
+      boneId = controlPointLabel.split('_')[0]
+
+      if(boneId == self.maskedBone):
+        fiducialNode.GetNthControlPointPosition(i, controlPointPosition)
+        separatedFiducialNode.AddFiducialFromArray(controlPointPosition, controlPointLabel)
+
+    if separatedFiducialNode.GetNumberOfControlPoints() == 0:
+      #TO DO CHECK IF NO Bone
+      return
+
+    separatedFiducialNode.SetName('separated_'+self.maskedBone+'_'+fiducialNode.GetName())
+    self.fiducialSelector.addNode(separatedFiducialNode)
+    
+    self.fiducialSelector.setCurrentNodeID(separatedFiducialNode.GetID())
+    self.markupsTableWidget.setCurrentNode(self.fiducialSelector.currentNode())
+
+  def boneChanged(self):
+    self.maskedBone = self.boneSelector.currentText
 
   def onHelpButton(self) -> None:
     '''Help button is pressed'''
@@ -563,7 +780,7 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
     self.logger.info("Image registration initialized with parameters:")
     self.logger.info("Input Fixed Volume: " + self.inputSelector1.currentNode().GetName())
     self.logger.info("Input Moving Volume: " + self.inputSelector2.currentNode().GetName())
-    self.logger.info("Output Volume: " + self.outputSelector.currentNode().GetName())
+    self.logger.info("Output Volume: " + self.regstrationOutputSelector.currentNode().GetName())
     self.logger.info("Similarity Metric: " + self.metricSelector.currentText)
     self.logger.info("Metric Sampling Percentage: " + str(self.samplingText.value))
     self.logger.info("Optimizer: " + self.optimizerSelector.currentText)
@@ -576,49 +793,82 @@ ANTS Neighborhood: Computes correlation of a small neighbourhood for each pixel.
                         self.samplingText.value)
     self.logic.setMetric(self.metricSelector.currentIndex)
     self.logic.setOptimizer(self.optimizerSelector.currentIndex)
-    self.logic.run(self.outputSelector.currentNode(), self.transformSelector.currentNode())
+    self.logic.run(self.regstrationOutputSelector.currentNode(), self.transformSelector.currentNode())
+
+    voxelArray = slicer.util.arrayFromVolume(self.regstrationOutputSelector.currentNode())
+    segmentNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode')
+    slicer.util.updateSegmentBinaryLabelmapFromArray(voxelArray, segmentNode, '0', self.backgroundInputSelector.currentNode())
+    volumeLabelMapNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode')
+    
+    visibleSegmentIds = vtk.vtkStringArray()
+    segmentNode.GetDisplayNode().GetVisibleSegmentIDs(visibleSegmentIds)
+
+    slicer.vtkSlicerSegmentationsModuleLogic.ExportSegmentsToLabelmapNode(segmentNode,
+                                                                          visibleSegmentIds,
+                                                                          volumeLabelMapNode,
+                                                                          self.backgroundInputSelector.currentNode())
+    
+    slicer.util.setSliceViewerLayers(background=self.backgroundInputSelector.currentNode(), 
+                                     label=segmentNode)
 
     self.logger.info("Finished\n")
     self.progressBar.hide()
-  
-  def onSelectVisual(self) -> None:
+
+  def onSelectBorder(self) -> None:
     '''Output node for visualization is selected'''
-    visual1 = self.visualSelector1.currentNode()
-    visual2 = self.visualSelector2.currentNode()
-    output = self.outputSelector2.currentNode()
-    self.visualButton.enabled = (visual1 and visual2 and output)
+    visual1 = self.borderSelector1.currentNode()
+    visual2 = self.borderSelector2.currentNode()
+    output = self.borderOutputSelector.currentNode()
+    self.borderVisualizeButton.enabled = (visual1 and visual2 and output)
     if visual1:
-      self.outputSelector2.baseName = visual1.GetName() + '_SUBTRACTION'
+      self.borderOutputSelector.baseName = visual1.GetName() + '_CONTOUR_SEGMENTATION'  
+  
+  def onSelectSubtraction(self) -> None:
+    '''Output node for visualization is selected'''
+    visual1 = self.subtractionSelector1.currentNode()
+    visual2 = self.subtractionSelector2.currentNode()
+    output = self.subtractionOutputSelector.currentNode()
+    self.subtractionVisualizeButton.enabled = (visual1 and visual2 and output)
+    if visual1:
+      self.subtractionOutputSelector.baseName = visual1.GetName() + '_SUBTRACTION'
 
   def onSwitchMode(self) -> None:
     '''Mode changed between 3d and grayscale'''
     if self.threeDButton.checked:
-      self.outputSelector2.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+      self.SubtractionOutputSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
 
       #show options
-      self.lowerThresholdText.show()
-      self.upperThresholdText.show()
-      self.sigmaText.value = 1
+      self.subtractionLowerThresholdText.show()
+      self.subtractionUpperThresholdText.show()
+      self.subtractionSigmaText.value = 1
       for label in self.labels:
         label.widget().show()
 
     elif self.grayButton.checked:
-      self.outputSelector2.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+      self.SubtractionOutputSelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
 
       #hide options
-      self.lowerThresholdText.hide()
-      self.upperThresholdText.hide()
-      self.sigmaText.value = 0.5
+      self.subtractionLowerThresholdText.hide()
+      self.subtractionUpperThresholdText.hide()
+      self.subtractionSigmaText.value = 0.5
       for label in self.labels:
         label.widget().hide()
     
-  def onAutoThresh(self):
-    use_auto = self.threshButton.checked
-    self.lowerThresholdText.setEnabled(not use_auto)
-    self.upperThresholdText.setEnabled(not use_auto)
-    self.threshSelector.setEnabled(use_auto)
+  def onAutoThreshBorder(self):
+    # enable/disable widgets depending on auto threshold checkbox in border contour collapsible
+    use_auto = self.borderThreshButton.checked
+    self.borderLowerThresholdText.setEnabled(not use_auto)
+    self.borderUpperThresholdText.setEnabled(not use_auto)
+    self.borderThreshSelector.setEnabled(use_auto)
 
-  def onHelpButton2(self) -> None:
+  def onAutoThreshSubtraction(self):
+    # enable/disable widgets depending on auto threshold checkbox in subtraction collapsible
+    use_auto = self.subtractionThreshButton.checked
+    self.subtractionLowerThresholdText.setEnabled(not use_auto)
+    self.subtractionUpperThresholdText.setEnabled(not use_auto)
+    self.subtractionThreshSelector.setEnabled(use_auto)
+
+  def onThreshHelpButton(self) -> None:
     '''Help button is pressed'''
     txt = """Thresholding Methods\n
 For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
@@ -626,27 +876,71 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
           """
     slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
 
-  def onVisualize(self) -> None:
+  def onBorderVisualizeButton(self) -> None:
+    '''Contour Border Visualize button is pressed'''
+
+    print('\nCreating Border Contour Image')
+    self.progressBar2.show()
+
+    # set parameters
+    if self.borderThreshButton.checked:
+      self.logic.setBorderVisualizeParameters(self.borderSelector1.currentNode(), 
+                                self.borderSelector2.currentNode(),
+                                self.borderSigmaText.value,
+                                method=self.borderThreshSelector.currentIndex)
+    else:
+      self.logic.setBorderVisualizeParameters(self.borderSelector1.currentNode(), 
+                                self.borderSelector2.currentNode(),
+                                self.borderSigmaText.value,
+                                lower=self.borderLowerThresholdText.value,
+                                upper=self.borderUpperThresholdText.value)
+
+    #get output
+    baseContour, regContour = self.logic.borderVisualize()
+
+    outputNode = self.borderOutputSelector.currentNode()
+    slicer.mrmlScene.AddNode(outputNode)
+    outputNode.CreateDefaultDisplayNodes()
+    outputNode.SetReferenceImageGeometryParameterFromVolumeNode(self.borderSelector1.currentNode())
+    segmentation = outputNode.GetSegmentation()
+    segmentation.AddEmptySegment('0')
+    segmentation.AddEmptySegment('1')
+
+    segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "baseContour")
+    sitkUtils.PushVolumeToSlicer(baseContour, segmentLabelMapNode)
+    voxelArray = slicer.util.arrayFromVolume(segmentLabelMapNode)
+    slicer.util.updateSegmentBinaryLabelmapFromArray(voxelArray, outputNode, '0', self.borderSelector1.currentNode())
+
+    segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "registeredContour")
+    sitkUtils.PushVolumeToSlicer(regContour, segmentLabelMapNode)
+    voxelArray = slicer.util.arrayFromVolume(segmentLabelMapNode)
+    slicer.util.updateSegmentBinaryLabelmapFromArray(voxelArray, outputNode, '1', self.borderSelector1.currentNode())
+
+    slicer.util.setSliceViewerLayers(label=outputNode)
+
+    self.progressBar2.hide()
+
+  def onSubtractionVisualizeButton(self) -> None:
     '''Visualize button is pressed'''
 
     print('\nCreating Subtraction Image')
-    self.progressBar.show()
+    self.progressBar3.show()
 
     # set parameters
     if self.threshButton.checked:
-      self.logic.setVisualizeParameters(self.visualSelector1.currentNode(), 
-                                self.visualSelector2.currentNode(),
-                                self.sigmaText.value,
-                                method=self.threshSelector.currentIndex)
+      self.logic.setVisualizeParameters(self.subtractionSelector1.currentNode(), 
+                                self.subtractionSelector2.currentNode(),
+                                self.subtractionSigmaText.value,
+                                method=self.subtractionThreshSelector.currentIndex)
     else:
-      self.logic.setVisualizeParameters(self.visualSelector1.currentNode(), 
-                                self.visualSelector2.currentNode(),
-                                self.sigmaText.value,
-                                lower=self.lowerThresholdText.value,
-                                upper=self.upperThresholdText.value)
+      self.logic.setVisualizeParameters(self.subtractionSelector1.currentNode(), 
+                                self.subtractionSelector2.currentNode(),
+                                self.subtractionSigmaText.value,
+                                lower=self.subtractionLowerThresholdText.value,
+                                upper=self.subtractionUpperThresholdText.value)
 
     #get output
-    outnode = self.outputSelector2.currentNode()
+    outnode = self.subtractionOutputSelector.currentNode()
 
     #3D visualization
     if self.threeDButton.checked:
@@ -661,21 +955,21 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     elif self.grayButton.checked:
       self.logic.subtractGray(outnode)
 
-    self.progressBar.hide()
+    self.progressBar3.hide()
   
   def onSelectChecker(self) -> None:
     '''Node for checkerboard is selected'''
     #get nodes
     checker1 = self.checkerSelector1.currentNode()
     checker2 = self.checkerSelector2.currentNode()
-    output = self.outputSelector3.currentNode()
+    output = self.checkerOutputSelector.currentNode()
 
     #enable button if all selected
     self.checkerButton.enabled = (checker1 and checker2 and output)
 
     #change basenames
     if checker1:
-      self.outputSelector3.baseName = checker1.GetName() + '_CHECKERBOARD'
+      self.checkerOutputSelector.baseName = checker1.GetName() + '_CHECKERBOARD'
       self.gridSelector.baseName = checker1.GetName() + '_GRID'
   
   def onGridChecked(self) -> None:
@@ -685,17 +979,17 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     else:
       self.gridCollapsibleBox.hide()
 
-  def onCheckerButton(self) -> None:
+  def onCheckerVisualizeButton(self) -> None:
     '''Get checkerboard button is pressed'''
     #set parameters
     print('\nCreating checkerboard image')
-    self.progressBar3.show()
+    self.progressBar4.show()
 
     #set parameters and run
     self.logic.setCheckerboardParameters(self.checkerSelector1.currentNode(),
                     self.checkerSelector2.currentNode(),
                     self.checkerSizeText.value)
-    self.logic.getCheckerboard(self.outputSelector3.currentNode())
+    self.logic.getCheckerboard(self.checkerOutputSelector.currentNode())
 
     #get grid if option checked
     if self.gridCheckBox.checked:
@@ -706,29 +1000,40 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
         self.logic.getCheckerboardGrid(gridNode)
     
     print("Completed")
-    self.progressBar3.hide()
+    self.progressBar4.hide()
 
   # Functions for collapsibles in widget
 
-  def onCollapse1(self):
+  def onCollapseRegister(self):
     '''Registration collapsible clicked'''
-    if not self.registerCollapsibleButton.collapsed:
-      self.visualizeCollapsibleButton.collapsed = True
+    if not self.registrationCollapsibleButton.collapsed:
+      self.borderCollapsibleButton.collapsed = True
+      self.subtractionCollapsibleButton.collapsed = True
       self.checkerboardCollapsibleButton.collapsed = True
       self.onSelect()
 
-  def onCollapse2(self):
-    '''Visualization collapsible clicked'''
-    if not self.visualizeCollapsibleButton.collapsed:
-      self.registerCollapsibleButton.collapsed = True
+  def onCollapseBorder(self):
+    '''Contour Border View collapsible clicked'''
+    if not self.borderCollapsibleButton.collapsed:
+      self.registrationCollapsibleButton.collapsed = True
+      self.subtractionCollapsibleButton.collapsed = True
       self.checkerboardCollapsibleButton.collapsed = True
-      self.onSelectVisual()
+      self.onSelectBorder()    
+
+  def onCollapseSubtraction(self):
+    '''Visualization collapsible clicked'''
+    if not self.subtractionCollapsibleButton.collapsed:
+      self.registrationCollapsibleButton.collapsed = True
+      self.borderCollapsibleButton.collapsed = True
+      self.checkerboardCollapsibleButton.collapsed = True
+      self.onSelectSubtraction()
   
-  def onCollapse3(self):
+  def onCollapseChecker(self):
     '''Checkerboard collapsible clicked'''
     if not self.checkerboardCollapsibleButton.collapsed:
-      self.registerCollapsibleButton.collapsed = True
-      self.visualizeCollapsibleButton.collapsed = True
+      self.registrationCollapsibleButton.collapsed = True
+      self.borderCollapsibleButton.collapsed = True
+      self.subtractionCollapsibleButton.collapsed = True
       self.onSelectChecker()
   
   def setProgress(self, value):

@@ -122,6 +122,32 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
 
         #return True
     
+    def setBorderVisualizeParameters(self, baseNode, regNode, sigma:float, method:int=None, lower:int=None, upper:int=None) -> None:
+        '''Set parameters from visualization (manual threshold)'''
+
+        #pull images
+        baseImg = sitkUtils.PullVolumeFromSlicer(baseNode)
+        regImg = sitkUtils.PullVolumeFromSlicer(regNode)
+
+        segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "base")
+        sitkUtils.PushVolumeToSlicer(baseImg, segmentLabelMapNode)
+
+        segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "registered")
+        sitkUtils.PushVolumeToSlicer(regImg, segmentLabelMapNode)
+
+        #store properties of base image
+        self.template = sitk.Image(baseImg.GetSize(), 0)
+        self.template.CopyInformation(baseImg)
+
+        # #crop base image to match registered
+        # baseImg, regImg = self.visualizer.edgeTrim(baseImg, regImg)
+
+        if method is not None:
+            self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, True)
+            self.visualizer.setThresholdMethod(method)
+        else:
+            self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, False)
+            self.visualizer.setManualThresholds(lower, upper)
 
     def setVisualizeParameters(self, baseNode, regNode, sigma:float, method:int=None, lower:int=None, upper:int=None) -> None:
         '''Set parameters from visualization (manual threshold)'''
@@ -130,12 +156,18 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         baseImg = sitkUtils.PullVolumeFromSlicer(baseNode)
         regImg = sitkUtils.PullVolumeFromSlicer(regNode)
 
+        segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "base")
+        sitkUtils.PushVolumeToSlicer(baseImg, segmentLabelMapNode)
+
+        segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "registered")
+        sitkUtils.PushVolumeToSlicer(regImg, segmentLabelMapNode)
+
         #store properties of base image
         self.template = sitk.Image(baseImg.GetSize(), 0)
         self.template.CopyInformation(baseImg)
 
         #crop base image to match registered
-        (baseImg, regImg) = self.visualizer.edgeTrim(baseImg, regImg)
+        baseImg, regImg = self.visualizer.edgeTrim(baseImg, regImg)
 
         if method is not None:
             self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, True)
@@ -143,8 +175,36 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
         else:
             self.visualizer.setVisualizeParameters(baseImg, regImg, sigma, False)
             self.visualizer.setManualThresholds(lower, upper)
+
+    def borderVisualize(self):
+        '''
+        Create Erosion Contours of baseline and registered follow up masks
+
+        Args:
+            outputNode (vtkMRMLVolumeNode): volume to store subtraction in
+        
+        Returns:
+            None
+        '''
+        #get thresholds for images
+        baseThresh, regThresh = self.visualizer.getThresholds()
+
+        segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "baseThresh")
+        sitkUtils.PushVolumeToSlicer(baseThresh, segmentLabelMapNode)
+
+        segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", "registeredThresh")
+        sitkUtils.PushVolumeToSlicer(regThresh, segmentLabelMapNode)
+
+        self.progressCallBack(30)
+
+        #get Borders
+        baseContour = self.visualizer.border(baseThresh)
+        regContour = self.visualizer.border(regThresh)
+        self.progressCallBack(60)
+
+        return baseContour, regContour
     
-    def visualize(self, outputNode) -> None:
+    def subtractionVisualize(self, outputNode) -> None:
         '''
         Create subtraction image of registration
 
@@ -155,7 +215,7 @@ class ImageRegistrationLogic(ScriptedLoadableModuleLogic):
             None
         '''
         #get thresholds for images
-        (baseThresh, regThresh) = self.visualizer.getThresholds()
+        baseThresh, regThresh = self.visualizer.getThresholds()
         self.progressCallBack(30)
         
         #get arrays from each image

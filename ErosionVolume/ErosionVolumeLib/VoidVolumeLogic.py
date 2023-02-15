@@ -127,16 +127,29 @@ class VoidVolumeLogic:
         Returns:
             Image
         """
+
         distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
         distance_filter.SetSquaredDistance(False)
         distance_filter.SetBackgroundValue(1)
         inner_img = distance_filter.Execute(void_volume_img)
 
+        image_viewer = sitk.ImageViewer()
+        image_viewer.SetCommand("Z:\Programs\ImageJ\ImageJ.exe")
+
         inner_img = sitk.BinaryThreshold(inner_img,
                                         lowerThreshold=1,
                                         upperThreshold=radius,
                                         insideValue=1)
+        image_viewer.SetTitle('innerimg using ImageViewer class')
+        image_viewer.Execute(inner_img)
+
+        image_viewer.SetTitle('volume using ImageViewer class')
+        image_viewer.Execute(void_volume_img)
+
         inner_img = void_volume_img - inner_img
+
+        image_viewer.SetTitle('grid using ImageViewer class')
+        image_viewer.Execute(inner_img)
 
         distance_filter.SetBackgroundValue(0)
         outer_img = distance_filter.Execute(inner_img)
@@ -145,7 +158,14 @@ class VoidVolumeLogic:
                                          lowerThreshold=1,
                                          upperThreshold=radius,
                                          insideValue=1)
+
+        image_viewer.SetTitle('out using ImageViewer class')
+        image_viewer.Execute(outer_img)
+
         distance_img = outer_img + inner_img
+
+        image_viewer.SetTitle('dist using ImageViewer class')
+        image_viewer.Execute(distance_img)
 
         return distance_img
 
@@ -192,10 +212,10 @@ class VoidVolumeLogic:
         distance_img = distance_filter.Execute(seeds_img)
 
         # inflate seed points
-        upper = self.dilateErodeDistance if self.dilateErodeDistance != 0 else 1
+        upper = self.dilateErodeDistance[0] if self.dilateErodeDistance[0] != 0 else 1
         seeds_img = sitk.BinaryThreshold(distance_img, 
                                          lowerThreshold=0, 
-                                         upperThreshold=self.dilateErodeDistance, 
+                                         upperThreshold=self.dilateErodeDistance[0], 
                                          insideValue=1)
 
         # combine inflated seed points and voids in the bone
@@ -305,6 +325,7 @@ class VoidVolumeLogic:
                 relabel_map[key] = erosionId
         
         relabel_filter = sitk.ChangeLabelImageFilter()
+        print(relabel_map)
         relabel_filter.SetChangeMap(relabel_map)
         relabeled_img = relabel_filter.Execute(relabeled_img)
 
@@ -325,13 +346,13 @@ class VoidVolumeLogic:
         elif step == 2:
             self.ero1_img = self.createROI(self.model_img)
         elif step == 3:
-            self.ero1_img = self.distanceVoidVolume(self.ero1_img, self.minimalRadius)
+            self.ero1_img = self.distanceVoidVolume(self.ero1_img, self.minimalRadius[0])
         elif step == 4:
-            self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.dilateErodeDistance)
+            self.ero1_img = self.erodeVoidVolume(self.ero1_img, self.dilateErodeDistance[0])
         elif step == 5:
             self.ero1_img = self.connectVoidVolume(self.ero1_img)
         elif step == 6:
-            self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.dilateErodeDistance)
+            self.ero1_img = self.dilateVoidVolume(self.ero1_img, self.dilateErodeDistance[0])
         elif step == 7:
             iterations = 100
             self.output_img = self.growVoidVolume(self.ero1_img, iterations)
@@ -447,8 +468,8 @@ class VoidVolumeLogic:
     def setRadii(self, minimalRadius, dilateErodeDistance):
         """
         Args:
-            minimalRadius (int): minimum erosion radius, used in the distance map filter
-            dilateErodeDistance (int): kernel radius for dilate/erode filters
+            minimalRadius (int[]): minimum erosion radius, used in the distance map filter
+            dilateErodeDistance (int[]): kernel radius for dilate/erode filters
         """
         self.minimalRadius = minimalRadius
         self.dilateErodeDistance = dilateErodeDistance
@@ -474,6 +495,8 @@ class VoidVolumeLogic:
         self._seeds_crop.pop(n)
         self.seeds.pop(n)
         self.erosionIds.pop(n)
+        self.minimalRadius.pop(n)
+        self.dilateErodeDistance.pop(n)
 
     def _cleanup(self):
         """

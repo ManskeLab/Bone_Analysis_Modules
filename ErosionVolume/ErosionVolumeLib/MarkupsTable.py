@@ -2,10 +2,16 @@ import os
 import vtk, qt, ctk, slicer
 
 CONTROL_POINT_LABEL_COLUMN = 0
-CONTROL_POINT_X_COLUMN = 1
-CONTROL_POINT_Y_COLUMN = 2
-CONTROL_POINT_Z_COLUMN = 3
-CONTROL_POINT_COLUMNS = 4
+CONTROL_POINT_BONE_NUM_COLUMN = 1
+CONTROL_POINT_TYPE = 2
+CONTROL_POINT_EROSION_IN_FOV= 3
+CONTROL_POINT_LARGE_EROSION =  4
+CONTROL_POINT_MINIMUM_RADIUS = 4
+CONTROL_POINT_ERODE_DISTANCE = 5
+CONTROL_POINT_X_COLUMN = 5
+CONTROL_POINT_Y_COLUMN = 6
+CONTROL_POINT_Z_COLUMN = 7
+CONTROL_POINT_COLUMNS = 8
 
 #
 # MarkupsTableWidget
@@ -23,6 +29,8 @@ class MarkupsTable:
     self._logic = MarkupsTableLogic()
     self._ras2ijk = vtk.vtkMatrix4x4()
     self._ijk2ras = vtk.vtkMatrix4x4()
+    self.advanced = False
+    self.data_cache = {}
 
     if not parent:
       self.parent = slicer.qMRMLWidget()
@@ -38,6 +46,11 @@ class MarkupsTable:
     """
     Called when the user opens the module the first time and the widget is initialized.
     """
+
+    # buttons layout
+    buttonsGridLayout = qt.QGridLayout()
+    buttonsGridLayout.setContentsMargins(0, 0, 0, 0)
+
     # seed point selector
     self.markupsSelector = slicer.qMRMLNodeComboBox()
     self.markupsSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
@@ -45,29 +58,25 @@ class MarkupsTable:
     self.markupsSelector.addEnabled = True
     self.markupsSelector.removeEnabled = True
     self.markupsSelector.renameEnabled = True
-    self.markupsSelector.noneEnabled = False
+    self.markupsSelector.noneEnabled = True
     self.markupsSelector.showHidden = False
     self.markupsSelector.showChildNodeTypes = False
     self.markupsSelector.setMRMLScene(slicer.mrmlScene)
-    self.markupsSelector.baseName = 'Seed'
+    self.markupsSelector.baseName = 'SEEDS'
     self.markupsSelector.setToolTip('Pick the seed points')
-    self.layout.addWidget(self.markupsSelector)
-
-    # buttons layout
-    buttonsGridLayout = qt.QGridLayout()
-    buttonsGridLayout.setContentsMargins(0, 0, 0, 0)
+    self.layout.addRow("Seed Points: ", self.markupsSelector)
 
     self.markupsPlaceWidget = slicer.qSlicerMarkupsPlaceWidget()
     self.markupsPlaceWidget.setMRMLScene(slicer.mrmlScene)
     self.setButtonsVisible(False) # hide all buttons
     self.setPlaceButtonVisible(True)   # show only the place button
-    buttonsGridLayout.addWidget(self.markupsPlaceWidget, 0, 0)
+    buttonsGridLayout.addWidget(self.markupsPlaceWidget, 1, 0)
 
     self.deleteAllButton = qt.QPushButton(' Delete All')
     self.deleteAllButton.setIcon(qt.QIcon(':/Icons/MarkupsDeleteAllRows.png'))
     self.deleteAllButton.setToolTip('Delete all seed points in the selected node')
     self.deleteAllButton.enabled = False
-    buttonsGridLayout.addWidget(self.deleteAllButton, 0, 1)
+    buttonsGridLayout.addWidget(self.deleteAllButton, 1, 1)
 
     # buttons frame
     buttonsFrame = qt.QFrame()
@@ -81,7 +90,7 @@ class MarkupsTable:
     self.markupsControlPointsTableWidget.verticalHeader().setSectionResizeMode(qt.QHeaderView.ResizeToContents)
     self.markupsControlPointsTableWidget.setContextMenuPolicy(qt.Qt.CustomContextMenu)
     self.markupsControlPointsTableWidget.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
-    self.layout.addWidget(self.markupsControlPointsTableWidget)
+    self.layout.addRow(self.markupsControlPointsTableWidget)
 
     # connections
     self.markupsSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onMarkupsNodeChanged)
@@ -96,8 +105,8 @@ class MarkupsTable:
     """Reset the appearence of the markups control points table widget"""
     self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS)
     self.markupsControlPointsTableWidget.setRowCount(0)
-    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label','X','Y','Z'])
-    self.markupsControlPointsTableWidget.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
+    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Type', 'Erosion in FOV', 'Large Erosion', 'X', 'Y', 'Z'])
+    # self.markupsControlPointsTableWidget.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
 
   def onDeleteAllButton(self):
     """Run this whenever the delete all button is clicked"""
@@ -106,6 +115,7 @@ class MarkupsTable:
     if slicer.util.confirmOkCancelDisplay(
       'Delete all {} seed points in \'{}\'?'.format(markupsNum, currentNodeName)):
       self._currentNode.RemoveAllMarkups()
+    self.parent.checkErosionsButton()
 
   def onMarkupsControlPointEdited(self, row, column):
     """Run this whenever the markups control point table is edited"""
@@ -138,6 +148,12 @@ class MarkupsTable:
 
   def onMarkupsControlPointSelected(self, row, column):
     """Run this whenever a markup control point in the table is selected"""
+    for i in range(self.markupsControlPointsTableWidget.rowCount):
+      controlPointPosition = [0, 0, 0]
+      self._currentNode.GetNthControlPointPosition(i, controlPointPosition)
+      print(i)
+      print(controlPointPosition)
+      print("*****")
     if (self.jumpToSliceEnabled and self._currentNode):
       self._logic.jumpSlicesToNthPointInMarkup(self._mrmlScene, self._currentNode.GetID(), row, False, self.viewGroup)
   
@@ -175,6 +191,9 @@ class MarkupsTable:
       for i in range(len(deleteControlPoints)-1, -1, -1):
         # remove the point at that row
         self._currentNode.RemoveNthControlPoint(deleteControlPoints[i])
+
+        print(deleteControlPoints[i])
+        self.markupsControlPointsTableWidget.removeRow(deleteControlPoints[i])
       self._currentNode.EndModify(wasModifying)
     
     if (selectedAction == upAction and currentControlPoint > 0):
@@ -188,14 +207,60 @@ class MarkupsTable:
       self._logic.jumpSlicesToNthPointInMarkup(self._mrmlScene, self._currentNode.GetID(), 
                                                currentControlPoint, False, self.viewGroup)
 
+  def getCurrentMarkupsData(self):
+    data = []
+    currentNode = self._currentNode
+
+    controlPointsNum = currentNode.GetNumberOfControlPoints()
+    for i in range(controlPointsNum):
+      data_row = []
+      data_row.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN).currentIndex)
+      data_row.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_TYPE).currentIndex)
+      data_row.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_EROSION_IN_FOV).checked)
+
+      data.append(data_row)
+
+    return data    
+
   def onMarkupsNodeChanged(self):
     """Run this whenever the markup node selector changes"""
+    if(self._currentNode):
+      self._currentNode.SetDisplayVisibility(False)
+      data = self.getCurrentMarkupsData()
+      # add current state to data cache
+      self.data_cache[self._currentNode.GetID()] = data
+    self.markupsControlPointsTableWidget.clear()
+    self.setupMarkupsControlPointsTableWidget()
     self.setCurrentNode(self.markupsSelector.currentNode())
+
+    self._currentNode.SetDisplayVisibility(True)
+    self.updateWidget()
+    
+    if self._currentNode.GetID() in self.data_cache:
+      controlPointsNum = self._currentNode.GetNumberOfControlPoints()
+
+      data = self.data_cache[self._currentNode.GetID()]
+      for i in range(controlPointsNum):
+        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN).setCurrentIndex(data[i][0])
+        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_TYPE).setCurrentIndex(data[i][1])
+        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_EROSION_IN_FOV).checked = data[i][2]
+
+    self.markupsControlPointsTableWidget.scrollToBottom()
 
   def onPointAdded(self, caller=None, event=None):
     """Run this whenever a new markup control point is added to the markup node"""
     self.updateWidget()
     self.markupsControlPointsTableWidget.scrollToBottom()
+
+  def onPointDeleted(self, caller, event=None):
+    """Run this whenever a new markup control point is added to the markup node"""
+    # self.markupsControlPointsTableWidget.deleteRow()
+    # print(caller.GetDisplayNode().GetActiveControlPoint())
+    # self.updateWidget()
+
+  def onPointModified(self, caller=None, event=None):
+    """Run this whenever a new markup control point is added to the markup node"""
+    self.updateWidget()
 
   def setCurrentNode(self, currentNode):
     if (currentNode == self._currentNode):
@@ -216,15 +281,52 @@ class MarkupsTable:
       self._currentNodeObservers.append(currentNode.AddObserver(
         slicer.vtkMRMLMarkupsNode.PointAddedEvent, self.onPointAdded))
       self._currentNodeObservers.append(currentNode.AddObserver(
-        slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.updateWidget))
+        slicer.vtkMRMLMarkupsNode.PointAboutToBeRemovedEvent, self.onPointDeleted))
       self._currentNodeObservers.append(currentNode.AddObserver(
-        slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.updateWidget))
+        slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.onPointModified))
 
     self._currentNode = currentNode
     self.updateWidget()
   
   def getCurrentNode(self):
     return self._currentNode
+
+  def getCurrentNodeMinimalRadii(self):
+    currentNode = self._currentNode
+    minimalRadius = []
+
+    for i in range(currentNode.GetNumberOfControlPoints()):
+      if self.advanced:
+        minimalRadius.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_MINIMUM_RADIUS).value)
+
+      else:
+        if(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_LARGE_EROSION).checked):
+          minimalRadius.append(6)
+        else:
+          minimalRadius.append(3)
+
+    return minimalRadius
+
+  def getCurrentNodeDilateErodeDistances(self):
+    currentNode = self._currentNode
+    
+    dilateErodeDistance = []
+
+    for i in range(currentNode.GetNumberOfControlPoints()):
+      if self.advanced:
+        dilateErodeDistance.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_ERODE_DISTANCE).value)
+
+      else:
+        if(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_LARGE_EROSION).checked):
+          dilateErodeDistance.append(6)
+        else:
+          dilateErodeDistance.append(4)
+
+    return dilateErodeDistance
+
+
+  def getMarkupsSelector(self):
+    return self.markupsSelector
 
   def setJumpToSliceEnabled(self, enable):
     self.jumpToSliceEnabled = enable
@@ -271,11 +373,101 @@ class MarkupsTable:
     self._ras2ijk = ras2ijk
     self._ijk2ras = ijk2ras
 
+  def advancedMarkupsControlPointsTableView(self):
+    """Change the table view to show and allow edits of Minimum Erosion Radius and Dilate/Erode Distance parameters"""
+    global CONTROL_POINT_X_COLUMN
+    global CONTROL_POINT_Y_COLUMN
+    global CONTROL_POINT_Z_COLUMN
+
+    self.advanced = True
+    CONTROL_POINT_X_COLUMN += 1
+    CONTROL_POINT_Y_COLUMN += 1
+    CONTROL_POINT_Z_COLUMN += 1
+    self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS+1)
+    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Type', 'Erosion in FOV', 'Min Erosion Radius', 'Erode Distance', 'X', 'Y', 'Z'])
+    currentNode = self._currentNode
+
+    for i in range(currentNode.GetNumberOfControlPoints()):
+      minimalRadiusText = qt.QSpinBox()
+      minimalRadiusText.setMinimum(1)
+      minimalRadiusText.setMaximum(99)
+      minimalRadiusText.setSingleStep(1)
+      minimalRadiusText.setSuffix(' voxels')
+      minimalRadiusText.value = 3
+      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_MINIMUM_RADIUS, minimalRadiusText)
+
+      dilateErodeDistanceText = qt.QSpinBox()
+      dilateErodeDistanceText.setMinimum(0)
+      dilateErodeDistanceText.setMaximum(99)
+      dilateErodeDistanceText.setSingleStep(1)
+      dilateErodeDistanceText.setSuffix(' voxels')
+      dilateErodeDistanceText.value = 4
+      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_ERODE_DISTANCE, dilateErodeDistanceText)
+
+      controlPointPosition = [0, 0, 0]
+      currentNode.GetNthControlPointPosition(i, controlPointPosition)
+      ITKCoord = self._logic.RASToIJKCoords(controlPointPosition, self._ras2ijk)
+
+      xItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[0]))
+      yItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[1]))
+      zItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[2]))
+      self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_X_COLUMN, xItem)
+      self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_Y_COLUMN, yItem)
+      self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_Z_COLUMN, zItem)
+
+    self.updateWidget()
+      
+
+  def normalMarkupsControlPointsTableView(self):
+    """Change the table view to show and allow edits of Minimum Erosion Radius and Dilate/Erode Distance parameters"""
+    global CONTROL_POINT_X_COLUMN
+    global CONTROL_POINT_Y_COLUMN
+    global CONTROL_POINT_Z_COLUMN
+
+    self.advanced = False
+    CONTROL_POINT_X_COLUMN -= 1
+    CONTROL_POINT_Y_COLUMN -= 1
+    CONTROL_POINT_Z_COLUMN -= 1
+    self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS)
+    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Type', 'Erosion in FOV', 'Large Erosion', 'X', 'Y', 'Z'])
+    currentNode = self._currentNode
+
+    for i in range(currentNode.GetNumberOfControlPoints()):
+      largeErosionCheckBox = qt.QCheckBox()
+      largeErosionCheckBox.checked = False
+      largeErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
+      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_LARGE_EROSION, largeErosionCheckBox)
+
+      controlPointPosition = [0, 0, 0]
+      currentNode.GetNthControlPointPosition(i, controlPointPosition)
+      ITKCoord = self._logic.RASToIJKCoords(controlPointPosition, self._ras2ijk)
+
+      xItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[0]))
+      yItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[1]))
+      zItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[2]))
+      self.markupsControlPointsTableWidget.removeCellWidget(i, CONTROL_POINT_X_COLUMN)
+      self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_X_COLUMN, xItem)
+      self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_Y_COLUMN, yItem)
+      self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_Z_COLUMN, zItem)
+
+    self.updateWidget()
+
+  def updateLabels(self):
+    currentNode = self._currentNode
+
+    controlPointsNum = currentNode.GetNumberOfControlPoints()
+    print(controlPointsNum)
+    for i in range(controlPointsNum):
+      if self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN):
+        controlPointLabel = currentNode.GetNthControlPointLabel(i)
+        bone = self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN)
+        self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN).setText(bone.currentText+'_'+controlPointLabel)
+
   def updateWidget(self, caller=None, event=None):
     """Update the markup control point table widget"""
     currentNode = self._currentNode
 
-    if (not currentNode):
+    if(not currentNode):
       self.markupsControlPointsTableWidget.clear()
       self.setupMarkupsControlPointsTableWidget()
       self.markupsPlaceWidget.setEnabled(False)
@@ -288,7 +480,8 @@ class MarkupsTable:
     # Update the control points table
     wasBlockedTableWidget = self.markupsControlPointsTableWidget.blockSignals(True)
     controlPointsNum = currentNode.GetNumberOfControlPoints()
-    if (self.markupsControlPointsTableWidget.rowCount == controlPointsNum):
+
+    if(self.markupsControlPointsTableWidget.rowCount == controlPointsNum):
       # don't recreate the table if the number of items is not changed to preserve selection state
       controlPointPosition = [0,0,0]
       for i in range(controlPointsNum):
@@ -300,27 +493,68 @@ class MarkupsTable:
         self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_Y_COLUMN).setText('%.3f' % (ITKCoord[1]))
         self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_Z_COLUMN).setText('%.3f' % (ITKCoord[2]))
     else:
-      self.markupsControlPointsTableWidget.clear()
-      self.markupsControlPointsTableWidget.setRowCount(controlPointsNum)
-      self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS)
-      self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'X', 'Y', 'Z'])
-      self.markupsControlPointsTableWidget.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
+      if(not self.markupsControlPointsTableWidget.rowCount):
+        for i in range(controlPointsNum):
+          self.markupsControlPointsTableWidget.insertRow(i)
+          self.insertPoint(i, controlPointsNum)
 
-      controlPointPosition = [0,0,0]
-      for i in range(controlPointsNum):
-        controlPointLabel = currentNode.GetNthControlPointLabel(i)
-        currentNode.GetNthControlPointPosition(i, controlPointPosition)
-        ITKCoord = self._logic.RASToIJKCoords(controlPointPosition, self._ras2ijk)
-        labelItem = qt.QTableWidgetItem(controlPointLabel)
-        xItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[0]))
-        yItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[1]))
-        zItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[2]))
-        self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_LABEL_COLUMN, labelItem)
-        self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_X_COLUMN, xItem)
-        self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_Y_COLUMN, yItem)
-        self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_Z_COLUMN, zItem)
+      elif(controlPointsNum > self.markupsControlPointsTableWidget.rowCount):
+        self.markupsControlPointsTableWidget.insertRow(controlPointsNum-1)
+        self.insertPoint(controlPointsNum-1, controlPointsNum)
     self.markupsControlPointsTableWidget.blockSignals(wasBlockedTableWidget)
 
+
+  def insertPoint(self, i, controlPointsNum):
+    currentNode = self._currentNode
+    controlPointPosition = [0,0,0]
+    
+    controlPointLabel = currentNode.GetNthControlPointLabel(i)
+    currentNode.GetNthControlPointPosition(i, controlPointPosition)
+    ITKCoord = self._logic.RASToIJKCoords(controlPointPosition, self._ras2ijk)
+    labelItem = qt.QTableWidgetItem(controlPointLabel)
+    boneNumItem = qt.QComboBox()
+    boneNumItem.addItems(['Metacarpal', 'Phalanx'])
+    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN, boneNumItem)
+
+    erosionTypeCombo = qt.QComboBox()
+    erosionTypeCombo.addItems(['Erosion', 'Cyst', 'Unreadable', 'None'])
+    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_TYPE, erosionTypeCombo)
+
+    isErosionInFOVCheckBox = qt.QCheckBox()
+    isErosionInFOVCheckBox.checked = True
+    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_EROSION_IN_FOV, isErosionInFOVCheckBox)
+
+    if(self.advanced):
+      minimalRadiusText = qt.QSpinBox()
+      minimalRadiusText.setMinimum(1)
+      minimalRadiusText.setMaximum(99)
+      minimalRadiusText.setSingleStep(1)
+      minimalRadiusText.setSuffix(' voxels')
+      minimalRadiusText.value = 3
+      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_MINIMUM_RADIUS, minimalRadiusText)
+
+      dilateErodeDistanceText = qt.QSpinBox()
+      dilateErodeDistanceText.setMinimum(0)
+      dilateErodeDistanceText.setMaximum(99)
+      dilateErodeDistanceText.setSingleStep(1)
+      dilateErodeDistanceText.setSuffix(' voxels')
+      dilateErodeDistanceText.value = 4
+      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_ERODE_DISTANCE, dilateErodeDistanceText)
+
+    else:
+      largeErosionCheckBox = qt.QCheckBox()
+      largeErosionCheckBox.checked = False
+      largeErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
+      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_LARGE_EROSION, largeErosionCheckBox)
+      
+    xItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[0]))
+    yItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[1]))
+    zItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[2]))
+    self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_LABEL_COLUMN, labelItem)
+    
+    self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_X_COLUMN, xItem)
+    self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_Y_COLUMN, yItem)
+    self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_Z_COLUMN, zItem)
 
 #
 # MarkupsTableLogic

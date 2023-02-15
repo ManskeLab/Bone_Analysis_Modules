@@ -28,6 +28,8 @@
 #-----------------------------------------------------
 import SimpleITK as sitk
 
+from .AutocontourKnee import AutocontourKnee
+
 class ContourLogic:
     """This class provides methods for automatic contouring"""
 
@@ -35,6 +37,7 @@ class ContourLogic:
                  boneNum=1, dilateErodeRadius=38, roughMask=None):
         self.model_img = model_img         # bone model, will be reused
         self.output_img = None             # output image
+        self.masks = []                    # array of individual masks
         self.label_img = None              # image with each connected bone structures relabeled
         self.roughMask = roughMask         # rough mask
         self.sigma = sigma                 # Gaussian sigma
@@ -118,13 +121,24 @@ class ContourLogic:
         Returns:
             Image
         """
-        label_img = thresh_img * rough_mask
+        print("thresh:\n#########################")
+        print(thresh_img)
+        # resampler = sitk.ResampleImageFilter()
+        # resampler.SetReferenceImage(thresh_img)
+        # resampler.SetInterpolator(sitk.sitkLinear)
+        # resampler.SetDefaultPixelValue(0)
+        # resampler.SetTransform(sitk.Transform())
 
-        self._stats_filter.Execute(rough_mask, label_img)
+        # rough_mask = resampler.Execute(rough_mask)
+        print("rough mask:\n#########################")
+        print(rough_mask)
+        self._stats_filter.Execute(thresh_img, rough_mask)
         boneNum = self._stats_filter.GetNumberOfLabels() - 1
+        print(boneNum)
+
         self.setBoneNum(boneNum)
 
-        return label_img
+        return rough_mask
 
     def relabelWithConnect(self, img):
         """
@@ -177,6 +191,8 @@ class ContourLogic:
 
         # crop img into small_img
         img = sitk.Mask(img, label_img, outsideValue=0, maskingValue=0)
+        print(boundingbox)
+
         small_img = img[boundingbox[0]:boundingbox[1]+1, 
                         boundingbox[2]:boundingbox[3]+1,
                         boundingbox[4]:boundingbox[5]+1]
@@ -380,56 +396,95 @@ class ContourLogic:
 
         return img
 
-    def execute(self, step):
+    def convert_hu_to_bmd(self, image, mu_water, rescale_slope, rescale_intercept):
+        """
+        Converts an image from HU to bone denisty units (mgHA/ccm).
+        The following relationships are used:
+        1. LinearAttenuation = (HU + 1000) * (mu_water / 1000)
+        2. BMD = LinearAttenuation * rescale_slope + rescale_intercept
+        """
+        image_lin_att = (image + 1000) * (mu_water / 1000)
+        image_bmd = image_lin_att * rescale_slope + rescale_intercept
+        return image_bmd
+
+    def autocontour_ormir(
+        self, img, boneNum=1, mu_water=0.2409, rescale_slope=1603.51904, rescale_intercept=-391.209015):
+        # Mu_Water, Rescale_Slope, and Rescale_Intercept are hard coded
+        # To-Do: get directly from the image, if possible, or from the user
+        img = self.convert_hu_to_bmd(img, mu_water, rescale_slope, rescale_intercept)
+
+        auto_contour = AutocontourKnee()
+        masks = []
+
+        # Find mask for each bone
+        for i in range(boneNum):
+            mask = auto_contour.get_periosteal_mask(img, i+1)
+            masks.append(mask)
+
+        # return array of masks for each bone
+        return masks
+
+    def execute(self, step, alg):
         """
         Executes the specified step in the algorithm.
 
         Returns:
             bool: False if reached the end of the algorithm, True otherwise. 
         """
-        actual_step = (step-3) % 5 + 3 # will repeat steps 3-7
 
-        if step == 1: # step 1
-            self._cleanup()
-            if (self.roughMask is None):
+        if alg == 0:
+            self.masks = self.autocontour_ormir(self.model_img, self.boneNum)
+
+            self.output_img = sum(self.masks) if self.masks else None
+
+            return False
+
+        elif alg == 1:
+            actual_step = (step-3) % 5 + 3 # will repeat steps 3-7
+            
+            if step == 1: # step 1
+                self._cleanup()
+                # if (self.roughMask is None):
                 if self.auto_thresh:
                     self.img = self.auto_smoothen(self.model_img, self.sigma, self.thresh_method)
                 else:
                     self.img = self.smoothen(self.model_img, self.sigma, self.lower_threshold, self.upper_threshold)
-        elif step == 2: # step 2
-            if (self.roughMask is None): # separate bones with connectivity filter
-                self.label_img = self.relabelWithConnect(self.img)
-            else:                        # separate bones with rough mask
-                self.label_img = self.roughMask
-        elif actual_step == 3: # step 3
-            if (self.roughMask is None):
-                self.img = self.extract(self.label_img, self.label_img, foreground=self.boneNum)
+            elif step == 2: # step 2
+                if (self.roughMask is None): # separate bones with connectivity filter
+                    self.label_img = self.relabelWithConnect(self.img)
+                else:                        # separate bones with rough mask
+                    self.label_img = self.roughMask
+                    self.label_image = self.relabelWithMap(self.img, self.roughMask)
+            elif actual_step == 3: # step 3
+                if (self.roughMask is None):
+                    self.img = self.extract(self.label_img, self.label_img, foreground=self.boneNum)
+                else:
+                    self.img = self.extract(self.model_img, self.label_img, foreground=self.boneNum)
+                    self.img = self.smoothen(self.img, self.sigma, self.lower_threshold, self.upper_threshold,
+                                            foreground=self.boneNum)
+            elif actual_step == 4: # step 4
+                self.img = self.inflate(self.img, radius=self.dilateErodeRadius, foreground=self.boneNum)
+            elif actual_step == 5: # step 5
+                self.img = self.fillHole(self.img, self.boneNum)
+            elif actual_step == 6: # step 6
+                self.img = self.deflate(self.img, radius=self.dilateErodeRadius, foreground=self.boneNum)
+            elif actual_step == 7: # step 7
+                # one bone structure completed
+                if (self.output_img is None): # store first bone in output_img
+                    self.output_img = self.pasteBack(self.img)
+                    self.masks.append(self.output_img)
+                else:                         # concatenate temp_img to output_img
+                    temp_img = self.pasteBack(self.img)
+                    self.masks.append(temp_img)
+                    self.output_img = sitk.Mask(self.output_img, 
+                                                temp_img, 
+                                                outsideValue=self.boneNum, 
+                                                maskingValue=self.boneNum)
+                self.boneNum -= 1
+            if (self.boneNum > 0):
+                return True
             else:
-                self.img = self.extract(self.model_img, self.label_img, foreground=self.boneNum)
-                self.img = self.smoothen(self.img, self.sigma, self.lower_threshold, self.upper_threshold,
-                                        foreground=self.boneNum)
-        elif actual_step == 4: # step 4
-            self.img = self.inflate(self.img, radius=self.dilateErodeRadius, foreground=self.boneNum)
-        elif actual_step == 5: # step 5
-            self.img = self.fillHole(self.img, self.boneNum)
-        elif actual_step == 6: # step 6
-            self.img = self.deflate(self.img, radius=self.dilateErodeRadius, foreground=self.boneNum)
-        elif actual_step == 7: # step 7
-            # one bone structure completed
-            if (self.output_img is None): # store first bone in output_img
-                self.output_img = self.pasteBack(self.img)
-            else:                         # concatenate temp_img to output_img
-                temp_img = self.pasteBack(self.img)
-                self.output_img = sitk.Mask(self.output_img, 
-                                            temp_img, 
-                                            outsideValue=self.boneNum, 
-                                            maskingValue=self.boneNum)
-            self.boneNum -= 1
-
-        if (self.boneNum > 0):
-            return True
-        else:
-            return False
+                return False
 
     def setModel(self, model_img):
         """
@@ -495,8 +550,11 @@ class ContourLogic:
         """
         return self.stepNum
 
-    def getOutput(self):
+    def getMask(self):
         return self.output_img
+
+    def getIndividualMasks(self):
+        return self.masks
 
     def setThreshMethod(self, method):
         '''Change the thresholding method'''

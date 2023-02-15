@@ -96,11 +96,11 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.layout.addStretch(1)
 
     # Update buttons
-    self.onSelect4()
+    self.checkErosionsButton()
     self.onSelect5()
     self.onSelect6()
     self.onSelectInputVolume()
-    self.onSelectSeed()
+    # self.onSelectSeed()
     self.onSelectInputErosion()
 
   def setupErosions(self):
@@ -159,34 +159,34 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.setCurrentNode(None)
     erosionsLayout.addRow("Output Erosions: ", self.outputErosionSelector)
 
-    # auto-threshold options
-    self.threshButton = qt.QCheckBox()
-    self.threshButton.checked = True
-    erosionsLayout.addRow("Use Automatic Thresholding", self.threshButton)
+    # # auto-threshold options
+    # self.threshButton = qt.QCheckBox()
+    # self.threshButton.checked = True
+    # erosionsLayout.addRow("Use Automatic Thresholding", self.threshButton)
 
-    self.threshSelector = qt.QComboBox()
-    self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
-    #self.threshSelector.setCurrentIndex(2)
-    erosionsLayout.addRow("Thresholding Method", self.threshSelector)
+    # self.threshSelector = qt.QComboBox()
+    # self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
+    # #self.threshSelector.setCurrentIndex(2)
+    # erosionsLayout.addRow("Thresholding Method", self.threshSelector)
 
-    # Help button for thresholding methods
-    self.helpButton = qt.QPushButton("Help")
-    self.helpButton.toolTip = "Tips for selecting a thresholding method"
-    self.helpButton.setFixedSize(50, 20)
-    erosionsLayout.addRow("", self.helpButton)
+    # # Help button for thresholding methods
+    # self.helpButton = qt.QPushButton("Help")
+    # self.helpButton.toolTip = "Tips for selecting a thresholding method"
+    # self.helpButton.setFixedSize(50, 20)
+    # erosionsLayout.addRow("", self.helpButton)
 
     # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
-    self.lowerThresholdText.value = 530
+    self.lowerThresholdText.value = 800
     erosionsLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
     self.upperThresholdText.setMaximum(999999)
     self.upperThresholdText.setSingleStep(10)
-    self.upperThresholdText.value = 4000
+    self.upperThresholdText.value = 9999
     erosionsLayout.addRow("Upper Threshold: ", self.upperThresholdText)
 
     # gaussian sigma spin box
@@ -197,26 +197,10 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.sigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
     erosionsLayout.addRow("Gaussian Sigma: ", self.sigmaText)
 
-    # seed point selector
-    self.fiducialSelector = slicer.qMRMLNodeComboBox()
-    self.fiducialSelector.nodeTypes = ["vtkMRMLMarkupsFiducialNode"]
-    self.fiducialSelector.selectNodeUponCreation = True
-    self.fiducialSelector.addEnabled = True
-    self.fiducialSelector.removeEnabled = True
-    self.fiducialSelector.renameEnabled = True
-    self.fiducialSelector.noneEnabled = False
-    self.fiducialSelector.showHidden = False
-    self.fiducialSelector.showChildNodeTypes = False
-    self.fiducialSelector.setMRMLScene(slicer.mrmlScene)
-    self.fiducialSelector.baseName = "SEEDS"
-    self.fiducialSelector.setToolTip( "Pick the seed points" )
-    self.fiducialSelector.setCurrentNode(None)
-    erosionsLayout.addRow("Seed Points: ", self.fiducialSelector)
-
     # seed point table
     self.markupsTableWidget = MarkupsTable(self.erosionsCollapsibleButton)
     self.markupsTableWidget.setMRMLScene(slicer.mrmlScene)
-    self.markupsTableWidget.setNodeSelectorVisible(False) # use the above selector instead
+    self.markupsTableWidget.setNodeSelectorVisible(True) # use the above selector instead
     self.markupsTableWidget.setButtonsVisible(False)
     self.markupsTableWidget.setPlaceButtonVisible(True)
     self.markupsTableWidget.setDeleteAllButtonVisible(True)
@@ -225,54 +209,53 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     # horizontal white space
     erosionsLayout.addRow(qt.QLabel(""))
 
-    # check box for large erosions
-    self.erosionCheckBox = qt.QCheckBox('Large Erosion')
-    self.erosionCheckBox.checked = False
-    self.erosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
-    erosionsLayout.addRow(self.erosionCheckBox)
+    # check box for Large erosions
+    self.LargeErosionsCheckBox = qt.QCheckBox('Large Erosions')
+    self.LargeErosionsCheckBox.checked = False
+    self.LargeErosionsCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
+    erosionsLayout.addRow(self.LargeErosionsCheckBox)
 
     # check box for CBCT scans
-    self.CBCTCheckBox = qt.QCheckBox('CBCT')
-    self.CBCTCheckBox.checked = False
-    self.CBCTCheckBox.setToolTip('Set internal parameters for segmenting CBCT scans')
-    erosionsLayout.addRow(self.CBCTCheckBox)
+    self.SmallErosionsCheckBox = qt.QCheckBox('Small Erosions')
+    self.SmallErosionsCheckBox.checked = False
+    self.SmallErosionsCheckBox.setToolTip('Set internal parameters for segmenting small erosions')
+    erosionsLayout.addRow(self.SmallErosionsCheckBox)
 
-    # advanced parameter box
-    self.advancedParameterBox = ctk.ctkCollapsibleGroupBox()
-    self.advancedParameterBox.title = "Advanced"
-    self.advancedParameterBox.collapsed = True
-    erosionsLayout.addRow(self.advancedParameterBox)
+    # glyph size 
+    self.glyphSizeBox = qt.QDoubleSpinBox()
+    self.glyphSizeBox.setMinimum(0.5)
+    self.glyphSizeBox.setMaximum(25)
+    self.glyphSizeBox.setSingleStep(0.5)
+    self.glyphSizeBox.setSuffix(' %')
+    self.glyphSizeBox.value = 1.0
+    erosionsLayout.addRow("Seed Point Size ", self.glyphSizeBox)
 
-    # advanced parameter layout
-    advancedParameterLayout = qt.QGridLayout(self.advancedParameterBox)
-    advancedParameterLayout.setColumnMinimumWidth(2, 15)
-
-    # advanced parameter instructions
-    advancedParameterLayout.addWidget(qt.QLabel(
-      "Larger values for less leakage into the trabecular structure;"
-      ), 0, 0, 1, 2)
-    advancedParameterLayout.addWidget(qt.QLabel(
-      "smaller values for more cortical breaks to be labeled."
-      ), 1, 0, 1, 2)
-    advancedParameterLayout.addWidget(qt.QLabel(""), 2, 0) # horizontal white space
+    # advanced box
+    self.advancedCheckBox = qt.QCheckBox('Advanced Parameters')
+    self.advancedCheckBox.checked = False
+    self.advancedCheckBox.setToolTip('Set internal parameters for segmenting erosions')
+    erosionsLayout.addRow(self.advancedCheckBox)
 
     # advanced parameter spin boxes
-    self.minimalRadiusText = qt.QSpinBox()
-    self.minimalRadiusText.setMinimum(1)
-    self.minimalRadiusText.setMaximum(99)
-    self.minimalRadiusText.setSingleStep(1)
-    self.minimalRadiusText.setSuffix(' voxels')
-    self.minimalRadiusText.value = 3
-    advancedParameterLayout.addWidget(qt.QLabel("Minimum Erosion Radius: "), 3, 0)
-    advancedParameterLayout.addWidget(self.minimalRadiusText, 3, 1)
-    self.dilateErodeDistanceText = qt.QSpinBox()
-    self.dilateErodeDistanceText.setMinimum(0)
-    self.dilateErodeDistanceText.setMaximum(99)
-    self.dilateErodeDistanceText.setSingleStep(1)
-    self.dilateErodeDistanceText.setSuffix(' voxels')
-    self.dilateErodeDistanceText.value = 4
-    advancedParameterLayout.addWidget(qt.QLabel("Dilate/Erode Distance: "), 4, 0)
-    advancedParameterLayout.addWidget(self.dilateErodeDistanceText, 4, 1)
+    self.minimalRadiusText = []
+    self.dilateErodeDistance = []
+
+    # self.minimalRadiusText = qt.QSpinBox()
+    # self.minimalRadiusText.setMinimum(1)
+    # self.minimalRadiusText.setMaximum(99)
+    # self.minimalRadiusText.setSingleStep(1)
+    # self.minimalRadiusText.setSuffix(' voxels')
+    # self.minimalRadiusText.value = 3
+    # advancedParameterLayout.addWidget(qt.QLabel("Minimum Erosion Radius: "), 3, 0)
+    # advancedParameterLayout.addWidget(self.minimalRadiusText, 3, 1)
+    # self.dilateErodeDistanceText = qt.QSpinBox()
+    # self.dilateErodeDistanceText.setMinimum(0)
+    # self.dilateErodeDistanceText.setMaximum(99)
+    # self.dilateErodeDistanceText.setSingleStep(1)
+    # self.dilateErodeDistanceText.setSuffix(' voxels')
+    # self.dilateErodeDistanceText.value = 4
+    # advancedParameterLayout.addWidget(qt.QLabel("Dilate/Erode Distance: "), 4, 0)
+    # advancedParameterLayout.addWidget(self.dilateErodeDistanceText, 4, 1)
 
     # Execution layout
     executeGridLayout = qt.QGridLayout()
@@ -294,24 +277,26 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     erosionButtonFrame = qt.QFrame()
     erosionButtonFrame.setLayout(executeGridLayout)
     erosionsLayout.addRow(erosionButtonFrame)
-
+    
     # connections
     self.erosionsCollapsibleButton.connect("contentsCollapsed(bool)", self.onCollapsed4)
-    self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
+    self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputVolume)
     self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputContour)
-    self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
-    self.outputErosionSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
+    self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
+    self.outputErosionSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.outputErosionSelector.connect("nodeAddedByUser(vtkMRMLNode*)", lambda node: self.onAddOutputErosion(node))
-    self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect4)
-    self.fiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
-    self.threshButton.clicked.connect(self.onAutoThresh)
-    self.helpButton.clicked.connect(self.onHelpButton)
-    self.erosionCheckBox.connect("clicked(bool)", self.onLargeErosionChecked)
-    self.CBCTCheckBox.connect("clicked(bool)", self.onCBCTChecked)
+    self.markupsTableWidget.getMarkupsSelector().connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
+    self.markupsTableWidget.getMarkupsSelector().connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
+    # self.threshButton.clicked.connect(self.onAutoThresh)
+    # self.helpButton.clicked.connect(self.onHelpButton)
+    self.LargeErosionsCheckBox.connect("clicked(bool)", self.onLargeErosionsChecked)
+    self.SmallErosionsCheckBox.connect("clicked(bool)", self.onSmallErosionsChecked)
+    self.glyphSizeBox.valueChanged.connect(self.onGlyphSizeChanged)
+    self.advancedCheckBox.connect("clicked(bool)", self.onAdvancedChecked)
     self.getErosionsButton.connect("clicked(bool)", self.onGetErosionsButton)
 
-    self.onAutoThresh()
+    # self.onAutoThresh()
   
   def setupManualCorrection(self):
     """Set up widgets in step 5 manual correction"""
@@ -421,6 +406,9 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect5)
     self.labelMapSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect5)
     self.importExportButton.connect("clicked(bool)", self.onImportExportButton)
+    # self.deleteButton1.connect('clicked(bool)', self.onDeleteButton)
+    # self.eraseBetweenSlicesButton.connect('clicked(bool)', self.onEraseBetweenSlicesButton)
+    # self.applyEraseBetweenSlicesButton.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
 
   def setupStats(self):
     """Set up widgets in step 6 statistics"""
@@ -543,12 +531,18 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     """Run this whenever the module is closed"""
     self._logic.exitSegmentEditor(self.segmentEditor)
 
+  def checkErosionsButton(self):
+    self.getErosionsButton.enabled = (self.inputVolumeSelector.currentNode() and 
+                                     self.inputContourSelector.currentNode() and
+                                     self.outputErosionSelector.currentNode() and
+                                     self.markupsTableWidget.getCurrentNode())
+
   def onSelect4(self):
     """Update the state of the get erosions button whenever the selectors in step 4 change"""
     self.getErosionsButton.enabled = (self.inputVolumeSelector.currentNode() and 
                                      self.inputContourSelector.currentNode() and
                                      self.outputErosionSelector.currentNode() and
-                                     self.fiducialSelector.currentNode())
+                                     self.markupsTableWidget.getCurrentNode())
 
   def onSelect5(self):
     """Update the state of the import/export button whenever the selectors in step 5 change"""
@@ -635,7 +629,7 @@ Change the lower and upper thresholds before initializing."""
       self.segmentationSelector.baseName = erosion_baseName
       self.inputErosionSelector.baseName = erosion_baseName
       seed_baseName = inputContourNode.GetName()+"_SEEDS"
-      self.fiducialSelector.baseName = seed_baseName
+      # self.fiducialSelector.baseName = seed_baseName
       self.outputTableSelector.baseName = inputContourNode.GetName()+"_TABLE"
       
 
@@ -650,43 +644,61 @@ Change the lower and upper thresholds before initializing."""
 
   def onSelectSeed(self):
     """Run this whenever the seed point selector in step 4 changes"""
-    self.markupsTableWidget.setCurrentNode(self.fiducialSelector.currentNode())
+    self.markupsTableWidget.onMarkupsNodeChanged()
+    markupsDisplayNode = self.markupsTableWidget.getCurrentNode().GetMarkupsDisplayNode()
+    markupsDisplayNode.SetGlyphScale(self.glyphSizeBox.value)
   
-  def onAutoThresh(self):
-    use_auto = self.threshButton.checked
-    self.lowerThresholdText.setEnabled(not use_auto)
-    self.upperThresholdText.setEnabled(not use_auto)
-    self.threshSelector.setEnabled(use_auto)
-    if not use_auto:
-      self.onSelectInputVolume()
+#   def onAutoThresh(self):
+#     use_auto = self.threshButton.checked
+#     self.lowerThresholdText.setEnabled(not use_auto)
+#     self.upperThresholdText.setEnabled(not use_auto)
+#     self.threshSelector.setEnabled(use_auto)
+#     if not use_auto:
+#       self.onSelectInputVolume()
 
-  def onHelpButton(self) -> None:
-    '''Help button is pressed'''
-    txt = """Thresholding Methods\n
-For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
-For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
-          """
-    slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
+#   def onHelpButton(self) -> None:
+#     '''Help button is pressed'''
+#     txt = """Thresholding Methods\n
+# For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
+# For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
+#           """
+#     slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
+  def onLargeErosionsChecked(self):
+    """Run this whenever the check box for Large Erosions in step 4 changes"""
+    if self.LargeErosionsCheckBox.checked:
+      self.minimalRadiusText = 6
+      self.dilateErodeDistanceText = 6
+      self.SmallErosionsCheckBox.checked = False
+    else:
+      self.minimalRadiusText = 3
+      self.dilateErodeDistanceText = 4
 
-  def onLargeErosionChecked(self):
+  def onSmallErosionsChecked(self):
+    """Run this whenever the check box for Small Erosions in step 4 changes"""
+    if self.SmallErosionsCheckBox.checked:
+      self.minimalRadiusText = 2
+      self.dilateErodeDistanceText = 3
+      self.LargeErosionsCheckBox.checked = False
+    else:
+      self.minimalRadiusText = 3
+      self.dilateErodeDistanceText = 4
+  
+  def onGlyphSizeChanged(self):
+    markupsDisplayNode = self.markupsTableWidget.getCurrentNode().GetMarkupsDisplayNode()
+    markupsDisplayNode.SetGlyphScale(self.glyphSizeBox.value)
+
+  def onAdvancedChecked(self):
     """Run this whenever the check box for large erosions in step 4 changes"""
-    if self.erosionCheckBox.checked:
-      self.minimalRadiusText.value = 6
-      self.dilateErodeDistanceText.value = 6
+
+    if self.advancedCheckBox.checked:
+      self.markupsTableWidget.advancedMarkupsControlPointsTableView()
+      # self.minimalRadiusText.value = 6
+      # self.dilateErodeDistanceText.value = 6
       self.CBCTCheckBox.checked = False
     else:
-      self.minimalRadiusText.value = 3
-      self.dilateErodeDistanceText.value = 4
-  
-  def onCBCTChecked(self):
-    """Run this whenever the check box for CBCT in step 4 changes"""
-    if self.CBCTCheckBox.checked:
-      self.minimalRadiusText.value = 1
-      self.dilateErodeDistanceText.value = 0
-      self.erosionCheckBox.checked = False
-    else:
-      self.minimalRadiusText.value = 3
-      self.dilateErodeDistanceText.value = 4
+      self.markupsTableWidget.normalMarkupsControlPointsTableView()
+      # self.minimalRadiusText.value = 3
+      # self.dilateErodeDistanceText.value = 4
 
   def onSelectInputErosion(self):
     """Run this whenever the input erosion selector in step 6 changes"""
@@ -702,41 +714,47 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     """Run this whenever the get erosions button in step 4 is clicked"""
     # update widgets
     self.disableErosionsWidgets()
+    self.markupsTableWidget.updateLabels()
 
     inputVolumeNode = self.inputVolumeSelector.currentNode()
     inputContourNode = self.inputContourSelector.currentNode()
     outputVolumeNode = self.outputErosionSelector.currentNode()
-    fiducialNode = self.fiducialSelector.currentNode()
+    # fiducialNode = self.fiducialSelector.currentNode()
+    markupsNode = self.markupsTableWidget.getCurrentNode()
+    minimalRadius = self.markupsTableWidget.getCurrentNodeMinimalRadii()
+    dilateErodeDistance = self.markupsTableWidget.getCurrentNodeDilateErodeDistances()
 
     self.logger.info("Erosion Volume initialized with parameters:")
     self.logger.info("Input Volume: " + inputVolumeNode.GetName())
     self.logger.info("Input Contour: " + inputContourNode.GetName())
     self.logger.info("Output Volume: " + outputVolumeNode.GetName())
-    self.logger.info("Input Seeds: " + fiducialNode.GetName())
+    # self.logger.info("Input Seeds: " + fiducialNode.GetName())
     if self.threshButton.checked:
       self.logger.info("Automatic Threshold Method: " + self.threshSelector.currentText)
     else:
       self.logger.info("Lower Theshold: " + str(self.lowerThresholdText.value))
       self.logger.info("Upper Theshold: " + str(self.upperThresholdText.value))
     self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
-    self.logger.info("Minimum Erosion Radius: " + str(self.minimalRadiusText.value))
-    self.logger.info("Dilate/Erode Distance: " + str(self.dilateErodeDistanceText.value))
+    # self.logger.info("Minimum Erosion Radius: " + str(self.minimalRadiusText.value))
+    # self.logger.info("Dilate/Erode Distance: " + str(self.dilateErodeDistanceText.value))
 
     if self.threshButton.checked:
       ready = self._logic.setErosionParameters(inputVolumeNode, 
                                             inputContourNode, 
                                             self.sigmaText.value,
-                                            fiducialNode,
-                                            self.minimalRadiusText.value,
-                                            self.dilateErodeDistanceText.value,
+                                            # fiducialNode,
+                                            markupsNode,
+                                            minimalRadius,
+                                            dilateErodeDistance,
                                             method=self.threshSelector.currentIndex)
     else:
       ready = self._logic.setErosionParameters(inputVolumeNode, 
                                             inputContourNode, 
                                             self.sigmaText.value,
-                                            fiducialNode,
-                                            self.minimalRadiusText.value,
-                                            self.dilateErodeDistanceText.value,
+                                            # fiducialNode,
+                                            markupsNode,
+                                            minimalRadius,
+                                            dilateErodeDistance,
                                             lower=self.lowerThresholdText.value,
                                             upper=self.upperThresholdText.value)
     if ready:
@@ -746,6 +764,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
         self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
         self.segmentEditor.setSegmentationNode(outputVolumeNode)
         self.segmentEditor.setMasterVolumeNode(inputVolumeNode)
+        self.segmentEditor.checkEraseButtons()
     
     # store thresholds 
     inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
@@ -765,6 +784,8 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     else:                              # label map to segmentation
       self._logic.labelmapToSegmentationNode(labelMapNode, segmentationNode)
 
+  
+
   def onGetStatsButton(self):
     """Run this whenever the get statistics button in step 6 is clicked"""
     inputErosionNode = self.inputErosionSelector.currentNode()
@@ -782,7 +803,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
 
   def enableErosionsWidgets(self):
     """Enable widgets in the erosions layout in step 4"""
-    self.onSelect4()
+    self.checkErosionsButton()
     self.progressBar.hide()
 
   def disableErosionsWidgets(self):

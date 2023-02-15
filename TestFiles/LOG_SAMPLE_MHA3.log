@@ -1,0 +1,87 @@
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Using Erosion Volume Module with SAMPLE_MHA3
+
+Erosion Volume initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Input Contour: SAMPLE_MASK3
+Output Volume: SAMPLE_MASK3_ER_1
+Input Seeds: SAMPLE_MASK1_SEEDS
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 1.0
+Minimum Erosion Radius: 3
+Dilate/Erode Distance: 4
+Finished
+
+Using Erosion Volume Module with SAMPLE_MHA3
+
+Using Erosion Volume Module with SAMPLE_MHA3
+
+Erosion Volume initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Input Contour: SAMPLE_MASK3
+Output Volume: SAMPLE_MASK3_ER_1
+Input Seeds: SAMPLE_MASK3_SEEDS
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 1.0
+Minimum Erosion Radius: 6
+Dilate/Erode Distance: 6
+Using Erosion Volume Module with SAMPLE_MHA3
+
+Erosion Volume initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Input Contour: SAMPLE_MASK3
+Output Volume: SAMPLE_MASK3_ER_1
+Input Seeds: SAMPLE_MASK3_SEEDS
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 1.0
+Minimum Erosion Radius: 6
+Dilate/Erode Distance: 6
+Using Erosion Volume Module with SAMPLE_MHA3
+
+Erosion Volume initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Input Contour: SAMPLE_MASK3
+Output Volume: SAMPLE_MASK3_ER_2
+Input Seeds: SAMPLE_MASK3_SEEDS
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 1.0
+Minimum Erosion Radius: 6
+Dilate/Erode Distance: 6
+Using Erosion Volume Module with SAMPLE_MHA3
+
+Erosion Volume initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Input Contour: SAMPLE_MASK3
+Output Volume: SAMPLE_MASK3_ER_1
+Input Seeds: SAMPLE_MASK3_SEEDS
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 1.0
+Minimum Erosion Radius: 6
+Dilate/Erode Distance: 6
+Using Erosion Volume Module with SAMPLE_MHA3
+
+Erosion Volume initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Input Contour: SAMPLE_MASK3
+Output Volume: SAMPLE_MASK3_ER_1
+Input Seeds: SAMPLE_MASK3_SEEDS
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 1.0
+Minimum Erosion Radius: 6
+Dilate/Erode Distance: 6
+Using Automatic Contour Module with SAMPLE_MHA3
+
+Automatic Contour initialized with parameters:
+Input Volume: SAMPLE_MHA3
+Output Volume: SAMPLE_MHA3_MASK
+Automatic Threshold Method: Otsu
+Gaussian Sigma: 2.0
+Number of Bones: 1
+Dilate/Erode Radius: 38
+Finished
+

@@ -66,7 +66,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       dir = os.path.dirname(storageNode.GetFullNameFromFileName())
       slicer.mrmlScene.SetRootDirectory(dir)
 
-  def setErosionParameters(self, inputVolumeNode, inputContourNode, sigma:float, fiducialNode, minimalRadius:int, dilateErodeDistance:int,
+  def setErosionParameters(self, inputVolumeNode, inputContourNode, sigma:float, markupsNode, minimalRadius, dilateErodeDistance,
         method:int=None, lower:int=None, upper:int=None) -> bool:
     """
     Set parameters used by the Erosion Volume algorithm. 
@@ -90,7 +90,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
         slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
         return False
     
-    fiducialNum = fiducialNode.GetNumberOfFiducials()
+    fiducialNum = markupsNode.GetNumberOfFiducials()
     if (fiducialNum == 0):
       slicer.util.errorDisplay('No seed points have been plotted.')
       return False
@@ -101,7 +101,6 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     else:
       self.voidVolume.setThresholds(lower, upper)
     self.voidVolume.setSigma(sigma)
-    self.voidVolume.setRadii(minimalRadius, dilateErodeDistance)
 
     # images
     model_img = sitkUtils.PullVolumeFromSlicer(inputVolumeNode.GetName())
@@ -117,20 +116,22 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     erosion_ids = []
     for i in range(fiducialNum):
       # store seed point coordinates in the variable seeds
-      fiducialNode.GetNthFiducialPosition(i,physical_coord) # slicer seed coordinates
+      markupsNode.GetNthControlPointPosition(i,physical_coord) # slicer seed coordinates
       itk_coord = self.RASToIJKCoords(physical_coord, ras2ijk) # SimpleITK coordinates
       seeds.append(itk_coord)
       # store seed point numbers in the variable erosion_ids
-      seed_id = fiducialNode.GetNthFiducialLabel(i).split('-')[-1] # seed name postfix
-      erosion_id_max = 0
-      try:
-        erosion_id = int(seed_id)
-        erosion_id_max = max(erosion_id, erosion_id_max)
-      except ValueError: # if postfix does not end with a dash followed by a number
-        erosion_id_max += 1
-        erosion_id = erosion_id_max
-      erosion_ids.append(erosion_id)
+      seed_id = markupsNode.GetNthControlPointID(i)
+      print(minimalRadius)
+      # erosion_id_max = 0
+      # try:
+      #   erosion_id = int(seed_id)
+      #   erosion_id_max = max(erosion_id, erosion_id_max)
+      # except ValueError: # if postfix does not end with a dash followed by a number
+      #   erosion_id_max += 1
+      #   erosion_id = erosion_id_max
+      erosion_ids.append(int(seed_id))
     self.voidVolume.setSeeds(seeds)
+    self.voidVolume.setRadii(minimalRadius, dilateErodeDistance)
     self.voidVolume.setErosionIds(erosion_ids)
     
     return True
@@ -271,7 +272,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       segmentEditor (SegmentEditor): will be modified
     """
     segmentEditor.enter()
-    segmentEditor.setMasterVolumeIntensityMask(True)
+    segmentEditor.setMasterVolumeIntensityMask(False)
     segmentEditor.setOverWriteMode(slicer.vtkMRMLSegmentEditorNode.OverwriteVisibleSegments)
 
   def exitSegmentEditor(self, segmentEditor):

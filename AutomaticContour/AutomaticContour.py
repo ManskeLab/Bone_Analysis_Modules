@@ -9,13 +9,20 @@
 #-----------------------------------------------------
 from sre_constants import SUCCESS
 import vtk, qt, ctk, slicer
+import SimpleITK as sitk
 import sitkUtils
+import sys
+
 import numpy as np
+np.set_printoptions(threshold=sys.maxsize)
+
 from slicer.ScriptedLoadableModule import *
 import logging
 from AutomaticContourLib.AutomaticContourLogic import AutomaticContourLogic
 from AutomaticContourLib.SegmentEditor import SegmentEditor
+from AutomaticContourLib.DeleteQtDialog import DeleteQtDialog
 import os
+from time import sleep
 
 #
 # AutomaticContour
@@ -34,11 +41,11 @@ class AutomaticContour(ScriptedLoadableModule):
     self.parent.helpText = """
 This module contains steps 1-3 of erosion analysis. <br>
 Step 1: Manually separate the bones by covering each bone with a different label. <br>
-Step 2: Perform automatic contouring on the greyscale image and generate a 
+Step 2: Perform automatic contouring on the greyscale image and generate a
 label map volume of the contour. <br>
 Step 3: Manually correct the contour. <br>
 If a contour already exists and needs to be corrected, load it to slicer as a label map volume
-and skip to Step 3. 
+and skip to Step 3.
 """
     self.parent.helpText += "<br>For more information see the <a href=https://github.com/ManskeLab/3DSlicer_Erosion_Analysis/wiki/Automatic-Contour-Module>online documentation</a>."
     self.parent.helpText += "<br><td><img src=\"" + self.getLogo('bam') + "\" height=80> "
@@ -78,6 +85,10 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     # Initialize logics object
     self._logic = AutomaticContourLogic()
     self._logic.progressCallBack = self.setProgress
+
+    self.loadContoursPath = os.path.join(os.path.split(os.path.dirname(os.path.abspath(__file__)))[0], 'LOAD_CONTOURS')
+
+    self.applyPressed = False
 
     ScriptedLoadableModuleWidget.__init__(self, parent)
 
@@ -136,6 +147,18 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.separateInputSelector.setToolTip("Select the input scan")
     selectorFormLayout.addRow("Input Volume: ", self.separateInputSelector)
 
+    self.separateRoughMaskSelector = slicer.qMRMLNodeComboBox()
+    self.separateRoughMaskSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+    self.separateRoughMaskSelector.selectNodeUponCreation = False
+    self.separateRoughMaskSelector.addEnabled = False
+    self.separateRoughMaskSelector.removeEnabled = False
+    self.separateRoughMaskSelector.noneEnabled = True
+    self.separateRoughMaskSelector.showHidden = False
+    self.separateRoughMaskSelector.showChildNodeTypes = False
+    self.separateRoughMaskSelector.setMRMLScene(slicer.mrmlScene)
+    self.separateRoughMaskSelector.setToolTip("Select the rough mask segment")
+    selectorFormLayout.addRow("Rough Mask: ", self.separateRoughMaskSelector)
+
     # frame with selectors
     selectorFrame = qt.QFrame()
     selectorFrame.setLayout(selectorFormLayout)
@@ -163,6 +186,30 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.applyButton1.enabled = False
     initApplyGridLayout.addWidget(self.applyButton1, 0, 2)
 
+    # delete button
+    self.deleteButton1 = qt.QPushButton("Delete Contours")
+    self.deleteButton1.toolTip = "Delete all contours in all slices"
+    self.deleteButton1.enabled = False
+    initApplyGridLayout.addWidget(self.deleteButton1, 1, 0)
+
+    # Erase between slices button
+    self.eraseBetweenSlicesButton1 = qt.QPushButton("Erase Between Slices")
+    self.eraseBetweenSlicesButton1.toolTip = "Interpolates between segments between slices and erases those segments"
+    self.eraseBetweenSlicesButton1.enabled = False
+    initApplyGridLayout.addWidget(self.eraseBetweenSlicesButton1, 1, 1)
+
+    # Apply erase button
+    self.applyEraseBetweenSlicesButton1 = qt.QPushButton("Apply Erase")
+    self.applyEraseBetweenSlicesButton1.toolTip = "Applies erase between slices"
+    self.applyEraseBetweenSlicesButton1.enabled = False
+    initApplyGridLayout.addWidget(self.applyEraseBetweenSlicesButton1, 1, 2)
+
+    # Hide rough mask checkbox
+    self.hideButton = qt.QCheckBox()
+    self.hideButton.checked = False
+    initApplyGridLayout.addWidget(qt.QLabel("Hide Rough Mask"), 0, 3)
+    initApplyGridLayout.addWidget(self.hideButton, 0, 4)
+
     # frame with initialize and apply buttons
     initApplyFrame = qt.QFrame()
     initApplyFrame.setLayout(initApplyGridLayout)
@@ -175,7 +222,12 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.initButton1.connect('clicked(bool)', self.onInitButton1)
     self.cancelButton1.connect('clicked(bool)', self.onCancelButton1)
     self.applyButton1.connect('clicked(bool)', self.onApplyButton1)
+    self.deleteButton1.connect('clicked(bool)', self.onDeleteButton)
+    self.eraseBetweenSlicesButton1.connect('clicked(bool)', self.onEraseBetweenSlicesButton1)
+    self.applyEraseBetweenSlicesButton1.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
     self.separateInputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect1)
+    self.separateRoughMaskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectRoughMask)
+    self.hideButton.clicked.connect(self.onHideRoughMask)
 
   def setupAutomaticContour(self):
     """Set up widgets in step 2 automatic contour"""
@@ -273,7 +325,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.dilateErodeRadiusText.value = 38
     self.dilateErodeRadiusText.setToolTip("Enter the dilate/erode kernel radius")
     automaticContourLayout.addRow("Dilate/Erode Radius [voxels]: ", self.dilateErodeRadiusText)
-    
+
     # rough mask selector
     self.separateMapSelector = slicer.qMRMLNodeComboBox()
     self.separateMapSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
@@ -287,6 +339,11 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.separateMapSelector.setMRMLScene( slicer.mrmlScene )
     self.separateMapSelector.setToolTip( "Select the rough mask from Step 1" )
     automaticContourLayout.addRow("Rough Mask(Optional): ", self.separateMapSelector)
+
+    self.algorithmSelector = qt.QComboBox()
+    self.algorithmSelector.addItems(['Ormir', 'Dual Threshold'])
+    self.algorithmSelector.setCurrentIndex(0)
+    automaticContourLayout.addRow("Contouring Algorithm", self.algorithmSelector)
 
     # Execution layout
     executeGridLayout = qt.QGridLayout()
@@ -334,6 +391,13 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     selectorFormLayout = qt.QFormLayout()
     selectorFormLayout.setContentsMargins(0, 0, 0, 0)
 
+    selectorFormLayout.addRow(qt.QLabel("Load contours from directory <BAM directory>/LOAD_CONTOURS:"))
+
+    self.loadContours = qt.QPushButton("Load")
+    self.loadContours.toolTip = "Load contours from the directory <BAM directory>/LOAD_CONTOURS"
+    self.loadContours.enabled = True
+    selectorFormLayout.addRow(self.loadContours)
+
     # contour selector
     self.contourVolumeSelector = slicer.qMRMLNodeComboBox()
     self.contourVolumeSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
@@ -341,12 +405,14 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.contourVolumeSelector.addEnabled = False
     self.contourVolumeSelector.removeEnabled = False
     self.contourVolumeSelector.renameEnabled = False
-    self.contourVolumeSelector.noneEnabled = False
+    self.contourVolumeSelector.noneEnabled = True
     self.contourVolumeSelector.showHidden = False
     self.contourVolumeSelector.showChildNodeTypes = False
     self.contourVolumeSelector.setMRMLScene( slicer.mrmlScene )
     self.contourVolumeSelector.setToolTip( "Select the contour to be corrected" )
     selectorFormLayout.addRow("Contour to be Corrected: ", self.contourVolumeSelector)
+
+    selectorFormLayout.addRow(qt.QLabel(""))
 
     # master volume selector
     self.masterVolumeSelector = slicer.qMRMLNodeComboBox()
@@ -388,20 +454,42 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     self.applyButton3.enabled = False
     initApplyGridLayout.addWidget(self.applyButton3, 0, 2)
 
+    # delete button
+    self.deleteButton3 = qt.QPushButton("Delete Contours")
+    self.deleteButton3.toolTip = "Delete all contours in all slices"
+    self.deleteButton3.enabled = False
+    initApplyGridLayout.addWidget(self.deleteButton3, 1, 0)
+
+    # Erase between slices button
+    self.eraseBetweenSlicesButton3 = qt.QPushButton("Erase Between Slices")
+    self.eraseBetweenSlicesButton3.toolTip = "Interpolates between segments between slices and erases those segments"
+    self.eraseBetweenSlicesButton3.enabled = False
+    initApplyGridLayout.addWidget(self.eraseBetweenSlicesButton3, 1, 1)
+
+    # Apply erase button
+    self.applyEraseBetweenSlicesButton3 = qt.QPushButton("Apply Erase")
+    self.applyEraseBetweenSlicesButton3.toolTip = "Applies erase between slices"
+    self.applyEraseBetweenSlicesButton3.enabled = False
+    initApplyGridLayout.addWidget(self.applyEraseBetweenSlicesButton3, 1, 2)
+
     # frame with initialize and apply buttons
     initApplyFrame = qt.QFrame()
     initApplyFrame.setLayout(initApplyGridLayout)
     manualCorrectionLayout.addWidget(initApplyFrame)
 
     # segmentation editor
-    self.segmentEditor = SegmentEditor(manualCorrectionLayout)
+    self.segmentEditor3 = SegmentEditor(manualCorrectionLayout)
 
     # connections
     self.manualCorrectionCollapsibleButton.connect('contentsCollapsed(bool)', self.onCollapsed3)
     self.initButton3.connect('clicked(bool)', self.onInitButton3)
     self.applyButton3.connect('clicked(bool)', self.onApplyButton3)
     self.cancelButton3.connect('clicked(bool)', self.onCancelButton3)
-    self.contourVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect3)
+    self.deleteButton3.connect('clicked(bool)', self.onDeleteButton)
+    self.eraseBetweenSlicesButton3.connect('clicked(bool)', self.onEraseBetweenSlicesButton3)
+    self.applyEraseBetweenSlicesButton3.connect('clicked(bool)', self.onApplyEraseBetweenSlicesButton)
+    self.loadContours.connect('clicked(bool)', self.onLoadContours)
+    self.contourVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInternalContour)
     self.masterVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelect3)
 
     #logger
@@ -421,7 +509,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     if not self.manualCorrectionCollapsibleButton.collapsed:
       self.boneSeparationCollapsibleButton.collapsed = True
       self.automaticContourCollapsibleButton.collapsed = True
-  
+
   def enter(self):
     """Run this whenever the module is reopened"""
     success = self._logic.enterSegmentEditor(self.segmentEditor)
@@ -429,24 +517,70 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     if not success: # if enter segmentation editor is not successful, some nodes are missing
       self.disableBoneSeparationWidgets()
       self.disableManualCorrectionWidgets()
-  
+
   def exit(self):
     """Run this whenever the module is closed"""
     self._logic.exitSegmentEditor(self.segmentEditor)
-  
+
   def onSelect1(self):
     """Update the state of the initialize button whenever the selector in step 1 change"""
     self.initButton1.enabled = self.separateInputSelector.currentNode()
 
+    slicer.util.setSliceViewerLayers(background=self.separateInputSelector.currentNode())
+    slicer.util.resetSliceViews()
+
+  def onSelectRoughMask(self):
+    if self.applyPressed:
+      self.applyPressed = False
+      return
+
+    displayMask = self.separateRoughMaskSelector.currentNode()
+
+    #  Remove current SegmentationNode and create a new node from the rough mask
+    if displayMask:
+      self._logic.changeRoughMask(displayMask, self.separateInputSelector.currentNode(), self.segmentEditor)
+
+      # add temperory node and delete to prevent duplicate colors
+      tempNode = self._logic.getSegmentNode().GetSegmentation().AddEmptySegment("temp")
+      self._logic.getSegmentNode().GetSegmentation().RemoveSegment(tempNode)
+
   def onSelect2(self):
     """Update the state of the get contour button whenever the selectors in step 2 change"""
-    self.getContourButton.enabled = (self.inputVolumeSelector.currentNode() and 
+    self.getContourButton.enabled = (self.inputVolumeSelector.currentNode() and
                                      self.outputVolumeSelector.currentNode())
-  
+
+  def onLoadContours(self):
+    for image in os.listdir(self.loadContoursPath):
+      image_lower = image.lower()
+      image_dir = os.path.join(self.loadContoursPath, image)
+
+      binaryThresh = sitk.BinaryThresholdImageFilter()
+      binaryThresh.SetLowerThreshold(1)
+      binaryThresh.SetUpperThreshold(255)
+      binaryThresh.SetInsideValue(1)
+
+      segmentor = sitk.ConnectedComponentImageFilter()
+
+
+      if ('nrrd' in image_lower) or ('nii' in image_lower) or ('mha' in image_lower) or ('aim' in image_lower):
+        outBasename, outExtension = os.path.splitext(image)
+        out_dir = os.path.join(self.loadContoursPath, outBasename+'.nrrd')
+        temp = sitk.ReadImage(image_dir, sitk.sitkInt32)
+        out = binaryThresh.Execute(temp)
+        out = segmentor.Execute(out)
+        sitk.WriteImage(out, out_dir)
+        node = slicer.util.loadLabelVolume(out_dir)
+
+  def onSelectInternalContour(self):
+    self.segmentEditor3.setSegmentationNode(self.contourVolumeSelector.currentNode())
+    self.onSelect3()
+
   def onSelect3(self):
     """Update the state of the initialize button whenever the selectors in step 3 change"""
     self.initButton3.enabled = (self.contourVolumeSelector.currentNode() and
                                self.masterVolumeSelector.currentNode())
+
+    self.segmentEditor3.setMasterVolumeNode(self.masterVolumeSelector.currentNode())
 
   def onInitButton1(self):
     """Run this whenever the initialize button in step 1 is clicked"""
@@ -462,7 +596,7 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     """Run this whenever the cancel button in step 1 is clicked"""
     if slicer.util.confirmOkCancelDisplay('Do you want to discard the segmentation?'):
       separateInputNode = self.separateInputSelector.currentNode()
-      
+
       self._logic.cancelRoughMask(separateInputNode)
 
       # update widgets
@@ -481,7 +615,137 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
     if separateOutputNode:
       self.inputVolumeSelector.setCurrentNodeID(separateInputNode.GetID())
       self.separateMapSelector.setCurrentNodeID(separateOutputNode.GetID())
+      self.separateRoughMaskSelector.setCurrentNodeID(separateOutputNode.GetID())
     self.disableBoneSeparationWidgets()
+
+    self.hideButton.checked = False
+    self.onSelectRoughMask()
+
+    segmentLabelMapNode = self._logic.getSegmentNode()
+
+    dir = os.path.split(separateInputNode.GetStorageNode().GetFullNameFromFileName())
+    storageNode = segmentLabelMapNode.CreateDefaultStorageNode()
+    storageNode.SetFileName(dir[0]+'/'+os.path.splitext(dir[1])[0]+"_RoughMask.sig.nrrd")
+
+    storageNode.WriteData(segmentLabelMapNode)
+
+  def onDeleteButton(self):
+    """Run this whenever the delete button in step 1 is clicked"""
+    # user prompt to get start and end slices for delete
+    DeleteDialog = DeleteQtDialog()
+    DeleteDialog.exec()
+    contourRange = DeleteDialog.getNums()
+
+    #background Image
+    volumeNode = self.separateInputSelector.currentNode()
+
+    self._logic.applyDeleteContour(contourRange[0], contourRange[1], volumeNode, self.segmentEditor)
+
+    self.applyButton1.enabled = True
+
+    self.onHideRoughMask()
+
+  def onEraseBetweenSlicesButton1(self):
+    self.applyEraseBetweenSlicesButton1.enabled = True
+    self.onEraseBetweenSlices()
+
+  def onEraseBetweenSlicesButton3(self):
+    self.applyEraseBetweenSlicesButton3.enabled = True
+
+    segmentationNode = self.segmentEditor3.getEditor().segmentationNode()
+
+    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
+    segmentationNode.GetSegmentation().RemoveSegment(eraseNodeID)
+    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
+    self.segmentEditor3.getEditor().setCurrentSegmentID(eraseNodeID)
+    self.segmentEditor3.getEditor().setActiveEffectByName("Paint")
+
+  def onEraseBetweenSlices(self):
+    
+    segmentationNode = self._logic.getSegmentNode()
+
+    eraseNodeID = segmentationNode.GetSegmentation().AddEmptySegment("Delete")
+    self.segmentEditor.getEditor().setCurrentSegmentID(eraseNodeID)
+    self.segmentEditor.getEditor().setActiveEffectByName("Paint")
+
+    #TODO make slicer wait until you have atleast 2 slices with segments before enabling apply button
+
+  def onApplyEraseBetweenSlicesButton(self):
+
+    volumeNode = self.separateInputSelector.currentNode()
+    segmentationNode = self._logic.getSegmentNode()
+    eraseId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName("Delete")
+    self.segmentEditor.getEditor().setCurrentSegmentID(eraseId)
+
+    selectedSegmentIds = vtk.vtkStringArray()
+
+    if(segmentationNode):
+        segmentationNode.GetSegmentation().GetSegmentIDs(selectedSegmentIds)
+
+    segmentArrays = []
+    segments = []
+    segmentIds = []
+
+    for idx in range(selectedSegmentIds.GetNumberOfValues()):
+      segmentName = selectedSegmentIds.GetValue(idx)
+      if segmentName == "Delete":
+        continue
+
+      segmentId = segmentationNode.GetSegmentation().GetSegmentIdBySegmentName(segmentName)
+
+      # Get mask segment as numpy array
+      segmentArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, segmentId, volumeNode)
+
+      segmentArrays.append(segmentArray)
+      segments.append(segmentationNode.GetSegmentation().GetSegment(segmentId))
+      segmentIds.append(segmentId)
+      segmentationNode.GetSegmentation().RemoveSegment(segmentId)
+
+    self.segmentEditor.getEditor().setActiveEffectByName("Fill between slices")
+    effect = self.segmentEditor.getEditor().activeEffect()
+    effect.self().onPreview()
+    effect.self().onApply()
+
+    # Get erase mask segment as numpy array
+    eraseArray = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, eraseId, volumeNode)
+
+    # # startOfEraseMask = 0
+    # # endOfEraseMask = startOfEraseMask
+    slices = eraseArray.shape[0]
+    row = eraseArray.shape[1]
+    col = eraseArray.shape[2]
+
+    idx = 0
+    for segmentArray in segmentArrays:
+      segmentationNode.GetSegmentation().AddSegment(segments[idx], segmentIds[idx])
+
+      # Iterate through voxels
+      for i in range(slices):
+        for j in range(row):
+          for k in range(col):
+            if(eraseArray[i, j, k]):
+              segmentArray[i, j, k] = 0
+
+      # Convert back to label map array
+      slicer.util.updateSegmentBinaryLabelmapFromArray(segmentArray, segmentationNode, segmentIds[idx], volumeNode)
+      idx = idx + 1
+
+    segmentationNode.GetSegmentation().RemoveSegment(eraseId)
+
+  def onHideRoughMask(self):
+    checked = self.hideButton.checked
+    if checked:
+      displayMask = None
+    else:
+      displayMask = self.separateRoughMaskSelector.currentNode()
+
+    if self._logic.getSegmentNode():
+      self._logic.getSegmentNode().SetDisplayVisibility(not checked)
+
+    slicer.util.setSliceViewerLayers(background=self.separateInputSelector.currentNode(),
+                                      label= displayMask,
+                                      labelOpacity=0.5)
+    slicer.util.resetSliceViews()
 
   def onSelectInputVolume(self):
     """Run this whenever the input volume selector in step 2 changes"""
@@ -508,8 +772,8 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
       #check intensity units and display warning if not in HU
       if check and not self.threshButton.checked:
         if not self._logic.intensityCheck(inputVolumeNode):
-          text = """The selected image likely does not use HU for intensity units. 
-Default thresholds are set in HU and will not generate an accurate result. 
+          text = """The selected image likely does not use HU for intensity units.
+Default thresholds are set in HU and will not generate an accurate result.
 Change the lower and upper thresholds before initializing."""
           slicer.util.warningDisplay(text, windowTitle='Intensity Unit Warning')
 
@@ -517,7 +781,7 @@ Change the lower and upper thresholds before initializing."""
       if self.logger.hasHandlers():
         for handler in self.logger.handlers:
           self.logger.removeHandler(handler)
-        
+
       #initialize logger with filename
       try:
         filename = inputVolumeNode.GetStorageNode().GetFullNameFromFileName()
@@ -542,7 +806,7 @@ Change the lower and upper thresholds before initializing."""
     self.threshSelector.setEnabled(use_auto)
     if not use_auto:
       self.onSelectInputVolume()
-  
+
   def onHelpButton(self) -> None:
     '''Help button is pressed'''
     txt = """Thresholding Methods\n
@@ -553,6 +817,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
 
   def onGetContour(self):
     """Run this whenever the get contour button in step 2 is clicked"""
+    print("hello")
     # update widgets
     self.disableAutomaticContourWidgets()
 
@@ -576,7 +841,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.logger.info("Dilate/Erode Radius: " + str(self.dilateErodeRadiusText.value))
 
     if self.threshButton.checked:
-      ready = self._logic.setParameters(inputVolumeNode, 
+      ready = self._logic.setParameters(inputVolumeNode,
                                      outputVolumeNode,
                                      self.sigmaText.value,
                                      self.boneNumSpinBox.value,
@@ -584,7 +849,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
                                      separateMapNode,
                                      method=self.threshSelector.currentIndex,)
     else:
-      ready = self._logic.setParameters(inputVolumeNode, 
+      ready = self._logic.setParameters(inputVolumeNode,
                                      outputVolumeNode,
                                      self.sigmaText.value,
                                      self.boneNumSpinBox.value,
@@ -594,29 +859,32 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
                                      upper=self.upperThresholdText.value)
     if ready:
       # run the algorithm
-      success = self._logic.getContour(inputVolumeNode, outputVolumeNode)
+      success = self._logic.getContour(inputVolumeNode, outputVolumeNode, self.algorithmSelector.currentIndex)
       if success:
         # update widgets
         self.contourVolumeSelector.setCurrentNodeID(self.outputVolumeSelector.currentNodeID)
+        print(outputVolumeNode.GetDisplayNode().GetName())
         self.masterVolumeSelector.setCurrentNodeID(self.inputVolumeSelector.currentNodeID)
         self.outputVolumeSelector.setCurrentNodeID("") # reset the output volume selector
     # update widgets
     self.enableAutomaticContourWidgets()
 
-    # store thresholds 
+    # store thresholds
     inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
     inputVolumeNode.__dict__["Upper"] = self.upperThresholdText.value
     self.logger.info("Finished\n")
-  
+
   def onInitButton3(self):
     """Run this whenever the initialize button in step 3 is clicked"""
     contourVolumeNode = self.contourVolumeSelector.currentNode()
     masterVolumeNode = self.masterVolumeSelector.currentNode()
-    
-    success = self._logic.initManualCorrection(self.segmentEditor, 
-                                              contourVolumeNode, 
+
+    if(self.contourVolumeSelector.enabled):
+      success = self._logic.initManualCorrection(self.segmentEditor3,
+                                              None,
+                                              contourVolumeNode,
                                               masterVolumeNode)
-    
+
     if success:
       self.enableManualCorrectionWidgets()
 
@@ -625,7 +893,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     if slicer.util.confirmOkCancelDisplay('Do you want to discard the manual correction?'):
       contourVolumeNode = self.contourVolumeSelector.currentNode()
       masterVolumeNode = self.masterVolumeSelector.currentNode()
-      
+
       self._logic.cancelManualCorrection(contourVolumeNode, masterVolumeNode)
 
       self.disableManualCorrectionWidgets()
@@ -644,16 +912,22 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.initButton1.enabled = False
     self.cancelButton1.enabled = True
     self.applyButton1.enabled = True
+    self.deleteButton1.enabled = True
+    self.eraseBetweenSlicesButton1.enabled = True
+    self.applyEraseBetweenSlicesButton1.enabled = False
     self.separateInputSelector.enabled = False
     self.initButton3.enabled = False
     self.contourVolumeSelector.enabled = False
     self.masterVolumeSelector.enabled = False
-  
+
   def disableBoneSeparationWidgets(self):
     """Disable widgets in the bone separation layout in step 1"""
     self.onSelect1()
     self.cancelButton1.enabled = False
     self.applyButton1.enabled = False
+    self.deleteButton1.enabled = False
+    self.eraseBetweenSlicesButton1.enabled = False
+    self.applyEraseBetweenSlicesButton1.enabled = False
     self.separateInputSelector.enabled = True
     self.onSelect3()
     self.contourVolumeSelector.enabled = True
@@ -676,6 +950,8 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.initButton3.enabled = False
     self.cancelButton3.enabled = True
     self.applyButton3.enabled = True
+    self.deleteButton3.enabled = True
+    self.eraseBetweenSlicesButton3.enabled = True
     self.contourVolumeSelector.enabled = False
     self.masterVolumeSelector.enabled = False
 
@@ -686,6 +962,8 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.onSelect3()
     self.cancelButton3.enabled = False
     self.applyButton3.enabled = False
+    self.deleteButton1.enabled = False
+    self.eraseBetweenSlicesButton1.enabled = False
     self.contourVolumeSelector.enabled = True
     self.masterVolumeSelector.enabled = True
 
@@ -699,10 +977,10 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
   Uses ScriptedLoadableModuleTest base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
-  
+
 
   def setUp(self):
-    
+
 
     """ Do whatever is needed to reset the state - typically a scene clear will be enough.
     """
@@ -723,7 +1001,7 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
 
       mha files: 'SAMPLE_MHA1.mha', 'SAMPLE_MHA2.mha', 'SAMPLE_MHA3.mha'
       comparison masks: 'SAMPLE_MASK1.mha', 'SAMPLE_MASK2.mha', 'SAMPLE_MASK3.mha'
-    
+
     Success Conditions:
       1. Contour mask is successfully generated
       2. Output contour mask differs by less than 2% from the comparison mask
@@ -735,13 +1013,13 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
     #
     # first, get some data
     #
-    
+
     # get test file
-    
+
     # setup logic
     logic = AutomaticContourLogic()
     testLogic = AutomaticContourTestLogic()
-    
+
     scene = slicer.mrmlScene
 
     # run 3 tests
@@ -765,10 +1043,10 @@ class AutomaticContourTest(ScriptedLoadableModuleTest):
         continue
 
       self.delayDisplay('Test ' + index + ' complete')
-    
+
     # failure message
     self.assertTrue(passed, 'Incorrect results, check testing log')
-      
+
     return SUCCESS
 
   def test_AutoContourFailure(self):

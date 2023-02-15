@@ -25,6 +25,7 @@ add_subdirectory(CorticalBreakDetection)
 add_subdirectory(FileConverter)
 add_subdirectory(ImageRegistration)
 add_subdirectory(ErosionComparison)
+add_subdirectory(Training)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------
