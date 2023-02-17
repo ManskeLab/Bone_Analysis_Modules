@@ -74,8 +74,8 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
     # initialize call back object for updating progrss bar
     self._logic.progressCallBack = self.setProgress
 
-    self.images_dir = os.path.join(os.path.split(os.path.dirname(os.path.abspath(__file__)))[0], 'ACTUS_HRQPCT')
-    self.seed_points_dir = os.path.join(self.images_dir, 'SeedPoints')
+    self.images_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'TrainingSet')
+    self.seed_points_dir = os.path.join(self.images_dir, 'CorrectSeeds')
     self.reference_erosions_dir = os.path.join(self.images_dir, 'ErosionSegs')
     self.images_dir = os.path.join(self.images_dir, 'TestFiles')
 
@@ -115,13 +115,6 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
       image = sitk.ReadImage(image)
       volume_node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode', image_name)
       sitkUtils.PushVolumeToSlicer(image, volume_node)
-
-    for markup in os.listdir(self.seed_points_dir):
-      if not ('json' in markup):
-        continue
-      markup = os.path.join(self.seed_points_dir, markup)
-      markupsNode = slicer.util.loadMarkups(markup)
-      markupsNode.SetDisplayVisibility(False)
 
     # Set up widgets inside the collapsible buttons
     self.setupErosions()
@@ -264,13 +257,18 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
     self.getErosionsButton.enabled = False
     executeGridLayout.addWidget(self.getErosionsButton, 1, 0)
 
+    # Reveal Correct Seed Points Button
+    self.revealSeedPointsButton = qt.QPushButton("Reveal Correct Seed Points")
+    self.revealSeedPointsButton.toolTip = "Display expected seed points that identify erosions for this scan"
+    self.revealSeedPointsButton.enabled = False
+    executeGridLayout.addWidget(self.revealSeedPointsButton, 2, 0)
+
     # Execution frame with progress bar and get button
     erosionButtonFrame = qt.QFrame()
     erosionButtonFrame.setLayout(executeGridLayout)
     erosionsLayout.addRow(erosionButtonFrame)
     
     # connections
-    self.erosionsCollapsibleButton.connect("contentsCollapsed(bool)", self.onCollapsed4)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputVolume)
     self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputContour)
@@ -283,6 +281,7 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
     self.SmallErosionsCheckBox.connect("clicked(bool)", self.onSmallErosionsChecked)
     self.glyphSizeBox.valueChanged.connect(self.onGlyphSizeChanged)
     self.getErosionsButton.connect("clicked(bool)", self.onGetErosionsButton)
+    self.revealSeedPointsButton.connect("clicked(bool)", self.onRevealSeedPointsButton)
 
     # logger
     self.logger = logging.getLogger("erosion_volume")
@@ -292,6 +291,8 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
                                      self.inputContourSelector.currentNode() and
                                      self.outputErosionSelector.currentNode() and
                                      self.markupsTableWidget.getCurrentNode())
+    self.revealSeedPointsButton.enabled = (self.inputVolumeSelector.currentNode() and 
+                                          self.inputContourSelector.currentNode())
 
   def onSelect4(self):
     """Update the state of the get erosions button whenever the selectors in step 4 change"""
@@ -319,10 +320,6 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
       slicer.util.setSliceViewerLayers(background=inputVolumeNode)
       slicer.util.resetSliceViews() # centre the volume in the viewer windows
 
-      #Set master volume in statistics step
-      self.masterVolumeSelector.setCurrentNode(inputVolumeNode)
-      self.voxelSizeText.value = inputVolumeNode.GetSpacing()[0]
-
       #check if preset intensity units exist
       check = True
       if "Lower" in inputVolumeNode.__dict__.keys():
@@ -333,7 +330,7 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
         check = False
 
       #check intensity units and display warning if not in HU
-      if check and not self.threshButton.checked:
+      if check:
         if not self._logic.intensityCheck(inputVolumeNode):
           text = """The selected image likely does not use HU for intensity units. 
 Default thresholds are set in HU and will not generate an accurate result. 
@@ -356,9 +353,6 @@ Change the lower and upper thresholds before initializing."""
       
       self.logger.addHandler(logHandler)
       self.logger.info("Using Erosion Volume Module with " + inputVolumeNode.GetName() + "\n")
-
-      #set name in statistics
-      self.masterVolumeSelector.baseName = inputVolumeNode.GetName()
       
 
   def onSelectInputContour(self):
@@ -368,13 +362,9 @@ Change the lower and upper thresholds before initializing."""
       # update the default output erosion base name, which matches the mask name
       erosion_baseName = inputContourNode.GetName()+"_ER"
       self.outputErosionSelector.baseName = erosion_baseName
-      self.segmentCopier.currSegmentationSelector.baseName = erosion_baseName
-      self.segmentCopier.otherSegmentationSelector.baseName = erosion_baseName
-      self.segmentationSelector.baseName = erosion_baseName
-      self.inputErosionSelector.baseName = erosion_baseName
       seed_baseName = inputContourNode.GetName()+"_SEEDS"
       # self.fiducialSelector.baseName = seed_baseName
-      self.outputTableSelector.baseName = inputContourNode.GetName()+"_TABLE"
+      # self.outputTableSelector.baseName = inputContourNode.GetName()+"_TABLE"
       
 
   def onAddOutputErosion(self, node):
@@ -451,6 +441,10 @@ Change the lower and upper thresholds before initializing."""
         # update widgets
         erosion_name = outputVolumeNode.GetName()[0:14]
         reference_path = None
+
+        volumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode')
+        slicer.modules.segmentations.logic().ExportVisibleSegmentsToLabelmapNode(outputVolumeNode, volumeNode) 
+        erosion = sitkUtils.PullVolumeFromSlicer(volumeNode)
 
         for reference in os.listdir(self.reference_erosions_dir):
           if(erosion_name in reference):
@@ -550,6 +544,16 @@ Change the lower and upper thresholds before initializing."""
     self.enableErosionsWidgets()
 
     self.logger.info("Finished\n")
+
+  def onRevealSeedPointsButton(self):
+    image_name = self.inputVolumeSelector.currentNode().GetName()[0:14]
+
+    for markup in os.listdir(self.seed_points_dir):
+      if not (image_name in markup):
+        continue
+      markup = os.path.join(self.seed_points_dir, markup)
+      markupsNode = slicer.util.loadMarkups(markup)
+      self.markupsTableWidget.getMarkupsSelector().setCurrentNode(markupsNode)
 
   def enableErosionsWidgets(self):
     """Enable widgets in the erosions layout in step 4"""

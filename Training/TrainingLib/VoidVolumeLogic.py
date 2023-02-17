@@ -133,23 +133,23 @@ class VoidVolumeLogic:
         distance_filter.SetBackgroundValue(1)
         inner_img = distance_filter.Execute(void_volume_img)
 
-        image_viewer = sitk.ImageViewer()
-        image_viewer.SetCommand("Z:\Programs\ImageJ\ImageJ.exe")
+        # image_viewer = sitk.ImageViewer()
+        # image_viewer.SetCommand("Z:\Programs\ImageJ\ImageJ.exe")
 
         inner_img = sitk.BinaryThreshold(inner_img,
                                         lowerThreshold=1,
                                         upperThreshold=radius,
                                         insideValue=1)
-        image_viewer.SetTitle('innerimg using ImageViewer class')
-        image_viewer.Execute(inner_img)
+        # image_viewer.SetTitle('innerimg using ImageViewer class')
+        # image_viewer.Execute(inner_img)
 
-        image_viewer.SetTitle('volume using ImageViewer class')
-        image_viewer.Execute(void_volume_img)
+        # image_viewer.SetTitle('volume using ImageViewer class')
+        # image_viewer.Execute(void_volume_img)
 
         inner_img = void_volume_img - inner_img
 
-        image_viewer.SetTitle('grid using ImageViewer class')
-        image_viewer.Execute(inner_img)
+        # image_viewer.SetTitle('grid using ImageViewer class')
+        # image_viewer.Execute(inner_img)
 
         distance_filter.SetBackgroundValue(0)
         outer_img = distance_filter.Execute(inner_img)
@@ -159,13 +159,13 @@ class VoidVolumeLogic:
                                          upperThreshold=radius,
                                          insideValue=1)
 
-        image_viewer.SetTitle('out using ImageViewer class')
-        image_viewer.Execute(outer_img)
+        # image_viewer.SetTitle('out using ImageViewer class')
+        # image_viewer.Execute(outer_img)
 
         distance_img = outer_img + inner_img
 
-        image_viewer.SetTitle('dist using ImageViewer class')
-        image_viewer.Execute(distance_img)
+        # image_viewer.SetTitle('dist using ImageViewer class')
+        # image_viewer.Execute(distance_img)
 
         return distance_img
 
