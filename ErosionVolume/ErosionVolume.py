@@ -159,28 +159,28 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.setCurrentNode(None)
     erosionsLayout.addRow("Output Erosions: ", self.outputErosionSelector)
 
-    # # auto-threshold options
-    # self.threshButton = qt.QCheckBox()
-    # self.threshButton.checked = True
-    # erosionsLayout.addRow("Use Automatic Thresholding", self.threshButton)
+    # auto-threshold options
+    self.threshButton = qt.QCheckBox()
+    self.threshButton.checked = True
+    erosionsLayout.addRow("Use Automatic Thresholding", self.threshButton)
 
-    # self.threshSelector = qt.QComboBox()
-    # self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
-    # #self.threshSelector.setCurrentIndex(2)
-    # erosionsLayout.addRow("Thresholding Method", self.threshSelector)
+    self.threshSelector = qt.QComboBox()
+    self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
+    #self.threshSelector.setCurrentIndex(2)
+    erosionsLayout.addRow("Thresholding Method", self.threshSelector)
 
-    # # Help button for thresholding methods
-    # self.helpButton = qt.QPushButton("Help")
-    # self.helpButton.toolTip = "Tips for selecting a thresholding method"
-    # self.helpButton.setFixedSize(50, 20)
-    # erosionsLayout.addRow("", self.helpButton)
+    # Help button for thresholding methods
+    self.helpButton = qt.QPushButton("Help")
+    self.helpButton.toolTip = "Tips for selecting a thresholding method"
+    self.helpButton.setFixedSize(50, 20)
+    erosionsLayout.addRow("", self.helpButton)
 
     # threshold spin boxes (default unit is HU)
     self.lowerThresholdText = qt.QSpinBox()
     self.lowerThresholdText.setMinimum(-9999)
     self.lowerThresholdText.setMaximum(999999)
     self.lowerThresholdText.setSingleStep(10)
-    self.lowerThresholdText.value = 800
+    self.lowerThresholdText.value = 650
     erosionsLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
     self.upperThresholdText = qt.QSpinBox()
     self.upperThresholdText.setMinimum(-9999)
@@ -288,8 +288,8 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.connect("nodeAddedByUser(vtkMRMLNode*)", lambda node: self.onAddOutputErosion(node))
     self.markupsTableWidget.getMarkupsSelector().connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.markupsTableWidget.getMarkupsSelector().connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
-    # self.threshButton.clicked.connect(self.onAutoThresh)
-    # self.helpButton.clicked.connect(self.onHelpButton)
+    self.threshButton.clicked.connect(self.onAutoThresh)
+    self.helpButton.clicked.connect(self.onHelpButton)
     self.LargeErosionsCheckBox.connect("clicked(bool)", self.onLargeErosionsChecked)
     self.SmallErosionsCheckBox.connect("clicked(bool)", self.onSmallErosionsChecked)
     self.glyphSizeBox.valueChanged.connect(self.onGlyphSizeChanged)
@@ -520,7 +520,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       self.manualCorrectionCollapsibleButton.collapsed = True
       if self.inputVolumeSelector.currentNode() and self.inputContourSelector.currentNode():
         self.inputErosionSelector.setCurrentNodeIndex(0)
-        self.masterVolumeSelector.setCurrentNodeIndex(0)
+        # self.masterVolumeSelector.setCurrentNodeIndex(0)
         self.outputTableSelector.addNode()
 
   def enter(self):
@@ -588,7 +588,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
         check = False
 
       #check intensity units and display warning if not in HU
-      if check and not self.threshButton.checked:
+      if check:# if check and not self.threshButton.checked:
         if not self._logic.intensityCheck(inputVolumeNode):
           text = """The selected image likely does not use HU for intensity units. 
 Default thresholds are set in HU and will not generate an accurate result. 
@@ -648,21 +648,21 @@ Change the lower and upper thresholds before initializing."""
     markupsDisplayNode = self.markupsTableWidget.getCurrentNode().GetMarkupsDisplayNode()
     markupsDisplayNode.SetGlyphScale(self.glyphSizeBox.value)
   
-#   def onAutoThresh(self):
-#     use_auto = self.threshButton.checked
-#     self.lowerThresholdText.setEnabled(not use_auto)
-#     self.upperThresholdText.setEnabled(not use_auto)
-#     self.threshSelector.setEnabled(use_auto)
-#     if not use_auto:
-#       self.onSelectInputVolume()
+  def onAutoThresh(self):
+    use_auto = self.threshButton.checked
+    self.lowerThresholdText.setEnabled(not use_auto)
+    self.upperThresholdText.setEnabled(not use_auto)
+    self.threshSelector.setEnabled(use_auto)
+    if not use_auto:
+      self.onSelectInputVolume()
 
-#   def onHelpButton(self) -> None:
-#     '''Help button is pressed'''
-#     txt = """Thresholding Methods\n
-# For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
-# For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
-#           """
-#     slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
+  def onHelpButton(self) -> None:
+    '''Help button is pressed'''
+    txt = """Thresholding Methods\n
+For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
+For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
+          """
+    slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
   def onLargeErosionsChecked(self):
     """Run this whenever the check box for Large Erosions in step 4 changes"""
     if self.LargeErosionsCheckBox.checked:
@@ -694,7 +694,7 @@ Change the lower and upper thresholds before initializing."""
       self.markupsTableWidget.advancedMarkupsControlPointsTableView()
       # self.minimalRadiusText.value = 6
       # self.dilateErodeDistanceText.value = 6
-      self.CBCTCheckBox.checked = False
+      # self.CBCTCheckBox.checked = False
     else:
       self.markupsTableWidget.normalMarkupsControlPointsTableView()
       # self.minimalRadiusText.value = 3
@@ -721,8 +721,8 @@ Change the lower and upper thresholds before initializing."""
     outputVolumeNode = self.outputErosionSelector.currentNode()
     # fiducialNode = self.fiducialSelector.currentNode()
     markupsNode = self.markupsTableWidget.getCurrentNode()
-    minimalRadius = self.markupsTableWidget.getCurrentNodeMinimalRadii()
-    dilateErodeDistance = self.markupsTableWidget.getCurrentNodeDilateErodeDistances()
+    # minimalRadius = self.markupsTableWidget.getCurrentNodeMinimalRadii()
+    # dilateErodeDistance = self.markupsTableWidget.getCurrentNodeDilateErodeDistances()
 
     self.logger.info("Erosion Volume initialized with parameters:")
     self.logger.info("Input Volume: " + inputVolumeNode.GetName())
@@ -744,8 +744,8 @@ Change the lower and upper thresholds before initializing."""
                                             self.sigmaText.value,
                                             # fiducialNode,
                                             markupsNode,
-                                            minimalRadius,
-                                            dilateErodeDistance,
+                                            self.minimalRadiusText,
+                                            self.dilateErodeDistanceText,
                                             method=self.threshSelector.currentIndex)
     else:
       ready = self._logic.setErosionParameters(inputVolumeNode, 
@@ -753,8 +753,8 @@ Change the lower and upper thresholds before initializing."""
                                             self.sigmaText.value,
                                             # fiducialNode,
                                             markupsNode,
-                                            minimalRadius,
-                                            dilateErodeDistance,
+                                            self.minimalRadiusText,
+                                            self.dilateErodeDistanceText,
                                             lower=self.lowerThresholdText.value,
                                             upper=self.upperThresholdText.value)
     if ready:
@@ -791,9 +791,11 @@ Change the lower and upper thresholds before initializing."""
     inputErosionNode = self.inputErosionSelector.currentNode()
     masterVolumeNode = self.masterVolumeSelector.currentNode()
     outputTableNode = self.outputTableSelector.currentNode()
+    currentMarkupsData = self.markupsTableWidget.getCurrentMarkupsData()
     voxelSize = self.voxelSizeText.value
     self._logic.getStatistics(inputErosionNode,
                               masterVolumeNode,
+                              currentMarkupsData,
                               voxelSize,
                               outputTableNode)
 

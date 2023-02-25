@@ -2,16 +2,16 @@ import os
 import vtk, qt, ctk, slicer
 
 CONTROL_POINT_LABEL_COLUMN = 0
-CONTROL_POINT_BONE_NUM_COLUMN = 1
-CONTROL_POINT_TYPE = 2
-CONTROL_POINT_EROSION_IN_FOV= 3
+CONTROL_POINT_BONE = 1
+CONTROL_POINT_CORTICAL_INTERRUPION = 2
+# for later iterations
 CONTROL_POINT_LARGE_EROSION =  4
 CONTROL_POINT_MINIMUM_RADIUS = 4
 CONTROL_POINT_ERODE_DISTANCE = 5
-CONTROL_POINT_X_COLUMN = 5
-CONTROL_POINT_Y_COLUMN = 6
-CONTROL_POINT_Z_COLUMN = 7
-CONTROL_POINT_COLUMNS = 8
+CONTROL_POINT_X_COLUMN = 3
+CONTROL_POINT_Y_COLUMN = 4
+CONTROL_POINT_Z_COLUMN = 5
+CONTROL_POINT_COLUMNS = 6
 
 #
 # MarkupsTableWidget
@@ -91,6 +91,7 @@ class MarkupsTable:
     self.markupsControlPointsTableWidget.setContextMenuPolicy(qt.Qt.CustomContextMenu)
     self.markupsControlPointsTableWidget.setSelectionBehavior(qt.QAbstractItemView.SelectRows)
     self.layout.addRow(self.markupsControlPointsTableWidget)
+    self.markupsControlPointsTableWidget.setMinimumHeight(200)
 
     # connections
     self.markupsSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onMarkupsNodeChanged)
@@ -105,7 +106,7 @@ class MarkupsTable:
     """Reset the appearence of the markups control points table widget"""
     self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS)
     self.markupsControlPointsTableWidget.setRowCount(0)
-    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Type', 'Erosion in FOV', 'Large Erosion', 'X', 'Y', 'Z'])
+    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Cortical Interruption', 'X', 'Y', 'Z'])
     # self.markupsControlPointsTableWidget.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
 
   def onDeleteAllButton(self):
@@ -214,10 +215,9 @@ class MarkupsTable:
     controlPointsNum = currentNode.GetNumberOfControlPoints()
     for i in range(controlPointsNum):
       data_row = []
-      data_row.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN).currentIndex)
-      data_row.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_TYPE).currentIndex)
-      data_row.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_EROSION_IN_FOV).checked)
-
+      data_row.append(str(self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN).text()))
+      data_row.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE).currentIndex)
+      data_row.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_CORTICAL_INTERRUPION).currentIndex)
       data.append(data_row)
 
     return data    
@@ -241,9 +241,8 @@ class MarkupsTable:
 
       data = self.data_cache[self._currentNode.GetID()]
       for i in range(controlPointsNum):
-        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN).setCurrentIndex(data[i][0])
-        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_TYPE).setCurrentIndex(data[i][1])
-        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_EROSION_IN_FOV).checked = data[i][2]
+        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE).setCurrentIndex(data[i][0])
+        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_CORTICAL_INTERRUPION).setCurrentIndex(data[i][1])
 
     self.markupsControlPointsTableWidget.scrollToBottom()
 
@@ -460,7 +459,7 @@ class MarkupsTable:
     for i in range(controlPointsNum):
       if self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN):
         controlPointLabel = currentNode.GetNthControlPointLabel(i)
-        bone = self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN)
+        bone = self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE)
         self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN).setText(bone.currentText+'_'+controlPointLabel)
 
   def updateWidget(self, caller=None, event=None):
@@ -513,39 +512,35 @@ class MarkupsTable:
     ITKCoord = self._logic.RASToIJKCoords(controlPointPosition, self._ras2ijk)
     labelItem = qt.QTableWidgetItem(controlPointLabel)
     boneNumItem = qt.QComboBox()
-    boneNumItem.addItems(['Metacarpal', 'Phalanx'])
-    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN, boneNumItem)
+    boneNumItem.addItems(['N/A', 'Metacarpal', 'Phalanx'])
+    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_BONE, boneNumItem)
 
     erosionTypeCombo = qt.QComboBox()
     erosionTypeCombo.addItems(['Erosion', 'Cyst', 'Unreadable', 'None'])
-    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_TYPE, erosionTypeCombo)
+    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_CORTICAL_INTERRUPION, erosionTypeCombo)
 
-    isErosionInFOVCheckBox = qt.QCheckBox()
-    isErosionInFOVCheckBox.checked = True
-    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_EROSION_IN_FOV, isErosionInFOVCheckBox)
+    # if(self.advanced):
+    #   minimalRadiusText = qt.QSpinBox()
+    #   minimalRadiusText.setMinimum(1)
+    #   minimalRadiusText.setMaximum(99)
+    #   minimalRadiusText.setSingleStep(1)
+    #   minimalRadiusText.setSuffix(' voxels')
+    #   minimalRadiusText.value = 3
+    #   self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_MINIMUM_RADIUS, minimalRadiusText)
 
-    if(self.advanced):
-      minimalRadiusText = qt.QSpinBox()
-      minimalRadiusText.setMinimum(1)
-      minimalRadiusText.setMaximum(99)
-      minimalRadiusText.setSingleStep(1)
-      minimalRadiusText.setSuffix(' voxels')
-      minimalRadiusText.value = 3
-      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_MINIMUM_RADIUS, minimalRadiusText)
+    #   dilateErodeDistanceText = qt.QSpinBox()
+    #   dilateErodeDistanceText.setMinimum(0)
+    #   dilateErodeDistanceText.setMaximum(99)
+    #   dilateErodeDistanceText.setSingleStep(1)
+    #   dilateErodeDistanceText.setSuffix(' voxels')
+    #   dilateErodeDistanceText.value = 4
+    #   self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_ERODE_DISTANCE, dilateErodeDistanceText)
 
-      dilateErodeDistanceText = qt.QSpinBox()
-      dilateErodeDistanceText.setMinimum(0)
-      dilateErodeDistanceText.setMaximum(99)
-      dilateErodeDistanceText.setSingleStep(1)
-      dilateErodeDistanceText.setSuffix(' voxels')
-      dilateErodeDistanceText.value = 4
-      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_ERODE_DISTANCE, dilateErodeDistanceText)
-
-    else:
-      largeErosionCheckBox = qt.QCheckBox()
-      largeErosionCheckBox.checked = False
-      largeErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
-      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_LARGE_EROSION, largeErosionCheckBox)
+    # else:
+    #   largeErosionCheckBox = qt.QCheckBox()
+    #   largeErosionCheckBox.checked = False
+    #   largeErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
+    #   self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_LARGE_EROSION, largeErosionCheckBox)
       
     xItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[0]))
     yItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[1]))
