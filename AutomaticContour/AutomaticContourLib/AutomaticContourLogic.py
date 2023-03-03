@@ -450,7 +450,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       bool: True for success, False otherwise.
     """
     segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
-    outputVolumeNode= slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
+    outputVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
 
     if (segmentNode and contourVolumeNode and masterVolumeNode):
 
@@ -463,10 +463,15 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
 
       for idx in range(selectedSegmentIds.GetNumberOfValues()):
         segmentId = selectedSegmentIds.GetValue(idx)
-        segment = slicer.util.arrayFromSegmentBinaryLabelmap(segmentNode, segmentId, outputVolumeNode)
+        visibleSegmentIds = vtk.vtkStringArray()
+        visibleSegmentIds.InsertValue(0, segmentId)
 
         segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
-        slicer.util.updateVolumeFromArray(segmentLabelMapNode, segment)
+
+        slicer.vtkSlicerSegmentationsModuleLogic.ExportSegmentsToLabelmapNode(segmentNode,
+                                                                            visibleSegmentIds,
+                                                                            segmentLabelMapNode,
+                                                                            masterVolumeNode)
 
         storageNode = segmentLabelMapNode.CreateDefaultStorageNode()
         storageNode.SetFileName(dir[0]+'/'+os.path.splitext(dir[1])[0]+"_Segment_Mask_"+str(idx)+".nrrd")
@@ -474,6 +479,20 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
         storageNode.WriteData(segmentLabelMapNode)
 
       self.segmentationNodeToLabelmap(segmentNode, contourVolumeNode, masterVolumeNode)
+
+      storageNode = contourVolumeNode.CreateDefaultStorageNode()
+      storageNode.SetFileName(dir[0]+'/'+os.path.splitext(dir[1])[0]+"_Segment_Mask.nrrd")
+      storageNode.WriteData(contourVolumeNode)
+
+      binaryThresh = sitk.BinaryThresholdImageFilter()
+      binaryThresh.SetLowerThreshold(1)
+      binaryThresh.SetUpperThreshold(255)
+      binaryThresh.SetInsideValue(1)
+
+      combinedMask = sitkUtils.PullVolumeFromSlicer(contourVolumeNode.GetName())
+
+      out = binaryThresh.Execute(combinedMask)
+      sitk.WriteImage(out, dir[0]+'/'+os.path.splitext(dir[1])[0]+"_MASK.nii")
       # remove the current segmentation node
       # slicer.mrmlScene.RemoveNode(segmentNode)
       # update viewer windows
