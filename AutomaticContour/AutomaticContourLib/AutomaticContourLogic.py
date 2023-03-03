@@ -450,6 +450,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
       bool: True for success, False otherwise.
     """
     segmentNode = slicer.mrmlScene.GetNodeByID(self._segmentNodeId)
+    outputVolumeNode= slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
 
     if (segmentNode and contourVolumeNode and masterVolumeNode):
 
@@ -462,7 +463,7 @@ class AutomaticContourLogic(ScriptedLoadableModuleLogic):
 
       for idx in range(selectedSegmentIds.GetNumberOfValues()):
         segmentId = selectedSegmentIds.GetValue(idx)
-        segment = slicer.util.arrayFromSegmentBinaryLabelmap(segmentationNode, segmentId, outputVolumeNode)
+        segment = slicer.util.arrayFromSegmentBinaryLabelmap(segmentNode, segmentId, outputVolumeNode)
 
         segmentLabelMapNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
         slicer.util.updateVolumeFromArray(segmentLabelMapNode, segment)
