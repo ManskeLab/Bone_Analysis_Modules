@@ -560,14 +560,25 @@ class AutomaticContourWidget(ScriptedLoadableModuleWidget):
       binaryThresh.SetInsideValue(1)
 
       segmentor = sitk.ConnectedComponentImageFilter()
-
+      relabeler = sitk.RelabelComponentImageFilter()
+      relabeler.SetMinimumObjectSize(2)
 
       if ('nrrd' in image_lower) or ('nii' in image_lower) or ('mha' in image_lower) or ('aim' in image_lower):
         outBasename, outExtension = os.path.splitext(image)
         out_dir = os.path.join(self.loadContoursPath, outBasename+'.nrrd')
         temp = sitk.ReadImage(image_dir, sitk.sitkInt32)
+
         out = binaryThresh.Execute(temp)
         out = segmentor.Execute(out)
+        out = relabeler.Execute(out)
+
+        sizes = relabeler.GetSizeOfObjectsInPhysicalUnits()
+        print(sizes)
+        labeled_out = out[0]
+        for i in range(len(sizes) - 1):
+          if sizes[i+1] > 1:
+            print(i)
+            labeled_out += out[i+1]
         sitk.WriteImage(out, out_dir)
         node = slicer.util.loadLabelVolume(out_dir)
 
@@ -880,6 +891,8 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     masterVolumeNode = self.masterVolumeSelector.currentNode()
 
     if(self.contourVolumeSelector.enabled):
+
+      print(contourVolumeNode.GetNumberOfDisplayNodes())  
       success = self._logic.initManualCorrection(self.segmentEditor3,
                                               None,
                                               contourVolumeNode,

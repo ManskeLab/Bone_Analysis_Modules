@@ -167,6 +167,58 @@ class ContourLogic:
         label_img = sitk.Cast(label_img, img.GetPixelID())
         return label_img
 
+    def closeBone(self):
+        """
+        Fill in borders if bone connects to image border and
+        trabecular region seems empty.
+
+        It will do this by filling in the first slice and last slice on the z axis with a complete bone.
+        """
+        depth = self.model_img.GetDepth()
+
+        stats_filter = sitk.StatisticsImageFilter()
+        
+        thresh_filter = sitk.BinaryThresholdImageFilter()
+        thresh_filter.SetLowerThreshold(1500)
+        thresh_filter.SetUpperThreshold(9999)
+        thresh_img = thresh_filter.Execute(self.model_img)
+
+        fill_hole_filter = sitk.BinaryFillholeImageFilter()
+        fill_hole_filter.SetForegroundValue(1)
+
+        search_span = int(depth*0.07)
+
+        for z in range(depth-1, -1, -1):
+            pre_fill = thresh_img[:,:,z]
+            stats_filter.Execute(pre_fill)
+            pre_mean = stats_filter.GetMean()
+
+            post_fill = fill_hole_filter.Execute(pre_fill)
+            stats_filter.Execute(post_fill)
+            post_mean = stats_filter.GetMean()
+
+            if (post_mean - pre_mean) > 0.01:
+                post_fill -= pre_fill
+                post_fill = sitk.Cast(post_fill, sitk.sitkFloat32)
+                self.model_img[:,:,z] += post_fill*2000
+                print(z)
+                break
+
+        for z in range(depth):
+            pre_fill = thresh_img[:,:,z]
+            stats_filter.Execute(pre_fill)
+            pre_mean = stats_filter.GetMean()
+
+            post_fill = fill_hole_filter.Execute(pre_fill)
+            stats_filter.Execute(post_fill)
+            post_mean = stats_filter.GetMean()
+
+            if (post_mean - pre_mean) > 0.01:
+                post_fill -= pre_fill
+                post_fill = sitk.Cast(post_fill, sitk.sitkFloat32)
+                self.model_img[:,:,z] += post_fill*2000
+                break
+
     def extract(self, img, label_img, foreground):
         """
         Extract the bone and paste it to a larger image with sufficient margin space.
@@ -431,11 +483,21 @@ class ContourLogic:
         Returns:
             bool: False if reached the end of the algorithm, True otherwise. 
         """
-
+        
         if alg == 0:
+            self.closeBone()
             self.masks = self.autocontour_ormir(self.model_img, self.boneNum)
 
-            self.output_img = sum(self.masks) if self.masks else None
+            binaryThresh = sitk.BinaryThresholdImageFilter()
+            binaryThresh.SetLowerThreshold(1)
+            binaryThresh.SetUpperThreshold(255)
+            binaryThresh.SetInsideValue(1)
+
+            segmentor = sitk.ConnectedComponentImageFilter()
+
+            temp = sum(self.masks) if self.masks else None
+            temp = binaryThresh.Execute(temp)
+            self.output_img = segmentor.Execute(temp)
 
             return False
 
