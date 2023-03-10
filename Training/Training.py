@@ -500,7 +500,16 @@ Change the lower and upper thresholds before initializing."""
             resampler.SetDefaultPixelValue(0)
             resampler.SetTransform(sitk.Transform())
 
+            relabeler = sitk.RelabelComponentImageFilter()
+            relabeler.SortByObjectSizeoff()
+
             erosion = resampler.Execute(erosion)
+
+            relabeler.Execute(erosion)
+            erosion_sizes = relabeler.GetSizeOfObjectsInPixels()
+
+            relabeler.Execute(erosion_reference)
+            erosion_reference_sizes = relabeler.GetSizeOfObjectsInPixels()
 
             filter = sitk.SimilarityIndexImageFilter()
             filter.Execute(erosion, erosion_reference)
