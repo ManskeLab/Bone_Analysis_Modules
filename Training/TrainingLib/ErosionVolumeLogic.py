@@ -87,7 +87,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
         slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
         return False
     
-    fiducialNum = markupsNode.GetNumberOfFiducials()
+    fiducialNum = markupsNode.GetNumberOfControlPoints()
     if (fiducialNum == 0):
       slicer.util.errorDisplay('No seed points have been plotted.')
       return False
@@ -301,13 +301,14 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     # binarize contour
     tempLabelMap = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode",
                                                       "MASK_Keep_Invisible")
-    slicer.vtkSlicerVolumesLogic().CreateLabelVolumeFromVolume(slicer.mrmlScene, 
-                                                               tempLabelMap, 
-                                                               inputContourNode)
+    # slicer.vtkSlicerVolumesLogic().CreateLabelVolumeFromVolume(slicer.mrmlScene, 
+    #                                                            tempLabelMap, 
+    #                                                            inputContourNode)
     contourArray = slicer.util.arrayFromVolume(inputContourNode)
-    tempLabelArray = slicer.util.arrayFromVolume(tempLabelMap)
+    tempLabelArray = slicer.util.arrayFromVolume(inputContourNode)
     tempLabelArray[contourArray > 0] = 1
-    slicer.util.arrayFromVolumeModified(tempLabelMap)
+    # slicer.util.arrayFromVolumeModified(tempLabelMap)
+    slicer.util.updateVolumeFromArray(tempLabelMap, tempLabelArray)
     # push contour to output erosion node
     self.labelmapToSegmentationNode(tempLabelMap, outputErosionNode)
     contourSegmentId = outputErosionNode.GetSegmentation().GetNthSegmentID(0) # first segment ID

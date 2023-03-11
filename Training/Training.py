@@ -460,82 +460,107 @@ Change the lower and upper thresholds before initializing."""
 
           labelShape.Execute(erosion)
           num_erosions = labelShape.GetNumberOfLabels()
-
-          num_control_points = self.markupsTableWidget.getCurrentNode().GetNumberOfFiducials()
+          num_control_points = self.markupsTableWidget.getCurrentNode().GetNumberOfControlPoints()
+          labels = labelShape.GetLabels()
+          centroids = []
+          for i in labels:
+            centroids.append(labelShape.GetCentroid(i))
 
           labelShape.Execute(erosion_reference)
           ref_num_erosions = labelShape.GetNumberOfLabels()
+          labels_ref = labelShape.GetLabels()
+          ref_centroids = []
+          for i in labels_ref:
+            ref_centroids.append(labelShape.GetCentroid(i))
+
+          # mapper
+          mapped_labels = {}
+          for i in labels:
+            mapped_labels[i] = None
+            for j in labels_ref:
+              x_sim = abs((ref_centroids[j-1][0] - centroids[i-1][0]) / ref_centroids[j-1][0])
+              y_sim = abs((ref_centroids[j-1][1] - centroids[i-1][1]) / ref_centroids[j-1][1])
+              z_sim = abs((ref_centroids[j-1][2] - centroids[i-1][2]) / ref_centroids[j-1][2])
+
+              if x_sim < 0.05 and y_sim < 0.05 and z_sim < 0.05:
+                # erosion location identified correctly
+                mapped_labels[i] = j
+          
           error_message = ""
+          feedback = ""
 
           print("")
-          error_flag = True
+          error_flag = num_control_points > num_erosions or num_control_points != ref_num_erosions
+          sim_flag = False
 
-          if num_control_points != ref_num_erosions:
-            print(num_control_points)
-            print(ref_num_erosions)
-            error_message += "Error: Incorrect amount of seed points placed.\n\n"
+          erosion = sitk.Cast(erosion, sitk.sitkFloat32)
+          erosion_reference = sitk.Cast(erosion_reference, sitk.sitkFloat32)
 
-            if(num_control_points < ref_num_erosions):
-              error_message += "{} more seed point needed.\n".format(ref_num_erosions-num_control_points)
-            elif(num_control_points > ref_num_erosions):
-              error_message += "Too many seed point were placed, delete {} points.".format(num_control_points-ref_num_erosions)
+          resampler = sitk.ResampleImageFilter()
+          resampler.SetReferenceImage(erosion_reference)
+          resampler.SetInterpolator(sitk.sitkLinear)
+          resampler.SetDefaultPixelValue(0)
+          resampler.SetTransform(sitk.Transform())
+          erosion = resampler.Execute(erosion)
 
-          elif num_control_points > num_erosions:
-            error_message += "Error: Erosions not identified at all placed seed points. But, correct number of seed points placed.\n\n"
-            error_message += "It is possible that multiple seed points have identified the same erosion leading to this error.\nIf so, please seperate the seed points to identify different erosion volumes.\n\n"
-            error_message += "If unique erosion exists at each seed points with no erosion volume, try the following:\n\n"
-            error_message += "- Reposition seed point to be located deeper into the erosion.\n"
-            error_message += "  Make sure the seed point is located within the mask.\n"
-            error_message += "- Enable one of the large or small erosions check boxes."
-            error_message += "- Increase the lower threshold in increments of 100.\n\n"
-            error_message += "Otherwise, no erosion exists at that seed point. Seed point needs to be placed at a different site.\n"
+          filter = sitk.SimilarityIndexImageFilter()
 
-          else:
-            erosion = sitk.Cast(erosion, sitk.sitkFloat32)
-            erosion_reference = sitk.Cast(erosion_reference, sitk.sitkFloat32)
+          for label in labels:
+            feedback += "Feedback for Seed #{}:\n".format(label)
 
-            resampler = sitk.ResampleImageFilter()
-            resampler.SetReferenceImage(erosion_reference)
-            resampler.SetInterpolator(sitk.sitkLinear)
-            resampler.SetDefaultPixelValue(0)
-            resampler.SetTransform(sitk.Transform())
-
-            relabeler = sitk.RelabelComponentImageFilter()
-            relabeler.SortByObjectSizeoff()
-
-            erosion = resampler.Execute(erosion)
-
-            relabeler.Execute(erosion)
-            erosion_sizes = relabeler.GetSizeOfObjectsInPixels()
-
-            relabeler.Execute(erosion_reference)
-            erosion_reference_sizes = relabeler.GetSizeOfObjectsInPixels()
-
-            filter = sitk.SimilarityIndexImageFilter()
-            filter.Execute(erosion, erosion_reference)
-
-            similarity_index = filter.GetSimilarityIndex()
-
-            error_message += "Number of seed points placed match number of reference erosions.\n\n"
-            error_message += "Similarity Index = {}\n\n".format(similarity_index)
-            
-            if(similarity_index>=0.93):
-              error_message += "Seed points placed successfully!\n" 
-              error_flag = False
-            elif(similarity_index>=0.85):
-              error_message += "Erosions locations were identified correctly but erosion volume does not match reference erosion volumes.\n\n"
-              error_message += "Try the following to improve erosion detection:\n\n"
-              error_message += "\t- Reposition seed point to be located deeper within the erosion.\n"
-              error_message += "- If erosions look too big:\n"
-              error_message += "\t- Enable large erosions check box.\n"
-              error_message += "\t- Decrease lower threshold in 100 decrements.\n"
-              error_message += "- If erosions look too small:\n"
-              error_message += "\t- Enable small erosions check box.\n"
-              error_message += "\t- Increase lower threshold in 100 increments.\n"
+            if(mapped_labels[label] is None):
+              sim_flag = True
+              feedback += "No erosion should exist at this location. Please remove/relocate this seed point.\n"
             else:
-              error_message += "Incorrect erosions identified, erosion locations do not match reference locations.\n\n"
-              error_message += "Seed points needs to be repositioned to another site on the bone.\n\n"
-              error_message += "Load reference erosion segmentation file if you would like to see the reference erosion volumes.\n"
+              bin_erosion = erosion == label
+              bin_erosion_ref = erosion_reference == mapped_labels[label]
+
+              filter.Execute(bin_erosion, bin_erosion_ref)
+              similarity_index = filter.GetSimilarityIndex()
+
+              feedback += "Similarity index to refence: {0:.3f}%\n".format(similarity_index*100)
+              if similarity_index > 0.9:
+                feedback += "Correctly identified erosion!\n"
+              elif similarity_index > 0.6:
+                error_flag = True
+                sim_flag = True
+                
+                feedback += "Erosions exists at this location but further actions needed to improve results:\n"
+                feedback += "- Reposition seed point to be located deeper within the erosion.\n"
+                feedback += "- If erosions look too big:\n"
+                feedback += "   - Enable large erosions check box.\n"
+                feedback += "   - Decrease lower threshold in 100 decrements.\n"
+                feedback += "- If erosions look too small:\n"
+                feedback += "   - Enable small erosions check box.\n"
+                feedback += "   - Increase lower threshold in 100 increments.\n"
+              else:
+                error_flag = True
+                sim_flag = True
+
+                feedback += "Erosions do not exist at this location. Please remove/relocate this seed point.\n"
+
+            feedback += "\n"
+
+          if error_flag:
+            error_message += "Error\n\n"
+            if(sim_flag):
+              error_message += "Detected erosions do not match with relevant reference erosions.\n"
+              if(num_control_points == ref_num_erosions):
+                error_message += "Correct number of seed points placed, but the locations are incorrect. See below for feedback on each placed seed point.\n"
+            if(num_erosions == 0):
+              error_message += "No erosions detected at all placed seed points.\n"
+            elif(num_control_points > num_erosions):
+              error_message += "Erosions were not detected at all placed seed point.\n"
+            if(num_control_points > ref_num_erosions):
+              error_message += "Too many seed points were placed.\n"
+            if(num_control_points < ref_num_erosions):
+              error_message += "Less seed points were placed than the number of erosions that exist in the reference. Please place more seed points.\n"
+          else:
+            error_message += "Success!\n"
+
+          error_message += "\n"
+
+          error_message += feedback
 
           print(error_message)
           if(error_flag):

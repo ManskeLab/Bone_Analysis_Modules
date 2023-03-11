@@ -115,7 +115,7 @@ class MarkupsTable:
 
   def onDeleteAllButton(self):
     """Run this whenever the delete all button is clicked"""
-    markupsNum = self._currentNode.GetNumberOfFiducials()
+    markupsNum = self._currentNode.GetNumberOfControlPoints()
     currentNodeName = self._currentNode.GetName()
     if slicer.util.confirmOkCancelDisplay(
       'Delete all {} seed points in \'{}\'?'.format(markupsNum, currentNodeName)):
