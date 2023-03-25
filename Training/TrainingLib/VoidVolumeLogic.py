@@ -36,7 +36,7 @@ class VoidVolumeLogic:
     def __init__(self, img=None, mask=None, lower=530, upper=15000, sigma=1,
                  seeds=None, minimalRadius=3, dilateErodeDistance=4):
         self.model_img = img                  # greyscale scan
-        self.contour_img = mask               # mask, periosteal boundary
+        self.mask_img = mask               # mask, periosteal boundary
         self.output_img = None
         self.lower_threshold = lower
         self.upper_threshold = upper
@@ -112,7 +112,7 @@ class VoidVolumeLogic:
         invert_filter.SetMaximum(1)
         void_volume_img = invert_filter.Execute(thresh_img)
 
-        void_volume_img = self.contour_img * void_volume_img
+        void_volume_img = self.mask_img * void_volume_img
 
         return void_volume_img
 
@@ -199,8 +199,8 @@ class VoidVolumeLogic:
         Returns:
             Image
         """
-        seeds_img = sitk.Image(self.contour_img.GetSize(), sitk.sitkUInt8)
-        seeds_img.CopyInformation(self.contour_img)
+        seeds_img = sitk.Image(self.mask_img.GetSize(), sitk.sitkUInt8)
+        seeds_img.CopyInformation(self.mask_img)
         for seed in self._seeds_crop:
             seeds_img[seed] = 1
 
@@ -253,7 +253,7 @@ class VoidVolumeLogic:
 
         # apply mask to dilated voids to get volumes only inside the 
         #  endosteal boundary
-        void_volume_img = dilate_img * self.contour_img
+        void_volume_img = dilate_img * self.mask_img
 
         return void_volume_img
 
@@ -299,7 +299,7 @@ class VoidVolumeLogic:
 
         # mask the level set output with periosteal mask
         output_img = sitk.BinaryThreshold(ls_img, lowerThreshold=1, insideValue=1)
-        output_img = (output_img * self.contour_img) | ero1_img
+        output_img = (output_img * self.mask_img) | ero1_img
 
         return output_img
 
@@ -318,16 +318,24 @@ class VoidVolumeLogic:
         connected_filter.SetFullyConnected(True)
         relabeled_img = connected_filter.Execute(void_volume_img)
 
+        stats_filter = sitk.LabelShapeStatisticsImageFilter()
+        stats_filter.Execute(relabeled_img)
+        print(stats_filter.GetLabels())
+
         relabel_map = {}
         for seed, erosionId in zip(self._seeds_crop, self.erosionIds):
             key = relabeled_img[seed]
             if key > 0:
                 relabel_map[key] = erosionId
         
+        print(relabel_map)
         relabel_filter = sitk.ChangeLabelImageFilter()
 
         relabel_filter.SetChangeMap(relabel_map)
         relabeled_img = relabel_filter.Execute(relabeled_img)
+
+        stats_filter.Execute(relabeled_img)
+        print(stats_filter.GetLabels())
 
         return relabeled_img
 
@@ -369,13 +377,13 @@ class VoidVolumeLogic:
         """
         self.model_img = img
     
-    def setContourImage(self, contour_img):
+    def setMaskImage(self, mask_img):
         """
         Args:
-            contour_img (Image): Bounding box cut will be applied to it.
+            mask_img (Image): Bounding box cut will be applied to it.
         """
         # threshhold to binarize mask
-        thresh_img = sitk.BinaryThreshold(contour_img, lowerThreshold=1, insideValue=1)
+        thresh_img = sitk.BinaryThreshold(mask_img, lowerThreshold=1, insideValue=1)
 
         # bounding box cut
         lss_filter = sitk.LabelStatisticsImageFilter()
@@ -385,10 +393,10 @@ class VoidVolumeLogic:
         xmin_crop = round(xmin_crop) 
         ymin_crop = round(ymin_crop) 
         zmin_crop = round(zmin_crop) 
-        xmax_crop = contour_img.GetWidth() - xmax 
-        ymax_crop = contour_img.GetHeight() - ymax
-        zmax_crop = contour_img.GetDepth() - zmax
-        self.contour_img = sitk.Crop(thresh_img, 
+        xmax_crop = mask_img.GetWidth() - xmax 
+        ymax_crop = mask_img.GetHeight() - ymax
+        zmax_crop = mask_img.GetDepth() - zmax
+        self.mask_img = sitk.Crop(thresh_img, 
                                      [xmin_crop, ymin_crop, zmin_crop],
                                      [xmax_crop, ymax_crop, zmax_crop])
 
@@ -398,21 +406,21 @@ class VoidVolumeLogic:
         Update the seed point coordinates based on the cropped bone model, 
         and remove seed points that are outside the periosteal mask.
         """
-        width = self.contour_img.GetWidth()
-        height = self.contour_img.GetHeight()
-        depth = self.contour_img.GetDepth()
+        width = self.mask_img.GetWidth()
+        height = self.mask_img.GetHeight()
+        depth = self.mask_img.GetDepth()
         spacing = self.model_img.GetSpacing()[0]
-        contour_origin = self.contour_img.GetOrigin()
+        mask_origin = self.mask_img.GetOrigin()
         model_origin = self.model_img.GetOrigin()
         model_size = self.model_img.GetSize()
         direction = self.model_img.GetDirection()
 
         # crop bone model
         model_img = sitk.Image(width, height, depth, self.model_img.GetPixelID())
-        model_img.CopyInformation(self.contour_img)
-        destination_x = round((model_origin[0] - contour_origin[0]) / spacing)
-        destination_y = round((model_origin[1] - contour_origin[1]) / spacing)
-        destination_z = round((model_origin[2] - contour_origin[2]) / spacing)
+        model_img.CopyInformation(self.mask_img)
+        destination_x = round((model_origin[0] - mask_origin[0]) / spacing)
+        destination_y = round((model_origin[1] - mask_origin[1]) / spacing)
+        destination_z = round((model_origin[2] - mask_origin[2]) / spacing)
 
         r = sitk.VersorTransform()
         r.SetMatrix(direction)

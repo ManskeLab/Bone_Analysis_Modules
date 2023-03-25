@@ -73,7 +73,7 @@ class MarkupsTable:
     self.markupsPlaceWidget = slicer.qSlicerMarkupsPlaceWidget()
     self.markupsPlaceWidget.setMRMLScene(slicer.mrmlScene)
     self.setButtonsVisible(False) # hide all buttons
-    self.setPlaceButtonVisible(True)   # show only the place button
+    # self.setPlaceButtonVisible(True)   # show only the place button
     buttonsGridLayout.addWidget(self.markupsPlaceWidget, 1, 0)
 
     self.deleteAllButton = qt.QPushButton(' Delete All')

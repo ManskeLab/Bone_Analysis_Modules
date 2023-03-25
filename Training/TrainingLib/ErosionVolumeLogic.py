@@ -63,14 +63,14 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       dir = os.path.dirname(storageNode.GetFullNameFromFileName())
       slicer.mrmlScene.SetRootDirectory(dir)
 
-  def setErosionParameters(self, inputVolumeNode, inputContourNode, sigma:float, markupsNode, minimalRadius, dilateErodeDistance,
+  def setErosionParameters(self, inputVolumeNode, inputMaskNode, sigma:float, markupsNode, minimalRadius, dilateErodeDistance,
         method:int=None, lower:int=None, upper:int=None) -> bool:
     """
     Set parameters used by the Erosion Volume algorithm. 
 
     Args:
       inputVolumeNode (vtkMRMLScalarVolumeNode)
-      inputContourNode (vtkMRMLLabelMapVolumeNode)
+      inputMaskNode (vtkMRMLLabelMapVolumeNode)
       lower (int)
       upper (int)
       sigma (float): Gaussian sigma
@@ -101,9 +101,9 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
 
     # images
     model_img = sitkUtils.PullVolumeFromSlicer(inputVolumeNode.GetName())
-    contour_img = sitkUtils.PullVolumeFromSlicer(inputContourNode.GetName())
+    mask_img = sitkUtils.PullVolumeFromSlicer(inputMaskNode.GetName())
     self.voidVolume.setModelImage(model_img)
-    self.voidVolume.setContourImage(sitk.Cast(contour_img, sitk.sitkUInt8))
+    self.voidVolume.setMaskImage(sitk.Cast(mask_img, sitk.sitkUInt8))
 
     # seed points
     physical_coord = [0,0,0]
@@ -133,14 +133,14 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     
     return True
 
-  def getErosions(self, inputVolumeNode, inputContourNode, outputErosionNode, noProgress=False) -> bool:
+  def getErosions(self, inputVolumeNode, inputMaskNode, outputErosionNode, noProgress=False) -> bool:
     """
     Run the Erosion Volume algorithm and store the result in the output erosion node. 
     The erosions will have label values that match the seed point postfixes
 
     Args:
       inputVolumeNode (vtkMRMLScalarVolumeNode)
-      inputContourNode (ctkMRMLLabelMapVolumeNode)
+      inputMaskNode (ctkMRMLLabelMapVolumeNode)
       outputErosionNode (vtkMRMLSegmentationNode): will be modified.
 
     Returns:
@@ -162,25 +162,25 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
           self.progressCallBack(progress) # update progress bar
         step += 1
     except Exception as e:
-      slicer.util.errorDisplay('Error')
-      print(e)
+      # slicer.util.errorDisplay('Error')
+      # print(e)
       return False
     erosion_img = self.voidVolume.getOutput()
 
     #check if output failed (matches input mask)
     erosion_arr = sitk.GetArrayFromImage(erosion_img)
-    contour_arr = slicer.util.arrayFromVolume(inputContourNode)
-    print(np.count_nonzero(erosion_arr), np.count_nonzero(contour_arr), contour_arr.size * 0.05)
-    if abs(np.count_nonzero(erosion_arr) - np.count_nonzero(contour_arr)) < contour_arr.size * 0.05:
+    mask_arr = slicer.util.arrayFromVolume(inputMaskNode)
+    # print(np.count_nonzero(erosion_arr), np.count_nonzero(mask_arr), mask_arr.size * 0.05)
+    if abs(np.count_nonzero(erosion_arr) - np.count_nonzero(mask_arr)) < mask_arr.size * 0.05:
       text = """Unable to detect erosions. Check the set parameters in the module.\n
 - Thresholds may be incorrect for the image
 - Seed points may be incorrect
 - Large or small erosions check box may need to be enabled"""
-      slicer.util.errorDisplay(text, "Erosion Analysis Failed")
+      # slicer.util.errorDisplay(text, "Erosion Analysis Failed")
       return False
 
     # move mask and erosion segments to output erosion node
-    self._initOutputErosionNode(erosion_img, inputVolumeNode, inputContourNode, outputErosionNode)
+    self._initOutputErosionNode(erosion_img, inputVolumeNode, inputMaskNode, outputErosionNode)
     # record the seed points, source, and advanced parameters for each erosion
     self._setErosionInfo(outputErosionNode)
 
@@ -262,7 +262,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     Set segmentation node in the segmentation editor, if node has been created. 
     The intensity mask is on, voxels with low intensities is editable. 
     The overwrite mode is set to overwrite visible segments. 
-    #The mask mode is set to paint allowed inside the contour. 
+    #The mask mode is set to paint allowed inside the mask. 
 
     Args:
       segmentEditor (SegmentEditor): will be modified
@@ -282,7 +282,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     segmentEditor.exit()
 
   def _initOutputErosionNode(self, erosion_img:sitk.Image, inputVolumeNode, 
-                            inputContourNode, outputErosionNode) -> None:
+                            inputMaskNode, outputErosionNode) -> None:
     """
     Set the parent of the output erosion node. 
     Move the mask to the output erosion node.
@@ -291,28 +291,28 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     Args:
       erosion_img (Image): itk erosion mask
       inputVolumeNode (vtkMRMLScalarVolumeNode)
-      inputContourNode (vtkMRMLLabelMapVolumeNode)
+      inputMaskNode (vtkMRMLLabelMapVolumeNode)
       outputErosionNode (vtkMRMLSegmentationNode)
     """
     # clear output erosion node and set its parent to be greyscale scan
     outputErosionNode.GetSegmentation().RemoveAllSegments()
     outputErosionNode.SetReferenceImageGeometryParameterFromVolumeNode(inputVolumeNode)
 
-    # binarize contour
+    # binarize Mask
     tempLabelMap = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode",
                                                       "MASK_Keep_Invisible")
     # slicer.vtkSlicerVolumesLogic().CreateLabelVolumeFromVolume(slicer.mrmlScene, 
     #                                                            tempLabelMap, 
-    #                                                            inputContourNode)
-    contourArray = slicer.util.arrayFromVolume(inputContourNode)
-    tempLabelArray = slicer.util.arrayFromVolume(inputContourNode)
-    tempLabelArray[contourArray > 0] = 1
+    #                                                            inputMaskNode)
+    maskArray = slicer.util.arrayFromVolume(inputMaskNode)
+    tempLabelArray = slicer.util.arrayFromVolume(inputMaskNode)
+    tempLabelArray[maskArray > 0] = 1
     # slicer.util.arrayFromVolumeModified(tempLabelMap)
     slicer.util.updateVolumeFromArray(tempLabelMap, tempLabelArray)
-    # push contour to output erosion node
+    # push mask to output erosion node
     self.labelmapToSegmentationNode(tempLabelMap, outputErosionNode)
-    contourSegmentId = outputErosionNode.GetSegmentation().GetNthSegmentID(0) # first segment ID
-    outputErosionNode.GetDisplayNode().SetSegmentVisibility(contourSegmentId, False)
+    maskSegmentId = outputErosionNode.GetSegmentation().GetNthSegmentID(0) # first segment ID
+    outputErosionNode.GetDisplayNode().SetSegmentVisibility(maskSegmentId, False)
     # remove temporary label map
     slicer.mrmlScene.RemoveNode(tempLabelMap)
 

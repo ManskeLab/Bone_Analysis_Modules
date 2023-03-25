@@ -151,20 +151,20 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
     self.inputVolumeSelector.setCurrentNode(None)
     erosionsLayout.addRow("Input Volume: ", self.inputVolumeSelector)
 
-    # input contour selector
-    self.inputContourSelector = slicer.qMRMLNodeComboBox()
-    self.inputContourSelector.nodeTypes = ["vtkMRMLScalarVolumeNode","vtkMRMLLabelMapVolumeNode"]
-    self.inputContourSelector.selectNodeUponCreation = False
-    self.inputContourSelector.addEnabled = False
-    self.inputContourSelector.renameEnabled = True
-    self.inputContourSelector.removeEnabled = True
-    self.inputContourSelector.noneEnabled = False
-    self.inputContourSelector.showHidden = False
-    self.inputContourSelector.showChildNodeTypes = False
-    self.inputContourSelector.setMRMLScene(slicer.mrmlScene)
-    self.inputContourSelector.setToolTip( "Pick the mask label map" )
-    self.inputContourSelector.setCurrentNode(None)
-    erosionsLayout.addRow("Input Contour: ", self.inputContourSelector)
+    # input mask selector
+    self.inputMaskSelector = slicer.qMRMLNodeComboBox()
+    self.inputMaskSelector.nodeTypes = ["vtkMRMLScalarVolumeNode","vtkMRMLLabelMapVolumeNode"]
+    self.inputMaskSelector.selectNodeUponCreation = False
+    self.inputMaskSelector.addEnabled = False
+    self.inputMaskSelector.renameEnabled = True
+    self.inputMaskSelector.removeEnabled = True
+    self.inputMaskSelector.noneEnabled = False
+    self.inputMaskSelector.showHidden = False
+    self.inputMaskSelector.showChildNodeTypes = False
+    self.inputMaskSelector.setMRMLScene(slicer.mrmlScene)
+    self.inputMaskSelector.setToolTip( "Pick the mask label map" )
+    self.inputMaskSelector.setCurrentNode(None)
+    erosionsLayout.addRow("Input Mask: ", self.inputMaskSelector)
 
     # output volume selector
     self.outputErosionSelector = slicer.qMRMLNodeComboBox()
@@ -271,8 +271,8 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
     # connections
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputVolume)
-    self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputContour)
-    self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
+    self.inputMaskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputMask)
+    self.inputMaskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.outputErosionSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.outputErosionSelector.connect("nodeAddedByUser(vtkMRMLNode*)", lambda node: self.onAddOutputErosion(node))
     self.markupsTableWidget.getMarkupsSelector().connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
@@ -288,23 +288,23 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
 
   def checkErosionsButton(self):
     self.getErosionsButton.enabled = (self.inputVolumeSelector.currentNode() and 
-                                     self.inputContourSelector.currentNode() and
+                                     self.inputMaskSelector.currentNode() and
                                      self.outputErosionSelector.currentNode() and
                                      self.markupsTableWidget.getCurrentNode())
     self.revealSeedPointsButton.enabled = (self.inputVolumeSelector.currentNode() and 
-                                          self.inputContourSelector.currentNode())
+                                          self.inputMaskSelector.currentNode())
 
   def onSelect4(self):
     """Update the state of the get erosions button whenever the selectors in step 4 change"""
     self.getErosionsButton.enabled = (self.inputVolumeSelector.currentNode() and 
-                                     self.inputContourSelector.currentNode() and
+                                     self.inputMaskSelector.currentNode() and
                                      self.outputErosionSelector.currentNode() and
                                      self.markupsTableWidget.getCurrentNode())
 
   def onSelectInputVolume(self):
     """Run this whenever the input volume selector in step 4 changes"""
     inputVolumeNode = self.inputVolumeSelector.currentNode()
-    inputContourNode = self.inputContourSelector.currentNode()
+    inputMaskNode = self.inputMaskSelector.currentNode()
 
     if inputVolumeNode:
       # Update the default save directory
@@ -355,16 +355,16 @@ Change the lower and upper thresholds before initializing."""
       self.logger.info("Using Erosion Volume Module with " + inputVolumeNode.GetName() + "\n")
       
 
-  def onSelectInputContour(self):
-    """Run this whenever the input contour selector in step 4 changes"""
-    inputContourNode = self.inputContourSelector.currentNode()
-    if inputContourNode:
+  def onSelectInputMask(self):
+    """Run this whenever the input mask selector in step 4 changes"""
+    inputMaskNode = self.inputMaskSelector.currentNode()
+    if inputMaskNode:
       # update the default output erosion base name, which matches the mask name
-      erosion_baseName = inputContourNode.GetName()+"_ER"
+      erosion_baseName = inputMaskNode.GetName()+"_ER"
       self.outputErosionSelector.baseName = erosion_baseName
-      seed_baseName = inputContourNode.GetName()+"_SEEDS"
+      seed_baseName = inputMaskNode.GetName()+"_SEEDS"
       # self.fiducialSelector.baseName = seed_baseName
-      # self.outputTableSelector.baseName = inputContourNode.GetName()+"_TABLE"
+      # self.outputTableSelector.baseName = inputMaskNode.GetName()+"_TABLE"
       
 
   def onAddOutputErosion(self, node):
@@ -413,13 +413,13 @@ Change the lower and upper thresholds before initializing."""
     self.markupsTableWidget.updateLabels()
 
     inputVolumeNode = self.inputVolumeSelector.currentNode()
-    inputContourNode = self.inputContourSelector.currentNode()
+    inputMaskNode = self.inputMaskSelector.currentNode()
     outputVolumeNode = self.outputErosionSelector.currentNode()
     markupsNode = self.markupsTableWidget.getCurrentNode()
 
     self.logger.info("Erosion Volume initialized with parameters:")
     self.logger.info("Input Volume: " + inputVolumeNode.GetName())
-    self.logger.info("Input Contour: " + inputContourNode.GetName())
+    self.logger.info("Input Mask: " + inputMaskNode.GetName())
     self.logger.info("Output Volume: " + outputVolumeNode.GetName())
     
     self.logger.info("Lower Theshold: " + str(self.lowerThresholdText.value))
@@ -427,7 +427,7 @@ Change the lower and upper thresholds before initializing."""
     self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
     
     ready = self._logic.setErosionParameters(inputVolumeNode, 
-                                          inputContourNode, 
+                                          inputMaskNode, 
                                           self.sigmaText.value,
                                           # fiducialNode,
                                           markupsNode,
@@ -436,15 +436,14 @@ Change the lower and upper thresholds before initializing."""
                                           lower=self.lowerThresholdText.value,
                                           upper=self.upperThresholdText.value)
     if ready:
-      success = self._logic.getErosions(inputVolumeNode, inputContourNode, outputVolumeNode)
+      success = self._logic.getErosions(inputVolumeNode, inputMaskNode, outputVolumeNode)
+      error_message = ""
+      error_flag = None
+
       if success:
         # update widgets
         erosion_name = outputVolumeNode.GetName()[0:14]
         reference_path = None
-
-        volumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode')
-        slicer.modules.segmentations.logic().ExportVisibleSegmentsToLabelmapNode(outputVolumeNode, volumeNode) 
-        erosion = sitkUtils.PullVolumeFromSlicer(volumeNode)
 
         for reference in os.listdir(self.reference_erosions_dir):
           if(erosion_name in reference):
@@ -452,7 +451,7 @@ Change the lower and upper thresholds before initializing."""
 
         if(reference_path):
           volumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode')
-          slicer.modules.segmentations.logic().ExportVisibleSegmentsToLabelmapNode(outputVolumeNode, volumeNode) 
+          self._logic.exportErosionsToLabelmap(outputVolumeNode, volumeNode) 
           erosion = sitkUtils.PullVolumeFromSlicer(volumeNode)
           erosion_reference = sitk.ReadImage(reference_path)
 
@@ -460,36 +459,56 @@ Change the lower and upper thresholds before initializing."""
 
           labelShape.Execute(erosion)
           num_erosions = labelShape.GetNumberOfLabels()
-          num_control_points = self.markupsTableWidget.getCurrentNode().GetNumberOfControlPoints()
+          num_control_points = markupsNode.GetNumberOfControlPoints()
           labels = labelShape.GetLabels()
-          centroids = []
+          centroids_map = {}
           for i in labels:
-            centroids.append(labelShape.GetCentroid(i))
+            centroids_map[i] = list(labelShape.GetCentroid(i))  
+            print(centroids_map[i])
 
           labelShape.Execute(erosion_reference)
           ref_num_erosions = labelShape.GetNumberOfLabels()
           labels_ref = labelShape.GetLabels()
-          ref_centroids = []
+          ref_centroids_map = {}
           for i in labels_ref:
-            ref_centroids.append(labelShape.GetCentroid(i))
+            ref_centroids_map[i] = labelShape.GetCentroid(i)
+            print(ref_centroids_map[i])
 
           # mapper
           mapped_labels = {}
-          for i in labels:
-            mapped_labels[i] = None
+          for i in range(num_control_points):
+            id = int(markupsNode.GetNthControlPointID(i))
+            centroid = [0, 0, 0]
+            controlPointPosition = markupsNode.GetNthControlPointPositionVector(i)
+            mapped_labels[id] = None
+
+            if not (id in labels):
+              centroid = [-1*a for a in controlPointPosition]
+              print("helo")
+            else:
+              centroid = centroids_map[id]
+              print("hel")
+              print(centroid)
+
             for j in labels_ref:
-              x_sim = abs((ref_centroids[j-1][0] - centroids[i-1][0]) / ref_centroids[j-1][0])
-              y_sim = abs((ref_centroids[j-1][1] - centroids[i-1][1]) / ref_centroids[j-1][1])
-              z_sim = abs((ref_centroids[j-1][2] - centroids[i-1][2]) / ref_centroids[j-1][2])
+              x_sim = abs((ref_centroids_map[j][0] - centroid[0]) / ref_centroids_map[j][0])
+              y_sim = abs((ref_centroids_map[j][1] - centroid[1]) / ref_centroids_map[j][1])
+              z_sim = abs((ref_centroids_map[j][2] - centroid[2]) / ref_centroids_map[j][2])
+              print(ref_centroids_map[j])
+              print(x_sim)
+              print(y_sim)
+              print(z_sim)
 
               if x_sim < 0.05 and y_sim < 0.05 and z_sim < 0.05:
                 # erosion location identified correctly
-                mapped_labels[i] = j
+                if j in mapped_labels.values():
+                  # duplicate
+                  mapped_labels[id] = False
+                  continue
+                mapped_labels[id] = j
           
-          error_message = ""
           feedback = ""
-
-          print("")
+          print(mapped_labels)
           error_flag = num_control_points > num_erosions or num_control_points != ref_num_erosions
           sim_flag = False
 
@@ -505,12 +524,25 @@ Change the lower and upper thresholds before initializing."""
 
           filter = sitk.SimilarityIndexImageFilter()
 
-          for label in labels:
+          for i in range(num_control_points):
+            label = int(markupsNode.GetNthControlPointID(i))
+
             feedback += "Feedback for Seed #{}:\n".format(label)
 
             if(mapped_labels[label] is None):
               sim_flag = True
+              error_flag = True
               feedback += "No erosion should exist at this location. Please remove/relocate this seed point.\n"
+            elif(not mapped_labels[label]):
+              sim_flag = True
+              feedback += "Seedpoint identifies the same erosion identified by another erosion."
+            elif(label not in labels):
+              error_flag = True
+              feedback += "No erosion was detected at this location. But an erosion location was correctly identified."
+              feedback += "- Reposition seed point to be located deeper into the erosion.\n"
+              feedback += "- Make sure the seed point is located within the mask.\n"
+              feedback += "- Enable one of the large or small erosions check boxes.\n"
+              feedback += "- Increase the lower threshold in increments of 50.\n"
             else:
               bin_erosion = erosion == label
               bin_erosion_ref = erosion_reference == mapped_labels[label]
@@ -521,7 +553,7 @@ Change the lower and upper thresholds before initializing."""
               feedback += "Similarity index to refence: {0:.3f}%\n".format(similarity_index*100)
               if similarity_index > 0.9:
                 feedback += "Correctly identified erosion!\n"
-              elif similarity_index > 0.6:
+              else:
                 error_flag = True
                 sim_flag = True
                 
@@ -529,32 +561,27 @@ Change the lower and upper thresholds before initializing."""
                 feedback += "- Reposition seed point to be located deeper within the erosion.\n"
                 feedback += "- If erosions look too big:\n"
                 feedback += "   - Enable large erosions check box.\n"
-                feedback += "   - Decrease lower threshold in 100 decrements.\n"
+                feedback += "   - Decrease lower threshold in 50 decrements.\n"
                 feedback += "- If erosions look too small:\n"
                 feedback += "   - Enable small erosions check box.\n"
-                feedback += "   - Increase lower threshold in 100 increments.\n"
-              else:
-                error_flag = True
-                sim_flag = True
-
-                feedback += "Erosions do not exist at this location. Please remove/relocate this seed point.\n"
+                feedback += "   - Increase lower threshold in 50 increments.\n"
 
             feedback += "\n"
 
           if error_flag:
-            error_message += "Error\n\n"
+            error_message += "Error!\n\n"
             if(sim_flag):
               error_message += "Detected erosions do not match with relevant reference erosions.\n"
               if(num_control_points == ref_num_erosions):
                 error_message += "Correct number of seed points placed, but the locations are incorrect. See below for feedback on each placed seed point.\n"
             if(num_erosions == 0):
-              error_message += "No erosions detected at all placed seed points.\n"
+              error_message += "No erosions detected at any placed seed point/s.\n"
             elif(num_control_points > num_erosions):
-              error_message += "Erosions were not detected at all placed seed point.\n"
+              error_message += "Erosions were not detected at all placed seed point/s.\n"
             if(num_control_points > ref_num_erosions):
-              error_message += "Too many seed points were placed.\n"
+              error_message += "Too many seed points were placed. Only {} point/s needed. Delete {} point/s.\n".format(ref_num_erosions, num_control_points-ref_num_erosions)
             if(num_control_points < ref_num_erosions):
-              error_message += "Less seed points were placed than the number of erosions that exist in the reference. Please place more seed points.\n"
+              error_message += "Less seed points were placed than the number of erosions that exist in the reference. Please place {} more seed point/s.\n".format(ref_num_erosions - num_control_points)
           else:
             error_message += "Success!\n"
 
@@ -562,13 +589,21 @@ Change the lower and upper thresholds before initializing."""
 
           error_message += feedback
 
-          print(error_message)
-          if(error_flag):
-            slicer.util.errorDisplay(error_message, 'Incorrect Erosion Analysis')
-          else:
-            slicer.util.infoDisplay(error_message, 'Seed Point Feedback')
-
         self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
+
+      else:
+        error_flag = True
+        error_message += "Error!\n\n"
+        error_message += "No erosions detected at any placed seed points.\n"
+        error_message += "- Reposition seed point to be located deeper into the erosion.\n"
+        error_message += "  Make sure the seed point is located within the mask.\n"
+        error_message += "- Enable one of the large or small erosions check boxes.\n"
+        error_message += "- Increase the lower threshold in increments of 50.\n\n"
+
+      if(error_flag):
+        slicer.util.errorDisplay(error_message, 'Incorrect Erosion Analysis')
+      else:
+        slicer.util.infoDisplay(error_message, 'Seed Point Feedback')
             
     # store thresholds 
     inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
