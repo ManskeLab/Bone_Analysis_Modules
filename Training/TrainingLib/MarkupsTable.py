@@ -2,21 +2,16 @@ import os
 import vtk, qt, ctk, slicer
 
 CONTROL_POINT_LABEL_COLUMN = 0
-CONTROL_POINT_BONE_NUM_COLUMN = 1
-CONTROL_POINT_IS_EROSION = 2
-CONTROL_POINT_EROSION_IN_FOV= 3
-CONTROL_POINT_X_COLUMN = 4
-CONTROL_POINT_Y_COLUMN = 5
-CONTROL_POINT_Z_COLUMN = 6
-CONTROL_POINT_COLUMNS = 7
-
-# CONTROL_POINT_LARGE_EROSION =  4
-# CONTROL_POINT_MINIMUM_RADIUS = 4
-# CONTROL_POINT_ERODE_DISTANCE = 5
-# CONTROL_POINT_X_COLUMN = 5
-# CONTROL_POINT_Y_COLUMN = 6
-# CONTROL_POINT_Z_COLUMN = 7
-# CONTROL_POINT_COLUMNS = 8
+CONTROL_POINT_BONE = 1
+CONTROL_POINT_CORTICAL_INTERRUPION = 2
+# for later iterations
+CONTROL_POINT_LARGE_EROSION =  4
+CONTROL_POINT_MINIMUM_RADIUS = 4
+CONTROL_POINT_ERODE_DISTANCE = 5
+CONTROL_POINT_X_COLUMN = 3
+CONTROL_POINT_Y_COLUMN = 4
+CONTROL_POINT_Z_COLUMN = 5
+CONTROL_POINT_COLUMNS = 6
 
 #
 # MarkupsTableWidget
@@ -110,7 +105,7 @@ class MarkupsTable:
     """Reset the appearence of the markups control points table widget"""
     self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS)
     self.markupsControlPointsTableWidget.setRowCount(0)
-    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Is Erosion', 'Erosion in FOV', 'X', 'Y', 'Z'])
+    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Cortical Interruption', 'X', 'Y', 'Z'])
     # self.markupsControlPointsTableWidget.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Stretch)
 
   def onDeleteAllButton(self):
@@ -150,6 +145,12 @@ class MarkupsTable:
         ITKCoord[2] = newControlPointPosition
       currentControlPointPosition = self._logic.IJKToRASCoords(ITKCoord, self._ijk2ras)
       self._currentNode.SetNthControlPointPositionFromArray(row, currentControlPointPosition)
+
+  def getNthControlPointIJKCoords(self, id):
+    currentControlPointPosition = self._currentNode.GetNthControlPointPositionVector(id)
+    IJKCoord = self._logic.RASToIJKCoords(list(currentControlPointPosition), self._ras2ijk)
+    
+    return IJKCoord
 
   def onMarkupsControlPointSelected(self, row, column):
     """Run this whenever a markup control point in the table is selected"""
@@ -363,7 +364,7 @@ class MarkupsTable:
     CONTROL_POINT_Y_COLUMN += 1
     CONTROL_POINT_Z_COLUMN += 1
     self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS+1)
-    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Is Erosion', 'Erosion in FOV', 'Min Erosion Radius', 'Erode Distance', 'X', 'Y', 'Z'])
+    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Type', 'Erosion in FOV', 'Min Erosion Radius', 'Erode Distance', 'X', 'Y', 'Z'])
     currentNode = self._currentNode
 
     for i in range(currentNode.GetNumberOfControlPoints()):
@@ -408,7 +409,7 @@ class MarkupsTable:
     CONTROL_POINT_Y_COLUMN -= 1
     CONTROL_POINT_Z_COLUMN -= 1
     self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS)
-    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Is Erosion', 'Erosion in FOV', 'Large Erosion', 'X', 'Y', 'Z'])
+    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Type', 'Erosion in FOV', 'Large Erosion', 'X', 'Y', 'Z'])
     currentNode = self._currentNode
 
     for i in range(currentNode.GetNumberOfControlPoints()):
@@ -438,7 +439,7 @@ class MarkupsTable:
     for i in range(controlPointsNum):
       if self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN):
         controlPointLabel = currentNode.GetNthControlPointLabel(i)
-        bone = self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN)
+        bone = self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE)
         self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN).setText(bone.currentText+'_'+controlPointLabel)
 
   def updateWidget(self, caller=None, event=None):
@@ -491,17 +492,12 @@ class MarkupsTable:
     ITKCoord = self._logic.RASToIJKCoords(controlPointPosition, self._ras2ijk)
     labelItem = qt.QTableWidgetItem(controlPointLabel)
     boneNumItem = qt.QComboBox()
-    boneNumItem.addItems(['Metacarpal', 'Phalanx'])
+    boneNumItem.addItems(['N/A', 'Metacarpal', 'Phalanx'])
+    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_BONE, boneNumItem)
 
-    isErosionCheckBox = qt.QCheckBox()
-    isErosionCheckBox.checked = True
-    isErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
-    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_IS_EROSION, isErosionCheckBox)
-
-    isErosionInFOVCheckBox = qt.QCheckBox()
-    isErosionInFOVCheckBox.checked = True
-    isErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
-    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_EROSION_IN_FOV, isErosionInFOVCheckBox)
+    erosionTypeCombo = qt.QComboBox()
+    erosionTypeCombo.addItems(['Erosion', 'Cyst', 'Unreadable', 'None'])
+    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_CORTICAL_INTERRUPION, erosionTypeCombo)
 
     # if(self.advanced):
     #   minimalRadiusText = qt.QSpinBox()
@@ -530,7 +526,6 @@ class MarkupsTable:
     yItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[1]))
     zItem = qt.QTableWidgetItem('%.3f' % (ITKCoord[2]))
     self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_LABEL_COLUMN, labelItem)
-    self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_BONE_NUM_COLUMN, boneNumItem)
     
     self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_X_COLUMN, xItem)
     self.markupsControlPointsTableWidget.setItem(i, CONTROL_POINT_Y_COLUMN, yItem)

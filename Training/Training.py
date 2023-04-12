@@ -410,7 +410,7 @@ Change the lower and upper thresholds before initializing."""
     """Run this whenever the get erosions button in step 4 is clicked"""
     # update widgets
     self.disableErosionsWidgets()
-    self.markupsTableWidget.updateLabels()
+    # self.markupsTableWidget.updateLabels()
 
     inputVolumeNode = self.inputVolumeSelector.currentNode()
     inputMaskNode = self.inputMaskSelector.currentNode()
@@ -440,78 +440,92 @@ Change the lower and upper thresholds before initializing."""
       error_message = ""
       error_flag = None
 
-      if success:
-        # update widgets
-        erosion_name = outputVolumeNode.GetName()[0:14]
-        reference_path = None
+      # update widgets
+      erosion_id = outputVolumeNode.GetName()[0]
+      reference_path = None
 
-        for reference in os.listdir(self.reference_erosions_dir):
-          if(erosion_name in reference):
-            reference_path = os.path.join(self.reference_erosions_dir, reference)
+      for reference in os.listdir(self.reference_erosions_dir):
+        if(erosion_id == reference[0]):
+          reference_path = os.path.join(self.reference_erosions_dir, reference)
 
-        if(reference_path):
+      if(reference_path):
+        num_control_points = markupsNode.GetNumberOfControlPoints()
+        num_erosions = 0
+        vol_map = {}
+        ref_vol_map = {}
+
+        labels = []
+
+        erosion_reference = sitk.ReadImage(reference_path)
+
+        labelShape = sitk.LabelShapeStatisticsImageFilter()
+
+        labelShape.Execute(erosion_reference)
+        ref_num_erosions = labelShape.GetNumberOfLabels()
+        labels_ref = labelShape.GetLabels()
+        
+        for i in labels_ref:
+          ref_vol_map[i] = labelShape.GetNumberOfPixels(i)
+
+        spacing = erosion_reference.GetSpacing()
+        origin = erosion_reference.GetOrigin()
+
+        if success:
           volumeNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLabelMapVolumeNode')
           self._logic.exportErosionsToLabelmap(outputVolumeNode, volumeNode) 
           erosion = sitkUtils.PullVolumeFromSlicer(volumeNode)
-          erosion_reference = sitk.ReadImage(reference_path)
-
-          labelShape = sitk.LabelShapeStatisticsImageFilter()
+          # sitk.WriteImage(erosion, reference_path)
 
           labelShape.Execute(erosion)
           num_erosions = labelShape.GetNumberOfLabels()
-          num_control_points = markupsNode.GetNumberOfControlPoints()
           labels = labelShape.GetLabels()
-          centroids_map = {}
-          for i in labels:
-            centroids_map[i] = list(labelShape.GetCentroid(i))  
-            print(centroids_map[i])
-
-          labelShape.Execute(erosion_reference)
-          ref_num_erosions = labelShape.GetNumberOfLabels()
-          labels_ref = labelShape.GetLabels()
-          ref_centroids_map = {}
-          for i in labels_ref:
-            ref_centroids_map[i] = labelShape.GetCentroid(i)
-            print(ref_centroids_map[i])
-
-          # mapper
-          mapped_labels = {}
-          for i in range(num_control_points):
-            id = int(markupsNode.GetNthControlPointID(i))
-            centroid = [0, 0, 0]
-            controlPointPosition = markupsNode.GetNthControlPointPositionVector(i)
-            mapped_labels[id] = None
-
-            if not (id in labels):
-              centroid = [-1*a for a in controlPointPosition]
-              print("helo")
-            else:
-              centroid = centroids_map[id]
-              print("hel")
-              print(centroid)
-
-            for j in labels_ref:
-              x_sim = abs((ref_centroids_map[j][0] - centroid[0]) / ref_centroids_map[j][0])
-              y_sim = abs((ref_centroids_map[j][1] - centroid[1]) / ref_centroids_map[j][1])
-              z_sim = abs((ref_centroids_map[j][2] - centroid[2]) / ref_centroids_map[j][2])
-              print(ref_centroids_map[j])
-              print(x_sim)
-              print(y_sim)
-              print(z_sim)
-
-              if x_sim < 0.05 and y_sim < 0.05 and z_sim < 0.05:
-                # erosion location identified correctly
-                if j in mapped_labels.values():
-                  # duplicate
-                  mapped_labels[id] = False
-                  continue
-                mapped_labels[id] = j
           
-          feedback = ""
-          print(mapped_labels)
-          error_flag = num_control_points > num_erosions or num_control_points != ref_num_erosions
-          sim_flag = False
+          for i in labels:
+            vol_map[i] = labelShape.GetNumberOfPixels(i)  
 
+        # label map to tell if labeled erosion volume is too small or too big. (False, True)
+        size_map = {}
+
+        # mapper
+        mapped_labels = {}
+
+        for i in range(num_control_points):
+
+          id = int(markupsNode.GetNthControlPointID(i))
+          seed_pos = [round(ax) for ax in self.markupsTableWidget.getNthControlPointIJKCoords(i)]
+
+          # for ax in range(3):
+          #   x = float(control_point_vector[ax]-origin[ax])
+          #   print(x)
+          #   print(x/float(spacing[ax]))
+          #   seed_pos[ax] = int(abs(round(float(control_point_vector[ax]+origin[ax])/float(spacing[ax]))))
+          #   print(seed_pos[ax])
+
+          print(seed_pos)
+          mapped_labels[id] = None
+          
+          voxel_val = erosion_reference.GetPixel(seed_pos)
+          print(voxel_val)
+
+          if voxel_val > 0:
+            if voxel_val in mapped_labels.values():
+              # duplicate
+              mapped_labels[id] = False
+              continue
+
+            mapped_labels[id] = voxel_val
+            if success:
+              if vol_map[id] > ref_vol_map[voxel_val]:
+                size_map[id] = True
+              else:
+                size_map[id] = False
+        
+        feedback = ""
+        error_flag = num_control_points > num_erosions or num_control_points != ref_num_erosions
+        sim_flag = False
+
+        filter = sitk.SimilarityIndexImageFilter()
+        if success:
           erosion = sitk.Cast(erosion, sitk.sitkFloat32)
           erosion_reference = sitk.Cast(erosion_reference, sitk.sitkFloat32)
 
@@ -522,83 +536,80 @@ Change the lower and upper thresholds before initializing."""
           resampler.SetTransform(sitk.Transform())
           erosion = resampler.Execute(erosion)
 
-          filter = sitk.SimilarityIndexImageFilter()
+        for i in range(num_control_points):
+          label = int(markupsNode.GetNthControlPointID(i))
 
-          for i in range(num_control_points):
-            label = int(markupsNode.GetNthControlPointID(i))
+          feedback += "Feedback for Seed #{}:\n".format(i+1)
 
-            feedback += "Feedback for Seed #{}:\n".format(label)
+          if(mapped_labels[label] is None):
+            sim_flag = True
+            error_flag = True
+            feedback += "No erosion should exist at this location. Please remove/relocate this seed point.\n"
+          elif(not mapped_labels[label]):
+            sim_flag = True
+            feedback += "Seedpoint identifies the same erosion identified by another erosion."
+          elif(label not in labels):
+            error_flag = True
+            feedback += "No erosion was detected at this location. But an erosion location was correctly identified."
+            feedback += "- Reposition seed point to be located deeper into the erosion.\n"
+            feedback += "- Make sure the seed point is located within the mask.\n"
+            feedback += "- Enable the small erosions check box.\n"
+            feedback += "- Increase the lower threshold in increments of 50.\n"
+          else:
+            bin_erosion = erosion == label
+            bin_erosion_ref = erosion_reference == mapped_labels[label]
 
-            if(mapped_labels[label] is None):
-              sim_flag = True
-              error_flag = True
-              feedback += "No erosion should exist at this location. Please remove/relocate this seed point.\n"
-            elif(not mapped_labels[label]):
-              sim_flag = True
-              feedback += "Seedpoint identifies the same erosion identified by another erosion."
-            elif(label not in labels):
-              error_flag = True
-              feedback += "No erosion was detected at this location. But an erosion location was correctly identified."
-              feedback += "- Reposition seed point to be located deeper into the erosion.\n"
-              feedback += "- Make sure the seed point is located within the mask.\n"
-              feedback += "- Enable one of the large or small erosions check boxes.\n"
-              feedback += "- Increase the lower threshold in increments of 50.\n"
+            filter.Execute(bin_erosion, bin_erosion_ref)
+            similarity_index = filter.GetSimilarityIndex()
+
+            feedback += "Similarity index to refence: {0:.3f}%\n".format(similarity_index*100)
+            if similarity_index > 0.9:
+              feedback += "Correctly identified erosion!\n"
             else:
-              bin_erosion = erosion == label
-              bin_erosion_ref = erosion_reference == mapped_labels[label]
-
-              filter.Execute(bin_erosion, bin_erosion_ref)
-              similarity_index = filter.GetSimilarityIndex()
-
-              feedback += "Similarity index to refence: {0:.3f}%\n".format(similarity_index*100)
-              if similarity_index > 0.9:
-                feedback += "Correctly identified erosion!\n"
-              else:
-                error_flag = True
-                sim_flag = True
-                
-                feedback += "Erosions exists at this location but further actions needed to improve results:\n"
-                feedback += "- Reposition seed point to be located deeper within the erosion.\n"
-                feedback += "- If erosions look too big:\n"
+              error_flag = True
+              sim_flag = True
+              
+              feedback += "Erosions exists at this location but further actions needed to improve results:\n"
+              feedback += "- Reposition seed point to be located deeper within the erosion.\n"
+              if size_map[label]:
+                feedback += "- Computed erosion is too big:\n"
                 feedback += "   - Enable large erosions check box.\n"
                 feedback += "   - Decrease lower threshold in 50 decrements.\n"
-                feedback += "- If erosions look too small:\n"
+              else:
+                feedback += "- Computed erosion is too small:\n"
                 feedback += "   - Enable small erosions check box.\n"
                 feedback += "   - Increase lower threshold in 50 increments.\n"
 
-            feedback += "\n"
+          feedback += "\n"
 
-          if error_flag:
-            error_message += "Error!\n\n"
+        if error_flag:
+          error_message += "Error!\n\n"
+          
+          if(num_erosions == 0):
+            error_message += "No erosions detected at any placed seed point/s.\n"
+
+          elif(num_control_points > num_erosions):
+            error_message += "Erosions were not detected at all placed seed point/s.\n"
+
+          if(num_control_points == ref_num_erosions):
             if(sim_flag):
-              error_message += "Detected erosions do not match with relevant reference erosions.\n"
-              if(num_control_points == ref_num_erosions):
-                error_message += "Correct number of seed points placed, but the locations are incorrect. See below for feedback on each placed seed point.\n"
-            if(num_erosions == 0):
-              error_message += "No erosions detected at any placed seed point/s.\n"
-            elif(num_control_points > num_erosions):
-              error_message += "Erosions were not detected at all placed seed point/s.\n"
-            if(num_control_points > ref_num_erosions):
-              error_message += "Too many seed points were placed. Only {} point/s needed. Delete {} point/s.\n".format(ref_num_erosions, num_control_points-ref_num_erosions)
-            if(num_control_points < ref_num_erosions):
-              error_message += "Less seed points were placed than the number of erosions that exist in the reference. Please place {} more seed point/s.\n".format(ref_num_erosions - num_control_points)
-          else:
-            error_message += "Success!\n"
+              error_message += "Correct number of seed points placed, but the locations are incorrect. See below for feedback on each placed seed point.\n" 
+            else:
+              error_message += "Correct number of seed points placed. See below for feedback on each placed seed point.\n"
 
-          error_message += "\n"
+          if(num_control_points > ref_num_erosions):
+            error_message += "Too many seed points were placed. Only {} point/s needed. Delete {} point/s.\n".format(ref_num_erosions, num_control_points-ref_num_erosions)
+          
+          if(num_control_points < ref_num_erosions):
+            error_message += "Less seed points were placed than the number of erosions that exist in the reference. Please place {} more seed point/s.\n".format(ref_num_erosions - num_control_points)
+        else:
+          error_message += "Success!\n"
 
-          error_message += feedback
+        error_message += "\n"
 
-        self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
+        error_message += feedback
 
-      else:
-        error_flag = True
-        error_message += "Error!\n\n"
-        error_message += "No erosions detected at any placed seed points.\n"
-        error_message += "- Reposition seed point to be located deeper into the erosion.\n"
-        error_message += "  Make sure the seed point is located within the mask.\n"
-        error_message += "- Enable one of the large or small erosions check boxes.\n"
-        error_message += "- Increase the lower threshold in increments of 50.\n\n"
+      self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
 
       if(error_flag):
         slicer.util.errorDisplay(error_message, 'Incorrect Erosion Analysis')
@@ -615,10 +626,10 @@ Change the lower and upper thresholds before initializing."""
     self.logger.info("Finished\n")
 
   def onRevealSeedPointsButton(self):
-    image_name = self.inputVolumeSelector.currentNode().GetName()[0:14]
+    image_id = self.inputVolumeSelector.currentNode().GetName()[0]
 
     for markup in os.listdir(self.seed_points_dir):
-      if not (image_name in markup):
+      if not (image_id == markup[0]):
         continue
       markup = os.path.join(self.seed_points_dir, markup)
       markupsNode = slicer.util.loadMarkups(markup)
