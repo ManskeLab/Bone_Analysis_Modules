@@ -488,6 +488,8 @@ Change the lower and upper thresholds before initializing."""
 
         # mapper
         mapped_labels = {}
+        print(ref_vol_map)
+        print(vol_map)
 
         for i in range(num_control_points):
 
@@ -505,6 +507,7 @@ Change the lower and upper thresholds before initializing."""
           mapped_labels[id] = None
           
           voxel_val = erosion_reference.GetPixel(seed_pos)
+          comp_voxel_val = erosion.GetPixel(seed_pos)
           print(voxel_val)
 
           if voxel_val > 0:
@@ -514,7 +517,7 @@ Change the lower and upper thresholds before initializing."""
               continue
 
             mapped_labels[id] = voxel_val
-            if success:
+            if comp_voxel_val != 0:
               if vol_map[id] > ref_vol_map[voxel_val]:
                 size_map[id] = True
               else:
