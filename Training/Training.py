@@ -542,7 +542,7 @@ Change the lower and upper thresholds before initializing."""
         for i in range(num_control_points):
           label = int(markupsNode.GetNthControlPointID(i))
 
-          feedback += "Feedback for Seed #{}:\n".format(i+1)
+          feedback += "\nFeedback for Seed #{}:\n".format(i+1)
 
           if(mapped_labels[label] is None):
             sim_flag = True
@@ -558,6 +558,11 @@ Change the lower and upper thresholds before initializing."""
             feedback += "- Make sure the seed point is located within the mask.\n"
             feedback += "- Enable the small erosions check box.\n"
             feedback += "- Increase the lower threshold in increments of 50.\n"
+            feedback += "Please attempt the 3rd and 4th suggestion individually at first.\n"
+            feedback += "This means trying to enable the small erosions check box then if that\n"
+            feedback += "doesnt work, then try to increase the lower threshold in 50 increments.\n"
+            feedback += "When increasing the threshold. Note if your, similarity indexes are increasing or not.\n"
+            feedback += "If they are, then you are on the right path."
           else:
             bin_erosion = erosion == label
             bin_erosion_ref = erosion_reference == mapped_labels[label]
@@ -576,12 +581,28 @@ Change the lower and upper thresholds before initializing."""
               feedback += "- Reposition seed point to be located deeper within the erosion.\n"
               if size_map[label]:
                 feedback += "- Computed erosion is too big:\n"
-                feedback += "   - Enable large erosions check box.\n"
+                if not self.SmallErosionsCheckBox.checked:
+                  feedback += "   - Enable large erosions check box.\n"
+                else:
+                  feedback += "   - Disable small erosions check box.\n"
                 feedback += "   - Decrease lower threshold in 50 decrements.\n"
+                feedback += "Please attempt the suggestions individually at first.\n"
+                feedback += "This means trying to enable the large erosions check box then if that\n"
+                feedback += "doesnt work, then try to decrease the lower threshold in 50 increments.\n"
+                feedback += "When decreasing the threshold. Note if your, similarity indexes are increasing or not.\n"
+                feedback += "If they are, then you are on the right path."
               else:
                 feedback += "- Computed erosion is too small:\n"
-                feedback += "   - Enable small erosions check box.\n"
+                if not self.LargeErosionsCheckBox.checked:
+                  feedback += "   - Enable small erosions check box.\n"
+                else:
+                  feedback += "   - Disable large erosions check box.\n"
                 feedback += "   - Increase lower threshold in 50 increments.\n"
+                feedback += "Please attempt the 3rd and 4th suggestion individually at first.\n"
+                feedback += "This means trying to enable the small erosions check box then if that\n"
+                feedback += "doesnt work, then try to increase the lower threshold in 50 increments.\n"
+                feedback += "When increasing the threshold. Note if your, similarity indexes are increasing or not.\n"
+                feedback += "If they are, then you are on the right path."
 
           feedback += "\n"
 
