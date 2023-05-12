@@ -33,13 +33,13 @@
 import SimpleITK as sitk
 
 class VoidVolumeLogic:
-    def __init__(self, img=None, mask=None, lower=530, upper=15000, sigma=1,
+    def __init__(self, img=None, mask=None, edge_detection=4200, levelset=4000, sigma=1,
                  seeds=None, minimalRadius=3, dilateErodeDistance=4):
         self.model_img = img                  # greyscale scan
         self.mask_img = mask               # mask, periosteal boundary
         self.output_img = None
-        self.lower_threshold = lower
-        self.upper_threshold = upper
+        self.edge_detection_threshold = edge_detection
+        self.levelset_threshold = levelset
         self.sigma = sigma                    # Gaussian sigma
         self.minimalRadius = minimalRadius               # for distance transformation, default=3
         self.dilateErodeDistance = dilateErodeDistance   # for morphological operations, default=4
@@ -73,271 +73,271 @@ class VoidVolumeLogic:
 
         return gaussian_img
 
-    def createROI(self, gaussian_img):
-        """
-        Threshold. Label void volume in the bone and background as ROI.
+    # def createROI(self, gaussian_img):
+    #     """
+    #     Threshold. Label void volume in the bone and background as ROI.
 
-        Args:
-            gaussian_img (Image)
-            auto_thresh (bool)
+    #     Args:
+    #         gaussian_img (Image)
+    #         auto_thresh (bool)
 
-        Returns:
-            Image: All voids inside ROI are marked with the value 1, 
-                   and all other regions are marked with 0.  
-        """
-        # binarize the bone
-        if self.auto_thresh:
-            index = self.method
-            if index == 0:
-                thresh = sitk.OtsuThresholdImageFilter()
-            elif index == 1:
-                thresh = sitk.HuangThresholdImageFilter()
-            elif index == 2:
-                thresh = sitk.MaximumEntropyThresholdImageFilter()
-            elif index == 3:
-                thresh = sitk.MomentsThresholdImageFilter()
-            elif index == 4:
-                thresh = sitk.YenThresholdImageFilter()
-            thresh.SetOutsideValue(1)
-            thresh.SetInsideValue(0)
-            thresh_img = thresh.Execute(gaussian_img)
-        else:
-            thresh_img = sitk.BinaryThreshold(gaussian_img, 
-                                          lowerThreshold=self.lower_threshold,
-                                          upperThreshold=self.upper_threshold,
-                                          insideValue=1)
+    #     Returns:
+    #         Image: All voids inside ROI are marked with the value 1, 
+    #                and all other regions are marked with 0.  
+    #     """
+    #     # binarize the bone
+    #     if self.auto_thresh:
+    #         index = self.method
+    #         if index == 0:
+    #             thresh = sitk.OtsuThresholdImageFilter()
+    #         elif index == 1:
+    #             thresh = sitk.HuangThresholdImageFilter()
+    #         elif index == 2:
+    #             thresh = sitk.MaximumEntropyThresholdImageFilter()
+    #         elif index == 3:
+    #             thresh = sitk.MomentsThresholdImageFilter()
+    #         elif index == 4:
+    #             thresh = sitk.YenThresholdImageFilter()
+    #         thresh.SetOutsideValue(1)
+    #         thresh.SetInsideValue(0)
+    #         thresh_img = thresh.Execute(gaussian_img)
+    #     else:
+    #         thresh_img = sitk.BinaryThreshold(gaussian_img, 
+    #                                       lowerThreshold=self.lower_threshold,
+    #                                       upperThreshold=self.upper_threshold,
+    #                                       insideValue=1)
 
-        # invert to select background and voids in the bone
-        invert_filter = sitk.InvertIntensityImageFilter()
-        invert_filter.SetMaximum(1)
-        void_volume_img = invert_filter.Execute(thresh_img)
+    #     # invert to select background and voids in the bone
+    #     invert_filter = sitk.InvertIntensityImageFilter()
+    #     invert_filter.SetMaximum(1)
+    #     void_volume_img = invert_filter.Execute(thresh_img)
 
-        void_volume_img = self.mask_img * void_volume_img
+    #     void_volume_img = self.mask_img * void_volume_img
 
-        return void_volume_img
+    #     return void_volume_img
 
-    def distanceVoidVolume(self, void_volume_img, radius):
-        """
-        Label voids in the bone that are larger than the specified value in separation. 
+    # def distanceVoidVolume(self, void_volume_img, radius):
+    #     """
+    #     Label voids in the bone that are larger than the specified value in separation. 
 
-        Args:
-            void_volume_img (Image)
-            radius (int): minimum radius of the erosions to be selected, in voxels
+    #     Args:
+    #         void_volume_img (Image)
+    #         radius (int): minimum radius of the erosions to be selected, in voxels
 
-        Returns:
-            Image
-        """
+    #     Returns:
+    #         Image
+    #     """
 
-        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
-        distance_filter.SetSquaredDistance(False)
-        distance_filter.SetBackgroundValue(1)
-        inner_img = distance_filter.Execute(void_volume_img)
+    #     distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+    #     distance_filter.SetSquaredDistance(False)
+    #     distance_filter.SetBackgroundValue(1)
+    #     inner_img = distance_filter.Execute(void_volume_img)
 
-        # image_viewer = sitk.ImageViewer()
-        # image_viewer.SetCommand("Z:\Programs\ImageJ\ImageJ.exe")
+    #     # image_viewer = sitk.ImageViewer()
+    #     # image_viewer.SetCommand("Z:\Programs\ImageJ\ImageJ.exe")
 
-        inner_img = sitk.BinaryThreshold(inner_img,
-                                        lowerThreshold=1,
-                                        upperThreshold=radius,
-                                        insideValue=1)
-        # image_viewer.SetTitle('innerimg using ImageViewer class')
-        # image_viewer.Execute(inner_img)
+    #     inner_img = sitk.BinaryThreshold(inner_img,
+    #                                     lowerThreshold=1,
+    #                                     upperThreshold=radius,
+    #                                     insideValue=1)
+    #     # image_viewer.SetTitle('innerimg using ImageViewer class')
+    #     # image_viewer.Execute(inner_img)
 
-        # image_viewer.SetTitle('volume using ImageViewer class')
-        # image_viewer.Execute(void_volume_img)
+    #     # image_viewer.SetTitle('volume using ImageViewer class')
+    #     # image_viewer.Execute(void_volume_img)
 
-        inner_img = void_volume_img - inner_img
+    #     inner_img = void_volume_img - inner_img
 
-        # image_viewer.SetTitle('grid using ImageViewer class')
-        # image_viewer.Execute(inner_img)
+    #     # image_viewer.SetTitle('grid using ImageViewer class')
+    #     # image_viewer.Execute(inner_img)
 
-        distance_filter.SetBackgroundValue(0)
-        outer_img = distance_filter.Execute(inner_img)
+    #     distance_filter.SetBackgroundValue(0)
+    #     outer_img = distance_filter.Execute(inner_img)
 
-        outer_img = sitk.BinaryThreshold(outer_img,
-                                         lowerThreshold=1,
-                                         upperThreshold=radius,
-                                         insideValue=1)
+    #     outer_img = sitk.BinaryThreshold(outer_img,
+    #                                      lowerThreshold=1,
+    #                                      upperThreshold=radius,
+    #                                      insideValue=1)
 
-        # image_viewer.SetTitle('out using ImageViewer class')
-        # image_viewer.Execute(outer_img)
+    #     # image_viewer.SetTitle('out using ImageViewer class')
+    #     # image_viewer.Execute(outer_img)
 
-        distance_img = outer_img + inner_img
+    #     distance_img = outer_img + inner_img
 
-        # image_viewer.SetTitle('dist using ImageViewer class')
-        # image_viewer.Execute(distance_img)
+    #     # image_viewer.SetTitle('dist using ImageViewer class')
+    #     # image_viewer.Execute(distance_img)
 
-        return distance_img
+    #     return distance_img
 
-    def erodeVoidVolume(self, void_volume_img, radius):
-        """
-        Morphologically erode voids to remove connections and to
-        prevent erosions from leaking into the trabecular region.
+    # def erodeVoidVolume(self, void_volume_img, radius):
+    #     """
+    #     Morphologically erode voids to remove connections and to
+    #     prevent erosions from leaking into the trabecular region.
 
-        Args:
-            void_volume_img (Image)
-            radius (int): erode steps, in voxels
+    #     Args:
+    #         void_volume_img (Image)
+    #         radius (int): erode steps, in voxels
         
-        Returns:
-            Image
-        """
-        print("Applying erode filter")
-        erode_filter = sitk.BinaryErodeImageFilter()
-        erode_filter.SetForegroundValue(1)
-        erode_filter.SetKernelRadius([radius,radius,radius])
-        erode_img = erode_filter.Execute(void_volume_img)
+    #     Returns:
+    #         Image
+    #     """
+    #     print("Applying erode filter")
+    #     erode_filter = sitk.BinaryErodeImageFilter()
+    #     erode_filter.SetForegroundValue(1)
+    #     erode_filter.SetKernelRadius([radius,radius,radius])
+    #     erode_img = erode_filter.Execute(void_volume_img)
 
-        return erode_img
+    #     return erode_img
 
-    def connectVoidVolume(self, erode_img):
-        """
-        Label voids that are connected to seed points.
+    # def connectVoidVolume(self, erode_img):
+    #     """
+    #     Label voids that are connected to seed points.
 
-        Args:
-            erode_img (Image)
+    #     Args:
+    #         erode_img (Image)
             
-        Returns:
-            Image
-        """
-        seeds_img = sitk.Image(self.mask_img.GetSize(), sitk.sitkUInt8)
-        seeds_img.CopyInformation(self.mask_img)
-        for seed in self._seeds_crop:
-            seeds_img[seed] = 1
+    #     Returns:
+    #         Image
+    #     """
+    #     seeds_img = sitk.Image(self.mask_img.GetSize(), sitk.sitkUInt8)
+    #     seeds_img.CopyInformation(self.mask_img)
+    #     for seed in self._seeds_crop:
+    #         seeds_img[seed] = 1
 
-        # apply distance transformation to the seed points
-        print("Applying distance map filter")
-        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
-        distance_filter.SetSquaredDistance(False)
-        distance_filter.SetBackgroundValue(0)
-        distance_img = distance_filter.Execute(seeds_img)
+    #     # apply distance transformation to the seed points
+    #     print("Applying distance map filter")
+    #     distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+    #     distance_filter.SetSquaredDistance(False)
+    #     distance_filter.SetBackgroundValue(0)
+    #     distance_img = distance_filter.Execute(seeds_img)
 
-        # inflate seed points
-        upper = self.dilateErodeDistance if self.dilateErodeDistance != 0 else 1
-        seeds_img = sitk.BinaryThreshold(distance_img, 
-                                         lowerThreshold=0, 
-                                         upperThreshold=self.dilateErodeDistance, 
-                                         insideValue=1)
+    #     # inflate seed points
+    #     upper = self.dilateErodeDistance if self.dilateErodeDistance != 0 else 1
+    #     seeds_img = sitk.BinaryThreshold(distance_img, 
+    #                                      lowerThreshold=0, 
+    #                                      upperThreshold=self.dilateErodeDistance, 
+    #                                      insideValue=1)
 
-        # combine inflated seed points and voids in the bone
-        void_seeds_img = seeds_img | erode_img
+    #     # combine inflated seed points and voids in the bone
+    #     void_seeds_img = seeds_img | erode_img
 
-        # connected threshold filter to select voids connected to seed points
-        connected_filter = sitk.ConnectedThresholdImageFilter()
-        connected_filter.SetLower(1)
-        connected_filter.SetUpper(1)
-        connected_filter.SetSeedList(self._seeds_crop)
-        connected_filter.SetReplaceValue(1)
-        connected_img = connected_filter.Execute(void_seeds_img)
+    #     # connected threshold filter to select voids connected to seed points
+    #     connected_filter = sitk.ConnectedThresholdImageFilter()
+    #     connected_filter.SetLower(1)
+    #     connected_filter.SetUpper(1)
+    #     connected_filter.SetSeedList(self._seeds_crop)
+    #     connected_filter.SetReplaceValue(1)
+    #     connected_img = connected_filter.Execute(void_seeds_img)
         
-        # remove inflated seed points from the voids
-        connected_img = erode_img * connected_img
+    #     # remove inflated seed points from the voids
+    #     connected_img = erode_img * connected_img
 
-        return connected_img
+    #     return connected_img
 
-    def dilateVoidVolume(self, connect_img, radius):
-        """
-        Morphologically dilate voids back to their original size.
+    # def dilateVoidVolume(self, connect_img, radius):
+    #     """
+    #     Morphologically dilate voids back to their original size.
 
-        Args:
-            connect_img (Image)
-            radius (Image): dilate steps, in voxels
+    #     Args:
+    #         connect_img (Image)
+    #         radius (Image): dilate steps, in voxels
 
-        Returns:
-            Image
-        """
-        print("Applying dilate filter")
-        dilate_filter = sitk.BinaryDilateImageFilter()
-        dilate_filter.SetForegroundValue(1)
-        dilate_filter.SetKernelRadius([radius,radius,radius])
-        dilate_img = dilate_filter.Execute(connect_img)
+    #     Returns:
+    #         Image
+    #     """
+    #     print("Applying dilate filter")
+    #     dilate_filter = sitk.BinaryDilateImageFilter()
+    #     dilate_filter.SetForegroundValue(1)
+    #     dilate_filter.SetKernelRadius([radius,radius,radius])
+    #     dilate_img = dilate_filter.Execute(connect_img)
 
-        # apply mask to dilated voids to get volumes only inside the 
-        #  endosteal boundary
-        void_volume_img = dilate_img * self.mask_img
+    #     # apply mask to dilated voids to get volumes only inside the 
+    #     #  endosteal boundary
+    #     void_volume_img = dilate_img * self.mask_img
 
-        return void_volume_img
+    #     return void_volume_img
 
-    def growVoidVolume(self, ero1_img, iterations):
-        """
-        Apply level set region growing filter to the erosion segmentation.
+    # def growVoidVolume(self, ero1_img, iterations):
+    #     """
+    #     Apply level set region growing filter to the erosion segmentation.
 
-        Args:
-            ero1_img (Image)
-            iterations (int): number of level set iterations, which determines
-                              how much the region will expand
+    #     Args:
+    #         ero1_img (Image)
+    #         iterations (int): number of level set iterations, which determines
+    #                           how much the region will expand
 
-        Returns:
-            Image
-        """
-        # distance map for level set filter
-        print("Applying distance map filter")
-        distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
-        distance_filter.SetInsideIsPositive(True)
-        distance_filter.SetUseImageSpacing(False)
-        distance_filter.SetBackgroundValue(0)
-        distance_img = distance_filter.Execute(ero1_img)
+    #     Returns:
+    #         Image
+    #     """
+    #     # distance map for level set filter
+    #     print("Applying distance map filter")
+    #     distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+    #     distance_filter.SetInsideIsPositive(True)
+    #     distance_filter.SetUseImageSpacing(False)
+    #     distance_filter.SetBackgroundValue(0)
+    #     distance_img = distance_filter.Execute(ero1_img)
         
-        # level set requires spacing of [1,1,1] and float voxel type
-        distance_img.SetSpacing([1,1,1])
-        feature_img = sitk.Cast(self.model_img, sitk.sitkFloat32)
-        feature_img.SetSpacing([1,1,1])
+    #     # level set requires spacing of [1,1,1] and float voxel type
+    #     distance_img.SetSpacing([1,1,1])
+    #     feature_img = sitk.Cast(self.model_img, sitk.sitkFloat32)
+    #     feature_img.SetSpacing([1,1,1])
 
-        # level set region growing
-        print("Applying level set filter")
-        ls_filter = sitk.ThresholdSegmentationLevelSetImageFilter()
-        ls_filter.SetLowerThreshold(-999999)
-        ls_filter.SetUpperThreshold(self.lower_threshold)
-        ls_filter.SetMaximumRMSError(0.02)
-        ls_filter.SetNumberOfIterations(iterations)
-        ls_filter.SetCurvatureScaling(1)
-        ls_filter.SetPropagationScaling(1)
-        ls_filter.SetReverseExpansionDirection(True)
-        ls_img = ls_filter.Execute(distance_img, feature_img)
+    #     # level set region growing
+    #     print("Applying level set filter")
+    #     ls_filter = sitk.ThresholdSegmentationLevelSetImageFilter()
+    #     ls_filter.SetLowerThreshold(-999999)
+    #     ls_filter.SetUpperThreshold(self.lower_threshold)
+    #     ls_filter.SetMaximumRMSError(0.02)
+    #     ls_filter.SetNumberOfIterations(iterations)
+    #     ls_filter.SetCurvatureScaling(1)
+    #     ls_filter.SetPropagationScaling(1)
+    #     ls_filter.SetReverseExpansionDirection(True)
+    #     ls_img = ls_filter.Execute(distance_img, feature_img)
 
-        # restore spacing
-        ls_img.SetSpacing(ero1_img.GetSpacing())
+    #     # restore spacing
+    #     ls_img.SetSpacing(ero1_img.GetSpacing())
 
-        # mask the level set output with periosteal mask
-        output_img = sitk.BinaryThreshold(ls_img, lowerThreshold=1, insideValue=1)
-        output_img = (output_img * self.mask_img) | ero1_img
+    #     # mask the level set output with periosteal mask
+    #     output_img = sitk.BinaryThreshold(ls_img, lowerThreshold=1, insideValue=1)
+    #     output_img = (output_img * self.mask_img) | ero1_img
 
-        return output_img
+    #     return output_img
 
-    def labelVoidVolume(self, void_volume_img):
-        """
-        Label erosions with values that match the corresponding seed point numbers.
+    # def labelVoidVolume(self, void_volume_img):
+    #     """
+    #     Label erosions with values that match the corresponding seed point numbers.
 
-        Args:
-            void_volume_img (Image)
+    #     Args:
+    #         void_volume_img (Image)
         
-        Returns:
-            Image
-        """
-        # connected component filter to relabel erosions
-        connected_filter = sitk.ConnectedComponentImageFilter()
-        connected_filter.SetFullyConnected(True)
-        relabeled_img = connected_filter.Execute(void_volume_img)
+    #     Returns:
+    #         Image
+    #     """
+    #     # connected component filter to relabel erosions
+    #     connected_filter = sitk.ConnectedComponentImageFilter()
+    #     connected_filter.SetFullyConnected(True)
+    #     relabeled_img = connected_filter.Execute(void_volume_img)
 
-        stats_filter = sitk.LabelShapeStatisticsImageFilter()
-        stats_filter.Execute(relabeled_img)
-        print(stats_filter.GetLabels())
+    #     stats_filter = sitk.LabelShapeStatisticsImageFilter()
+    #     stats_filter.Execute(relabeled_img)
+    #     print(stats_filter.GetLabels())
 
-        relabel_map = {}
-        for seed, erosionId in zip(self._seeds_crop, self.erosionIds):
-            key = relabeled_img[seed]
-            if key > 0:
-                relabel_map[key] = erosionId
+    #     relabel_map = {}
+    #     for seed, erosionId in zip(self._seeds_crop, self.erosionIds):
+    #         key = relabeled_img[seed]
+    #         if key > 0:
+    #             relabel_map[key] = erosionId
         
-        print(relabel_map)
-        relabel_filter = sitk.ChangeLabelImageFilter()
+    #     print(relabel_map)
+    #     relabel_filter = sitk.ChangeLabelImageFilter()
 
-        relabel_filter.SetChangeMap(relabel_map)
-        relabeled_img = relabel_filter.Execute(relabeled_img)
+    #     relabel_filter.SetChangeMap(relabel_map)
+    #     relabeled_img = relabel_filter.Execute(relabeled_img)
 
-        stats_filter.Execute(relabeled_img)
-        print(stats_filter.GetLabels())
+    #     stats_filter.Execute(relabeled_img)
+    #     print(stats_filter.GetLabels())
 
-        return relabeled_img
+    #     return relabeled_img
 
     def execute(self, step):
         """
@@ -444,15 +444,15 @@ class VoidVolumeLogic:
             if not is_in_range:
                 self._removeNthSeed(i)
 
-    def setThresholds(self, lower_threshold, upper_threshold):
+    def setThresholds(self, edge_detection_threshold, levelset_threshold):
         """
         Args:
             lower_threshold (int)
             upper_threshold (int)
         """
         self.auto_thresh = False
-        self.lower_threshold = lower_threshold
-        self.upper_threshold = upper_threshold
+        self.edge_detection_threshold = edge_detection_threshold
+        self.levelset_threshold = levelset_threshold
 
     def setSigma(self, sigma):
         """

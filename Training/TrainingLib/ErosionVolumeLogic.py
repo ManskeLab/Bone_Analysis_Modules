@@ -64,15 +64,15 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       slicer.mrmlScene.SetRootDirectory(dir)
 
   def setErosionParameters(self, inputVolumeNode, inputMaskNode, sigma:float, markupsNode, minimalRadius, dilateErodeDistance,
-        method:int=None, lower:int=None, upper:int=None) -> bool:
+        method:int=None, edgeDetection:int=None, levelset:int=None) -> bool:
     """
     Set parameters used by the Erosion Volume algorithm. 
 
     Args:
       inputVolumeNode (vtkMRMLScalarVolumeNode)
       inputMaskNode (vtkMRMLLabelMapVolumeNode)
-      lower (int)
-      upper (int)
+      edgeDetection (int)
+      levelset (int)
       sigma (float): Gaussian sigma
       fiducialNode (vtkMRMLFiducialNode)
       minimalRadius (int) : used in the SimpleITK Distance Transformation filter.
@@ -81,11 +81,6 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     Returns:
       bool: True for success, False if inputs are not valid.
     """
-    # check input validity
-    if method is None:
-      if (lower > upper):
-        slicer.util.errorDisplay('Lower threshold cannot be greater than upper threshold.')
-        return False
     
     fiducialNum = markupsNode.GetNumberOfControlPoints()
     if (fiducialNum == 0):
@@ -96,7 +91,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     if method is not None:
       self.voidVolume.setThreshMethod(method)
     else:
-      self.voidVolume.setThresholds(lower, upper)
+      self.voidVolume.setThresholds(edgeDetection, levelset)
     self.voidVolume.setSigma(sigma)
 
     # images
@@ -155,12 +150,13 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     
     # run Erosion Volume algorithm
     try:
-      step = 1
-      while (self.voidVolume.execute(step)): # execute the next step
-        progress += increment
-        if not noProgress:
-          self.progressCallBack(progress) # update progress bar
-        step += 1
+      self.voidVolume.execute(0)
+      # step = 1
+      # while (self.voidVolume.execute(step)): # execute the next step
+      #   progress += increment
+      #   if not noProgress:
+      #     self.progressCallBack(progress) # update progress bar
+      #   step += 1
     except Exception as e:
       # slicer.util.errorDisplay('Error')
       # print(e)
