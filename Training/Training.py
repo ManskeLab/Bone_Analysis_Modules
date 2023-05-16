@@ -116,10 +116,10 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
       volume_node = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode', image_name)
       sitkUtils.PushVolumeToSlicer(image, volume_node)
     
-    for markup in os.listdir(self.seed_points_dir): 
-      markup_path = os.path.join(self.seed_points_dir, markup)
-      markupsNode = slicer.util.loadMarkups(markup_path)
-      markupsNode.GetMarkupsDisplayNode().SetVisibility(False)
+    # for markup in os.listdir(self.seed_points_dir): 
+    #   markup_path = os.path.join(self.seed_points_dir, markup)
+    #   markupsNode = slicer.util.loadMarkups(markup_path)
+    #   markupsNode.GetMarkupsDisplayNode().SetVisibility(False)
       # self.markupsTableWidget.getMarkupsSelector().setCurrentNode(markupsNode)
 
     # Set up widgets inside the collapsible buttons
@@ -365,11 +365,11 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
     
     ready = self._logic.setErosionParameters(inputVolumeNode, 
                                           inputMaskNode, 
-                                          self.sigmaText.value,
                                           # fiducialNode,
+                                          1,
                                           markupsNode,
-                                          self.minimalRadiusText,
-                                          self.dilateErodeDistanceText)
+                                          1,
+                                          1)
     if ready:
       img = sitkUtils.PullVolumeFromSlicer(inputVolumeNode.GetName())
       mask_img = sitk.Cast(sitkUtils.PullVolumeFromSlicer(inputMaskNode.GetName()), sitk.sitkUInt8)
@@ -399,7 +399,7 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
       edge_detection_filter.SetUpperThreshold(550)
       edge = edge_detection_filter.Execute(gaussian_img)
       edge = sitk.Cast(edge, sitk.sitkUInt8)
-
+      sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge.nii')
 
       dilate_filter = sitk.BinaryDilateImageFilter()
       dilate_filter.SetForegroundValue(1)
@@ -443,6 +443,7 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
         l=10
 
         connected_img = connected_filter.Execute(void_volume_img)
+        sitk.WriteImage(connected_img, 'Z:/work2/manske/temp/seedpointfix/connect{}.nii'.format(id))
 
         stat.Execute(connected_img)
         if(stat.GetNumberOfLabels() == 0):
@@ -535,6 +536,7 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
 
       # update widgets
       erosion_id = outputVolumeNode.GetName()[0]
+      erosion_id = '_'.join(erosion_id)
       reference_path = None
 
       print(erosion_id)
@@ -718,7 +720,7 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
     image_id = self.inputVolumeSelector.currentNode().GetName()[0]
 
     for markup in os.listdir(self.seed_points_dir):
-      if not (image_id == markup[0]):
+      if not (image_id in markup):
         continue
       markup = os.path.join(self.seed_points_dir, markup)
       markupsNode = slicer.util.loadMarkups(markup)

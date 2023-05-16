@@ -1,5 +1,5 @@
 # gitignore for python
-/ACTUS_HRQPCT
+/Training/TrainingSet/TestFiles
 
 *.pyc
 __pycache__
