@@ -927,7 +927,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.progressBar3.show()
 
     # set parameters
-    if self.threshButton.checked:
+    if self.subtractionThreshButton.checked:
       self.logic.setVisualizeParameters(self.subtractionSelector1.currentNode(), 
                                 self.subtractionSelector2.currentNode(),
                                 self.subtractionSigmaText.value,
