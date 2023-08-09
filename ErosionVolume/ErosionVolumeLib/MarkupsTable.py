@@ -4,10 +4,10 @@ import vtk, qt, ctk, slicer
 CONTROL_POINT_LABEL_COLUMN = 0
 CONTROL_POINT_BONE = 1
 CONTROL_POINT_CORTICAL_INTERRUPION = 2
-# for later iterations
-CONTROL_POINT_LARGE_EROSION =  4
-CONTROL_POINT_MINIMUM_RADIUS = 4
-CONTROL_POINT_ERODE_DISTANCE = 5
+# # for later iterations
+# CONTROL_POINT_LARGE_EROSION =  4
+# CONTROL_POINT_MINIMUM_RADIUS = 4
+# CONTROL_POINT_ERODE_DISTANCE = 5
 CONTROL_POINT_X_COLUMN = 3
 CONTROL_POINT_Y_COLUMN = 4
 CONTROL_POINT_Z_COLUMN = 5
@@ -147,6 +147,12 @@ class MarkupsTable:
       currentControlPointPosition = self._logic.IJKToRASCoords(ITKCoord, self._ijk2ras)
       self._currentNode.SetNthControlPointPositionFromArray(row, currentControlPointPosition)
 
+  def getNthControlPointIJKCoords(self, id):
+    currentControlPointPosition = self._currentNode.GetNthControlPointPositionVector(id)
+    IJKCoord = self._logic.RASToIJKCoords(list(currentControlPointPosition), self._ras2ijk)
+    
+    return IJKCoord
+  
   def onMarkupsControlPointSelected(self, row, column):
     """Run this whenever a markup control point in the table is selected"""
     for i in range(self.markupsControlPointsTableWidget.rowCount):
@@ -224,26 +230,17 @@ class MarkupsTable:
 
   def onMarkupsNodeChanged(self):
     """Run this whenever the markup node selector changes"""
-    if(self._currentNode):
+    if not self.markupsSelector.currentNode():
+      return
+
+    if self._currentNode:
       self._currentNode.SetDisplayVisibility(False)
-      data = self.getCurrentMarkupsData()
-      # add current state to data cache
-      self.data_cache[self._currentNode.GetID()] = data
+
     self.markupsControlPointsTableWidget.clear()
     self.setupMarkupsControlPointsTableWidget()
     self.setCurrentNode(self.markupsSelector.currentNode())
-
     self._currentNode.SetDisplayVisibility(True)
     self.updateWidget()
-    
-    if self._currentNode.GetID() in self.data_cache:
-      controlPointsNum = self._currentNode.GetNumberOfControlPoints()
-
-      data = self.data_cache[self._currentNode.GetID()]
-      for i in range(controlPointsNum):
-        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_BONE).setCurrentIndex(data[i][0])
-        self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_CORTICAL_INTERRUPION).setCurrentIndex(data[i][1])
-
     self.markupsControlPointsTableWidget.scrollToBottom()
 
   def onPointAdded(self, caller=None, event=None):
@@ -289,40 +286,6 @@ class MarkupsTable:
   
   def getCurrentNode(self):
     return self._currentNode
-
-  def getCurrentNodeMinimalRadii(self):
-    currentNode = self._currentNode
-    minimalRadius = []
-
-    for i in range(currentNode.GetNumberOfControlPoints()):
-      if self.advanced:
-        minimalRadius.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_MINIMUM_RADIUS).value)
-
-      else:
-        if(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_LARGE_EROSION).checked):
-          minimalRadius.append(6)
-        else:
-          minimalRadius.append(3)
-
-    return minimalRadius
-
-  def getCurrentNodeDilateErodeDistances(self):
-    currentNode = self._currentNode
-    
-    dilateErodeDistance = []
-
-    for i in range(currentNode.GetNumberOfControlPoints()):
-      if self.advanced:
-        dilateErodeDistance.append(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_ERODE_DISTANCE).value)
-
-      else:
-        if(self.markupsControlPointsTableWidget.cellWidget(i, CONTROL_POINT_LARGE_EROSION).checked):
-          dilateErodeDistance.append(6)
-        else:
-          dilateErodeDistance.append(4)
-
-    return dilateErodeDistance
-
 
   def getMarkupsSelector(self):
     return self.markupsSelector
@@ -428,14 +391,10 @@ class MarkupsTable:
     CONTROL_POINT_Y_COLUMN -= 1
     CONTROL_POINT_Z_COLUMN -= 1
     self.markupsControlPointsTableWidget.setColumnCount(CONTROL_POINT_COLUMNS)
-    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Type', 'Erosion in FOV', 'Large Erosion', 'X', 'Y', 'Z'])
+    self.markupsControlPointsTableWidget.setHorizontalHeaderLabels(['Label', 'Bone', 'Type', 'Erosion in FOV', 'X', 'Y', 'Z'])
     currentNode = self._currentNode
 
     for i in range(currentNode.GetNumberOfControlPoints()):
-      largeErosionCheckBox = qt.QCheckBox()
-      largeErosionCheckBox.checked = False
-      largeErosionCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
-      self.markupsControlPointsTableWidget.setCellWidget(i, CONTROL_POINT_LARGE_EROSION, largeErosionCheckBox)
 
       controlPointPosition = [0, 0, 0]
       currentNode.GetNthControlPointPosition(i, controlPointPosition)

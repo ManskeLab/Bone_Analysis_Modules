@@ -54,9 +54,14 @@ class ErosionStatisticsLogic:
     segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.surface_area_mm2.enabled","True")
     segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.roundness.enabled","True")
     segStatsLogic.getParameterNode().SetParameter("LabelmapSegmentStatisticsPlugin.centroid_ras.enabled", "True")
-    segStatsLogic.computeStatistics()
-    segStatsLogic.exportToTable(self.outputTableNode)
-    stats = segStatsLogic.getStatistics()
+    numOfPoints = self.segmentationNode.GetNumberOfDisplayNodes()
+
+    if(numOfPoints>0):
+      segStatsLogic.computeStatistics()
+      segStatsLogic.exportToTable(self.outputTableNode)
+      stats = segStatsLogic.getStatistics()
+    else:
+      stats = None
 
     # convert data according to image spacing
     self._convertData(stats)
@@ -130,7 +135,7 @@ class ErosionStatisticsLogic:
       writer.writerow(['Scan ID', 'Cortical Interruption', 'Bone', 'Label', 'Seed Location', 'Centroid Location', 'Volume (mm3)', 'Surface Area (mm2)', 'Roundness', 'Number of voxels (voxels)'])
 
       # convert erosion data in table according to image spacing
-      for row in range(0, row_num):
+      for row in range(0, len(self.markupsData)):
         # convert segment name to "Erosion_XXX"
         data = self.markupsData[row]
 
@@ -139,49 +144,63 @@ class ErosionStatisticsLogic:
         new_name = old_name.split(' ')[-1]
         print(new_name)
         self.outputTableNode.SetCellText(row, segment_col, new_name)
-        # convert volume to mm3
-        volume = float(self.outputTableNode.GetCellText(row, volume_mm3_col)) * (voxel_scale**3)
-        self.outputTableNode.SetCellText(row, volume_mm3_col, str(volume))
-        # convert surface area to mm2
-        surface_area = float(self.outputTableNode.GetCellText(row, surface_area_mm2_col)) * (voxel_scale**2)
-        self.outputTableNode.SetCellText(row, surface_area_mm2_col, str(surface_area))
-        # convert coordinates to ITK coordinates
-        ras_coord = [float(num) for num in (self.outputTableNode.GetCellText(row, centroid_col)).split(' ')]
-        itk_coord = self.RASToIJKCoords(ras_coord)
-        self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 0, itk_coord[0])
-        self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 1, itk_coord[1])
-        self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 2, itk_coord[2])
-        self.outputTableNode.Modified()
-
-        centroid_coord = ', '.join(str(x) for x in itk_coord)
-        # record erosion source file (which mask it is located in)
-        segment = segmentation.GetSegment(segment_ID)
 
         erosion_label = data[0]
         bone_val = bones_list[data[1]]
-        cortical_interruption_val = erosion_type_list[data[2]]
-
-        if segment.GetTag("Source", source_tag):
-          self.outputTableNode.SetCellText(row, source_col, source_tag)
-
-        # record seed point for each erosion
-        if segment.GetTag("Seed", seed_tag):
-          self.outputTableNode.SetCellText(row, seeds_col, seed_tag)
+        cortical_interruption_val = 'None'
 
         self.outputTableNode.SetCellText(row, bone_col, bone_val)
         self.outputTableNode.SetCellText(row, cortical_interruption_col, cortical_interruption_val)
 
-        # record advanced parameters for each erosion
-        if segment.GetTag("MinimalRadius", minimal_radius_tag):
-          self.outputTableNode.SetCellText(row, minimalRadius_col, minimal_radius_tag)
+        volume = 0
+        surface_area = 0
+        roundness = 0
+        voxel_count = 0
+        centroid_coord = 'N/A'
+        
+        if(self.outputTableNode.GetCellText(row, volume_mm3_col) != ''):
+          # record erosion source file (which mask it is located in)
+          segment = segmentation.GetSegment(segment_ID)
 
-        if segment.GetTag("DilateErodeDistance", dilate_erode_distance_tag):
-          self.outputTableNode.SetCellText(row, dilateErodeRadius_col, dilate_erode_distance_tag)
+          if segment.GetTag("Source", source_tag):
+            self.outputTableNode.SetCellText(row, source_col, source_tag)
+
+          # record seed point for each erosion
+          if segment.GetTag("Seed", seed_tag):
+            self.outputTableNode.SetCellText(row, seeds_col, seed_tag)
+
+          cortical_interruption_val = erosion_type_list[data[2]]
+
+          # convert volume to mm3
+          volume = float(self.outputTableNode.GetCellText(row, volume_mm3_col)) * (voxel_scale**3)
+          self.outputTableNode.SetCellText(row, volume_mm3_col, str(volume))
+
+          # convert surface area to mm2
+          surface_area = float(self.outputTableNode.GetCellText(row, surface_area_mm2_col)) * (voxel_scale**2)
+          self.outputTableNode.SetCellText(row, surface_area_mm2_col, str(surface_area))
+          roundness = stats[segment_ID, "LabelmapSegmentStatisticsPlugin.roundness"]
+          voxel_count = stats[segment_ID, "LabelmapSegmentStatisticsPlugin.voxel_count"]
+
+          # convert coordinates to ITK coordinates
+          ras_coord = [float(num) for num in (self.outputTableNode.GetCellText(row, centroid_col)).split(' ')]
+          itk_coord = self.RASToIJKCoords(ras_coord)
+          self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 0, itk_coord[0])
+          self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 1, itk_coord[1])
+          self.outputTableNode.GetTable().GetColumn(centroid_col).SetComponent(row, 2, itk_coord[2])
+          self.outputTableNode.Modified()
+
+          centroid_coord = ', '.join(str(x) for x in itk_coord)
+
+        # # record advanced parameters for each erosion
+        # if segment.GetTag("MinimalRadius", minimal_radius_tag):
+        #   self.outputTableNode.SetCellText(row, minimalRadius_col, minimal_radius_tag)
+
+        # if segment.GetTag("DilateErodeDistance", dilate_erode_distance_tag):
+        #   self.outputTableNode.SetCellText(row, dilateErodeRadius_col, dilate_erode_distance_tag)
 
         # Write to CSV
         writer.writerow([scan_ID, cortical_interruption_val, bone_val, erosion_label, str(seed_tag), centroid_coord, volume, surface_area, 
-            stats[segment_ID, "LabelmapSegmentStatisticsPlugin.roundness"],stats[segment_ID, "LabelmapSegmentStatisticsPlugin.voxel_count"]])
-
+            roundness, voxel_count])
 
   def jumpSlicesToLocation(self, mrmlScene, x, y, z, centred, viewGroup):
     if (not mrmlScene):

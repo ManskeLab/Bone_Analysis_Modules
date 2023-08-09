@@ -16,6 +16,9 @@ from ErosionVolumeLib.SegmentCopier import SegmentCopier
 from ErosionVolumeLib.MarkupsTable import MarkupsTable
 import os
 
+import SimpleITK as sitk
+import sitkUtils
+
 #
 # ErosionVolume
 #
@@ -128,20 +131,20 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.inputVolumeSelector.setCurrentNode(None)
     erosionsLayout.addRow("Input Volume: ", self.inputVolumeSelector)
 
-    # input contour selector
-    self.inputContourSelector = slicer.qMRMLNodeComboBox()
-    self.inputContourSelector.nodeTypes = ["vtkMRMLScalarVolumeNode","vtkMRMLLabelMapVolumeNode"]
-    self.inputContourSelector.selectNodeUponCreation = False
-    self.inputContourSelector.addEnabled = False
-    self.inputContourSelector.renameEnabled = True
-    self.inputContourSelector.removeEnabled = True
-    self.inputContourSelector.noneEnabled = False
-    self.inputContourSelector.showHidden = False
-    self.inputContourSelector.showChildNodeTypes = False
-    self.inputContourSelector.setMRMLScene(slicer.mrmlScene)
-    self.inputContourSelector.setToolTip( "Pick the mask label map" )
-    self.inputContourSelector.setCurrentNode(None)
-    erosionsLayout.addRow("Input Contour: ", self.inputContourSelector)
+    # input mask selector
+    self.inputMaskSelector = slicer.qMRMLNodeComboBox()
+    self.inputMaskSelector.nodeTypes = ["vtkMRMLScalarVolumeNode","vtkMRMLLabelMapVolumeNode"]
+    self.inputMaskSelector.selectNodeUponCreation = False
+    self.inputMaskSelector.addEnabled = False
+    self.inputMaskSelector.renameEnabled = True
+    self.inputMaskSelector.removeEnabled = True
+    self.inputMaskSelector.noneEnabled = False
+    self.inputMaskSelector.showHidden = False
+    self.inputMaskSelector.showChildNodeTypes = False
+    self.inputMaskSelector.setMRMLScene(slicer.mrmlScene)
+    self.inputMaskSelector.setToolTip( "Pick the mask label map" )
+    self.inputMaskSelector.setCurrentNode(None)
+    erosionsLayout.addRow("Input Mask: ", self.inputMaskSelector)
 
     # output volume selector
     self.outputErosionSelector = slicer.qMRMLNodeComboBox()
@@ -159,43 +162,19 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.outputErosionSelector.setCurrentNode(None)
     erosionsLayout.addRow("Output Erosions: ", self.outputErosionSelector)
 
-    # auto-threshold options
-    self.threshButton = qt.QCheckBox()
-    self.threshButton.checked = True
-    erosionsLayout.addRow("Use Automatic Thresholding", self.threshButton)
-
-    self.threshSelector = qt.QComboBox()
-    self.threshSelector.addItems(['Otsu', 'Huang', 'Max Entropy', 'Moments', 'Yen'])
-    #self.threshSelector.setCurrentIndex(2)
-    erosionsLayout.addRow("Thresholding Method", self.threshSelector)
-
-    # Help button for thresholding methods
-    self.helpButton = qt.QPushButton("Help")
-    self.helpButton.toolTip = "Tips for selecting a thresholding method"
-    self.helpButton.setFixedSize(50, 20)
-    erosionsLayout.addRow("", self.helpButton)
-
-    # threshold spin boxes (default unit is HU)
-    self.lowerThresholdText = qt.QSpinBox()
-    self.lowerThresholdText.setMinimum(-9999)
-    self.lowerThresholdText.setMaximum(999999)
-    self.lowerThresholdText.setSingleStep(10)
-    self.lowerThresholdText.value = 650
-    erosionsLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
-    self.upperThresholdText = qt.QSpinBox()
-    self.upperThresholdText.setMinimum(-9999)
-    self.upperThresholdText.setMaximum(999999)
-    self.upperThresholdText.setSingleStep(10)
-    self.upperThresholdText.value = 9999
-    erosionsLayout.addRow("Upper Threshold: ", self.upperThresholdText)
-
-    # gaussian sigma spin box
-    self.sigmaText = qt.QDoubleSpinBox()
-    self.sigmaText.setMinimum(0.0001)
-    self.sigmaText.setDecimals(4)
-    self.sigmaText.value = 1
-    self.sigmaText.setToolTip("Standard deviation in the Gaussian smoothing filter")
-    erosionsLayout.addRow("Gaussian Sigma: ", self.sigmaText)
+    # # threshold spin boxes (default unit is HU)
+    # self.lowerThresholdText = qt.QSpinBox()
+    # self.lowerThresholdText.setMinimum(-9999)
+    # self.lowerThresholdText.setMaximum(999999)
+    # self.lowerThresholdText.setSingleStep(10)
+    # self.lowerThresholdText.value = 650
+    # erosionsLayout.addRow("Lower Threshold: ", self.lowerThresholdText)
+    # self.upperThresholdText = qt.QSpinBox()
+    # self.upperThresholdText.setMinimum(-9999)
+    # self.upperThresholdText.setMaximum(999999)
+    # self.upperThresholdText.setSingleStep(10)
+    # self.upperThresholdText.value = 9999
+    # erosionsLayout.addRow("Upper Threshold: ", self.upperThresholdText)
 
     # seed point table
     self.markupsTableWidget = MarkupsTable(self.erosionsCollapsibleButton)
@@ -209,18 +188,6 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     # horizontal white space
     erosionsLayout.addRow(qt.QLabel(""))
 
-    # check box for Large erosions
-    self.LargeErosionsCheckBox = qt.QCheckBox('Large Erosions')
-    self.LargeErosionsCheckBox.checked = False
-    self.LargeErosionsCheckBox.setToolTip('Set internal parameters for segmenting large erosions')
-    erosionsLayout.addRow(self.LargeErosionsCheckBox)
-
-    # check box for CBCT scans
-    self.SmallErosionsCheckBox = qt.QCheckBox('Small Erosions')
-    self.SmallErosionsCheckBox.checked = False
-    self.SmallErosionsCheckBox.setToolTip('Set internal parameters for segmenting small erosions')
-    erosionsLayout.addRow(self.SmallErosionsCheckBox)
-
     # glyph size 
     self.glyphSizeBox = qt.QDoubleSpinBox()
     self.glyphSizeBox.setMinimum(0.5)
@@ -229,33 +196,6 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.glyphSizeBox.setSuffix(' %')
     self.glyphSizeBox.value = 1.0
     erosionsLayout.addRow("Seed Point Size ", self.glyphSizeBox)
-
-    # advanced box
-    self.advancedCheckBox = qt.QCheckBox('Advanced Parameters')
-    self.advancedCheckBox.checked = False
-    self.advancedCheckBox.setToolTip('Set internal parameters for segmenting erosions')
-    erosionsLayout.addRow(self.advancedCheckBox)
-
-    # advanced parameter spin boxes
-    self.minimalRadiusText = []
-    self.dilateErodeDistance = []
-
-    # self.minimalRadiusText = qt.QSpinBox()
-    # self.minimalRadiusText.setMinimum(1)
-    # self.minimalRadiusText.setMaximum(99)
-    # self.minimalRadiusText.setSingleStep(1)
-    # self.minimalRadiusText.setSuffix(' voxels')
-    # self.minimalRadiusText.value = 3
-    # advancedParameterLayout.addWidget(qt.QLabel("Minimum Erosion Radius: "), 3, 0)
-    # advancedParameterLayout.addWidget(self.minimalRadiusText, 3, 1)
-    # self.dilateErodeDistanceText = qt.QSpinBox()
-    # self.dilateErodeDistanceText.setMinimum(0)
-    # self.dilateErodeDistanceText.setMaximum(99)
-    # self.dilateErodeDistanceText.setSingleStep(1)
-    # self.dilateErodeDistanceText.setSuffix(' voxels')
-    # self.dilateErodeDistanceText.value = 4
-    # advancedParameterLayout.addWidget(qt.QLabel("Dilate/Erode Distance: "), 4, 0)
-    # advancedParameterLayout.addWidget(self.dilateErodeDistanceText, 4, 1)
 
     # Execution layout
     executeGridLayout = qt.QGridLayout()
@@ -282,21 +222,14 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     self.erosionsCollapsibleButton.connect("contentsCollapsed(bool)", self.onCollapsed4)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputVolume)
-    self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputContour)
-    self.inputContourSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
+    self.inputMaskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectInputMask)
+    self.inputMaskSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.outputErosionSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.outputErosionSelector.connect("nodeAddedByUser(vtkMRMLNode*)", lambda node: self.onAddOutputErosion(node))
     self.markupsTableWidget.getMarkupsSelector().connect("currentNodeChanged(vtkMRMLNode*)", self.checkErosionsButton)
     self.markupsTableWidget.getMarkupsSelector().connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSeed)
-    self.threshButton.clicked.connect(self.onAutoThresh)
-    self.helpButton.clicked.connect(self.onHelpButton)
-    self.LargeErosionsCheckBox.connect("clicked(bool)", self.onLargeErosionsChecked)
-    self.SmallErosionsCheckBox.connect("clicked(bool)", self.onSmallErosionsChecked)
     self.glyphSizeBox.valueChanged.connect(self.onGlyphSizeChanged)
-    self.advancedCheckBox.connect("clicked(bool)", self.onAdvancedChecked)
     self.getErosionsButton.connect("clicked(bool)", self.onGetErosionsButton)
-
-    # self.onAutoThresh()
   
   def setupManualCorrection(self):
     """Set up widgets in step 5 manual correction"""
@@ -518,7 +451,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     if not self.statsCollapsibleButton.collapsed:
       self.erosionsCollapsibleButton.collapsed = True
       self.manualCorrectionCollapsibleButton.collapsed = True
-      if self.inputVolumeSelector.currentNode() and self.inputContourSelector.currentNode():
+      if self.inputVolumeSelector.currentNode() and self.inputMaskSelector.currentNode():
         self.inputErosionSelector.setCurrentNodeIndex(0)
         # self.masterVolumeSelector.setCurrentNodeIndex(0)
         self.outputTableSelector.addNode()
@@ -533,14 +466,14 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
 
   def checkErosionsButton(self):
     self.getErosionsButton.enabled = (self.inputVolumeSelector.currentNode() and 
-                                     self.inputContourSelector.currentNode() and
+                                     self.inputMaskSelector.currentNode() and
                                      self.outputErosionSelector.currentNode() and
                                      self.markupsTableWidget.getCurrentNode())
 
   def onSelect4(self):
     """Update the state of the get erosions button whenever the selectors in step 4 change"""
     self.getErosionsButton.enabled = (self.inputVolumeSelector.currentNode() and 
-                                     self.inputContourSelector.currentNode() and
+                                     self.inputMaskSelector.currentNode() and
                                      self.outputErosionSelector.currentNode() and
                                      self.markupsTableWidget.getCurrentNode())
 
@@ -558,7 +491,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
   def onSelectInputVolume(self):
     """Run this whenever the input volume selector in step 4 changes"""
     inputVolumeNode = self.inputVolumeSelector.currentNode()
-    inputContourNode = self.inputContourSelector.currentNode()
+    inputMaskNode = self.inputMaskSelector.currentNode()
 
     if inputVolumeNode:
       # Update the default save directory
@@ -577,23 +510,6 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       #Set master volume in statistics step
       self.masterVolumeSelector.setCurrentNode(inputVolumeNode)
       self.voxelSizeText.value = inputVolumeNode.GetSpacing()[0]
-
-      #check if preset intensity units exist
-      check = True
-      if "Lower" in inputVolumeNode.__dict__.keys():
-        self.lowerThresholdText.setValue(inputVolumeNode.__dict__["Lower"])
-        check = False
-      if "Upper" in inputVolumeNode.__dict__.keys():
-        self.upperThresholdText.setValue(inputVolumeNode.__dict__["Upper"])
-        check = False
-
-      #check intensity units and display warning if not in HU
-      if check:# if check and not self.threshButton.checked:
-        if not self._logic.intensityCheck(inputVolumeNode):
-          text = """The selected image likely does not use HU for intensity units. 
-Default thresholds are set in HU and will not generate an accurate result. 
-Change the lower and upper thresholds before initializing."""
-          slicer.util.warningDisplay(text, windowTitle='Intensity Unit Warning')
 
       #remove existing loggers
       if self.logger.hasHandlers():
@@ -617,20 +533,20 @@ Change the lower and upper thresholds before initializing."""
       self.masterVolumeSelector.baseName = inputVolumeNode.GetName()
       
 
-  def onSelectInputContour(self):
-    """Run this whenever the input contour selector in step 4 changes"""
-    inputContourNode = self.inputContourSelector.currentNode()
-    if inputContourNode:
+  def onSelectInputMask(self):
+    """Run this whenever the input Mask selector in step 4 changes"""
+    inputMaskNode = self.inputMaskSelector.currentNode()
+    if inputMaskNode:
       # update the default output erosion base name, which matches the mask name
-      erosion_baseName = inputContourNode.GetName()+"_ER"
+      erosion_baseName = inputMaskNode.GetName()+"_ER"
       self.outputErosionSelector.baseName = erosion_baseName
       self.segmentCopier.currSegmentationSelector.baseName = erosion_baseName
       self.segmentCopier.otherSegmentationSelector.baseName = erosion_baseName
       self.segmentationSelector.baseName = erosion_baseName
       self.inputErosionSelector.baseName = erosion_baseName
-      seed_baseName = inputContourNode.GetName()+"_SEEDS"
+      seed_baseName = inputMaskNode.GetName()+"_SEEDS"
       # self.fiducialSelector.baseName = seed_baseName
-      self.outputTableSelector.baseName = inputContourNode.GetName()+"_TABLE"
+      self.outputTableSelector.baseName = inputMaskNode.GetName()+"_TABLE"
       
 
   def onAddOutputErosion(self, node):
@@ -648,57 +564,9 @@ Change the lower and upper thresholds before initializing."""
     markupsDisplayNode = self.markupsTableWidget.getCurrentNode().GetMarkupsDisplayNode()
     markupsDisplayNode.SetGlyphScale(self.glyphSizeBox.value)
   
-  def onAutoThresh(self):
-    use_auto = self.threshButton.checked
-    self.lowerThresholdText.setEnabled(not use_auto)
-    self.upperThresholdText.setEnabled(not use_auto)
-    self.threshSelector.setEnabled(use_auto)
-    if not use_auto:
-      self.onSelectInputVolume()
-
-  def onHelpButton(self) -> None:
-    '''Help button is pressed'''
-    txt = """Thresholding Methods\n
-For images that only contain bone and soft tissue (no completely dark regions), use the 'Otsu', 'Huang', or 'Moments' Thresholds. \n
-For images with completely dark regions, use the 'Max Entropy' or 'Yen' Thresholds.
-          """
-    slicer.util.infoDisplay(txt, 'Help: Similarity Metrics')
-  def onLargeErosionsChecked(self):
-    """Run this whenever the check box for Large Erosions in step 4 changes"""
-    if self.LargeErosionsCheckBox.checked:
-      self.minimalRadiusText = 6
-      self.dilateErodeDistanceText = 6
-      self.SmallErosionsCheckBox.checked = False
-    else:
-      self.minimalRadiusText = 3
-      self.dilateErodeDistanceText = 4
-
-  def onSmallErosionsChecked(self):
-    """Run this whenever the check box for Small Erosions in step 4 changes"""
-    if self.SmallErosionsCheckBox.checked:
-      self.minimalRadiusText = 2
-      self.dilateErodeDistanceText = 3
-      self.LargeErosionsCheckBox.checked = False
-    else:
-      self.minimalRadiusText = 3
-      self.dilateErodeDistanceText = 4
-  
   def onGlyphSizeChanged(self):
     markupsDisplayNode = self.markupsTableWidget.getCurrentNode().GetMarkupsDisplayNode()
     markupsDisplayNode.SetGlyphScale(self.glyphSizeBox.value)
-
-  def onAdvancedChecked(self):
-    """Run this whenever the check box for large erosions in step 4 changes"""
-
-    if self.advancedCheckBox.checked:
-      self.markupsTableWidget.advancedMarkupsControlPointsTableView()
-      # self.minimalRadiusText.value = 6
-      # self.dilateErodeDistanceText.value = 6
-      # self.CBCTCheckBox.checked = False
-    else:
-      self.markupsTableWidget.normalMarkupsControlPointsTableView()
-      # self.minimalRadiusText.value = 3
-      # self.dilateErodeDistanceText.value = 4
 
   def onSelectInputErosion(self):
     """Run this whenever the input erosion selector in step 6 changes"""
@@ -717,7 +585,7 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
     self.markupsTableWidget.updateLabels()
 
     inputVolumeNode = self.inputVolumeSelector.currentNode()
-    inputContourNode = self.inputContourSelector.currentNode()
+    inputMaskNode = self.inputMaskSelector.currentNode()
     outputVolumeNode = self.outputErosionSelector.currentNode()
     # fiducialNode = self.fiducialSelector.currentNode()
     markupsNode = self.markupsTableWidget.getCurrentNode()
@@ -726,49 +594,183 @@ For images with completely dark regions, use the 'Max Entropy' or 'Yen' Threshol
 
     self.logger.info("Erosion Volume initialized with parameters:")
     self.logger.info("Input Volume: " + inputVolumeNode.GetName())
-    self.logger.info("Input Contour: " + inputContourNode.GetName())
+    self.logger.info("Input Mask: " + inputMaskNode.GetName())
     self.logger.info("Output Volume: " + outputVolumeNode.GetName())
-    # self.logger.info("Input Seeds: " + fiducialNode.GetName())
-    if self.threshButton.checked:
-      self.logger.info("Automatic Threshold Method: " + self.threshSelector.currentText)
-    else:
-      self.logger.info("Lower Theshold: " + str(self.lowerThresholdText.value))
-      self.logger.info("Upper Theshold: " + str(self.upperThresholdText.value))
-    self.logger.info("Gaussian Sigma: " + str(self.sigmaText.value))
-    # self.logger.info("Minimum Erosion Radius: " + str(self.minimalRadiusText.value))
-    # self.logger.info("Dilate/Erode Distance: " + str(self.dilateErodeDistanceText.value))
 
-    if self.threshButton.checked:
-      ready = self._logic.setErosionParameters(inputVolumeNode, 
-                                            inputContourNode, 
-                                            self.sigmaText.value,
-                                            # fiducialNode,
-                                            markupsNode,
-                                            self.minimalRadiusText,
-                                            self.dilateErodeDistanceText,
-                                            method=self.threshSelector.currentIndex)
-    else:
-      ready = self._logic.setErosionParameters(inputVolumeNode, 
-                                            inputContourNode, 
-                                            self.sigmaText.value,
-                                            # fiducialNode,
-                                            markupsNode,
-                                            self.minimalRadiusText,
-                                            self.dilateErodeDistanceText,
-                                            lower=self.lowerThresholdText.value,
-                                            upper=self.upperThresholdText.value)
-    if ready:
-      success = self._logic.getErosions(inputVolumeNode, inputContourNode, outputVolumeNode)
-      if success:
-        # update widgets
-        self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
-        self.segmentEditor.setSegmentationNode(outputVolumeNode)
-        self.segmentEditor.setMasterVolumeNode(inputVolumeNode)
-        self.segmentEditor.checkEraseButtons()
+    img = sitkUtils.PullVolumeFromSlicer(inputVolumeNode.GetName())
+    mask_img = sitk.Cast(sitkUtils.PullVolumeFromSlicer(inputMaskNode.GetName()), sitk.sitkUInt8)
+    mask_img = sitk.BinaryThreshold(mask_img, lowerThreshold=1, insideValue=1)
+    mask_img = sitk.Cast(mask_img, sitk.sitkUInt8)
+
+    resampler = sitk.ResampleImageFilter()
+    resampler.SetReferenceImage(img)
+    resampler.SetInterpolator(sitk.sitkLinear)
+    resampler.SetDefaultPixelValue(0)
+    resampler.SetTransform(sitk.Transform())
+    mask_img = resampler.Execute(mask_img)
+
+    sigma_over_spacing = img.GetSpacing()[0]
+    print(sigma_over_spacing)
+
+    # gaussian smoothing filter
+    print("Applying Gaussian filter")
+    gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
+    gaussian_filter.SetSigma(sigma_over_spacing*1.5)
+    gaussian_img = gaussian_filter.Execute(img)
+    gaussian_img = sitk.Cast(gaussian_img, sitk.sitkFloat32)
+
+    # Edge detection
+    edge_detection_filter = sitk.CannyEdgeDetectionImageFilter()
+    edge_detection_filter.SetVariance(0)
+    edge_detection_filter.SetLowerThreshold(130)
+    edge_detection_filter.SetUpperThreshold(550)
+    edge = edge_detection_filter.Execute(gaussian_img)
+    edge = sitk.Cast(edge, sitk.sitkUInt8)
+    sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge.nii')
+
+    dilate_filter = sitk.BinaryDilateImageFilter()
+    dilate_filter.SetForegroundValue(1)
+    dilate_filter.SetKernelRadius(1)
+
+    erode_filter = sitk.BinaryErodeImageFilter()
+    erode_filter.SetForegroundValue(1)
+    erode_filter.SetKernelRadius(1)
+
+    # Binary Closing
+    dilated_img = dilate_filter.Execute(edge)
+    erode_img = erode_filter.Execute(dilated_img)
+
+    edge = erode_img
+
+    invert_filter = sitk.InvertIntensityImageFilter()
+    invert_filter.SetMaximum(1)
+    full_void_volume_img = invert_filter.Execute(erode_img)
+
+    final_img = mask_img * 0
+
+    num_control_points = markupsNode.GetNumberOfControlPoints()
+    success = False
+
+    for id in range(num_control_points):
+      point = [[round(ax) for ax in self.markupsTableWidget.getNthControlPointIJKCoords(id)]]
+      print(point)
+
+      connected_filter = sitk.ConnectedThresholdImageFilter()
+      connected_filter.SetLower(1)
+      connected_filter.SetUpper(1)
+      connected_filter.SetSeedList(point)
+      connected_filter.SetReplaceValue(1)
+
+      tmp_mask_img = connected_filter.Execute(mask_img)
+      void_volume_img = tmp_mask_img * full_void_volume_img
+
+      stat = sitk.LabelShapeStatisticsImageFilter()
+
+      x = 0
+      l=10
+
+      connected_img = connected_filter.Execute(void_volume_img)
+
+      stat.Execute(connected_img)
+      if(stat.GetNumberOfLabels() == 0):
+          print('ERROR: Connected Component did not find erosion at the seed point location of {}'.format(point))
+          continue
+
+      filter = sitk.SimilarityIndexImageFilter()
+      filter.Execute(void_volume_img, connected_img)
+
+      if (filter.GetSimilarityIndex() < 0.2):
+          l=0
+          print("no erosion")
+
+      erode_img = void_volume_img
+      
+      break_flag = False
+      for i in range(l):
+        # Iteratively erode
+        erode_img = erode_filter.Execute(erode_img)
+        sitk.WriteImage(erode_img, 'Z:/work2/manske/temp/seedpointfix/connect{}_{}.nii'.format(id,i))
+        connected_img = connected_filter.Execute(erode_img)
+        
+        stat.Execute(connected_img)
+        if(stat.GetNumberOfLabels() == 0):
+            print('ERROR: Connected Component did not find erosion at the seed point location of {}'.format(point))
+            break_flag = True
+
+        filter.Execute(erode_img, connected_img)
+
+        if (filter.GetSimilarityIndex() < 0.7):
+            x = i+1
+            break
+          
+      if (break_flag):
+        continue
+      
+      dilated_img = connected_img
+      print("Dilating {} times".format(x))  
+      for i in range(x):
+          dilated_img = dilate_filter.Execute(dilated_img)
+
+      distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
+      distance_filter.SetInsideIsPositive(True)
+      distance_filter.SetUseImageSpacing(False)
+      distance_filter.SetBackgroundValue(0)
+      distance_img = distance_filter.Execute(dilated_img)
+      distance_img.SetSpacing([1,1,1])
+      feature_img = sitk.Cast(edge, sitk.sitkFloat32)
+      feature_img.SetSpacing([1,1,1])
+
+      print("Applying level set filter")
+      ls_filter = sitk.ThresholdSegmentationLevelSetImageFilter()
+      ls_filter.SetLowerThreshold(0)
+      ls_filter.SetUpperThreshold(1)
+      ls_filter.SetMaximumRMSError(0.02)
+      ls_filter.SetNumberOfIterations(500)
+      ls_filter.SetCurvatureScaling(1)
+      ls_filter.SetPropagationScaling(1)
+      ls_filter.SetReverseExpansionDirection(True)
+      ls_img = ls_filter.Execute(distance_img, feature_img)
+
+      ls_img.SetSpacing(img.GetSpacing())
+
+      output_img = sitk.BinaryThreshold(ls_img, lowerThreshold=1, insideValue=1)
+      output_img = (output_img * tmp_mask_img) | dilated_img
+      output_img = dilate_filter.Execute(output_img)
+
+      stat.Execute(output_img)
+      num_voxel = stat.GetNumberOfPixels(1)
+      print(num_voxel)
+
+      final_img = final_img + output_img * int(id+1)
+      print("Erosion {} found!".format(int(id+1)))
+      success = True
     
-    # store thresholds 
-    inputVolumeNode.__dict__["Lower"] = self.lowerThresholdText.value
-    inputVolumeNode.__dict__["Upper"] = self.upperThresholdText.value
+    if success:
+      tempLabelMap = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode", 
+                                                      "TemporaryErosionNode")
+      tempLabelMap.CreateDefaultDisplayNodes()
+      tempLabelMap.GetDisplayNode().SetAndObserveColorNodeID(
+        'vtkMRMLColorTableNodeFileGenericColors.txt')
+      tempLabelMap.GetDisplayNode()
+      # push result to temporary label map
+      sitkUtils.PushVolumeToSlicer(final_img, tempLabelMap)
+      # push erosions from temporary label map to output erosion node
+      self._logic.labelmapToSegmentationNode(tempLabelMap, outputVolumeNode)
+      # remove temporary label map
+      slicer.mrmlScene.RemoveNode(tempLabelMap)
+
+      error_message = ""
+      error_flag = None
+
+      # update widgets
+      erosion_id = outputVolumeNode.GetName()[0]
+      erosion_id = '_'.join(erosion_id)
+    
+      # update widgets
+      self.outputErosionSelector.setCurrentNodeID("") # reset the output volume selector
+      self.segmentEditor.setSegmentationNode(outputVolumeNode)
+      self.segmentEditor.setMasterVolumeNode(inputVolumeNode)
+      self.segmentEditor.checkEraseButtons()
 
     # update widgets
     self.enableErosionsWidgets()
@@ -837,13 +839,13 @@ class ErosionVolumeTest(ScriptedLoadableModuleTest):
 
   def test_ErosionVolume(self):
     '''
-    Automatic Contour Tests: Runs the cortical break detection function on 3 sample images
+    Automatic Mask Tests: Runs the cortical break detection function on 3 sample images
     and compares the results to pre-generated masks and manually placed seed points
 
     Test Requires:
 
       mha files: 'SAMPLE_MHA1.mha', 'SAMPLE_MHA2.mha', 'SAMPLE_MHA3.mha'
-      contour masks: 'SAMPLE_MASK1.mha', 'SAMPLE_MASK2.mha', 'SAMPLE_MASK3.mha'
+      Mask masks: 'SAMPLE_MASK1.mha', 'SAMPLE_MASK2.mha', 'SAMPLE_MASK3.mha'
       seed lists: 'SAMPLE_SEEDS1.json', 'SAMPLE_SEEDS2.json', 'SAMPLE_SEEDS3.json'
       comparison segmentations: 'SAMPLE_ER1.seg.nrrd', 'SAMPLE_ER2.seg.nrrd', 'SAMPLE_ER3.seg.nrrd'
     
