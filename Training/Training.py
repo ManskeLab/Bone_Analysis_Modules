@@ -399,7 +399,6 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
       edge_detection_filter.SetUpperThreshold(550)
       edge = edge_detection_filter.Execute(gaussian_img)
       edge = sitk.Cast(edge, sitk.sitkUInt8)
-      sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge.nii')
 
       dilate_filter = sitk.BinaryDilateImageFilter()
       dilate_filter.SetForegroundValue(1)
@@ -443,7 +442,6 @@ class TrainingWidget(ScriptedLoadableModuleWidget):
         l=10
 
         connected_img = connected_filter.Execute(void_volume_img)
-        sitk.WriteImage(connected_img, 'Z:/work2/manske/temp/seedpointfix/connect{}.nii'.format(id))
 
         stat.Execute(connected_img)
         if(stat.GetNumberOfLabels() == 0):
