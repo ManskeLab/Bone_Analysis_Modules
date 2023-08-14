@@ -369,7 +369,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       # record name of erosion source node
       segment.SetTag("Source", erosionSource)
 
-  def getStatistics(self, inputErosionNode, masterVolumeNode, markupsData, voxelSize:float, outputTableNode) -> None:
+  def getStatistics(self, inputErosionNode, masterVolumeNode, markupsData, voxelSize:float, outputTableNode, lower_threshold, canny_smoothing_variance) -> None:
     """
     Get erosion statistics from the erosion segmentation. 
     Store the numeric data in the output table. 
@@ -388,6 +388,8 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
     self.erosionStatistics.setMarkupsData(markupsData)
     self.erosionStatistics.setVoxelSize(voxelSize)
     self.erosionStatistics.setOutputTableNode(outputTableNode)
+    self.erosionStatistics.setLowerThreshold(lower_threshold)
+    self.erosionStatistics.setVariance(canny_smoothing_variance)
 
     # display statistics table and connect signals,
     #  erosions are centred in the viewer windows upon selection

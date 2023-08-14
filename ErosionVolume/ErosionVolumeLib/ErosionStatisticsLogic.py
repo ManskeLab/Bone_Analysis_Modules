@@ -132,7 +132,7 @@ class ErosionStatisticsLogic:
     with open(os.path.join(self.output_path, segmentation_name+'.csv'), 'w', newline='') as f:
       writer = csv.writer(f)
       # csv header
-      writer.writerow(['Scan ID', 'Cortical Interruption', 'Bone', 'Label', 'Seed Location', 'Centroid Location', 'Volume (mm3)', 'Surface Area (mm2)', 'Roundness', 'Number of voxels (voxels)'])
+      writer.writerow(['Scan ID', 'Cortical Interruption', 'Bone', 'Label', 'Seed Location', 'Centroid Location', 'Volume (mm3)', 'Surface Area (mm2)', 'Roundness', 'Number of voxels (voxels)', 'Canny Lower Threshold', 'Canny Smoothing Variance'])
 
       # convert erosion data in table according to image spacing
       for row in range(0, len(self.markupsData)):
@@ -200,7 +200,7 @@ class ErosionStatisticsLogic:
 
         # Write to CSV
         writer.writerow([scan_ID, cortical_interruption_val, bone_val, erosion_label, str(seed_tag), centroid_coord, volume, surface_area, 
-            roundness, voxel_count])
+            roundness, voxel_count, self.lower_threshold, self.canny_smoothing_variance])
 
   def jumpSlicesToLocation(self, mrmlScene, x, y, z, centred, viewGroup):
     if (not mrmlScene):
@@ -264,3 +264,9 @@ class ErosionStatisticsLogic:
     
   def setOutputTableNode(self, outputTableNode):
     self.outputTableNode = outputTableNode
+
+  def setLowerThreshold(self, lower_threshold):
+    self.lower_threshold = lower_threshold 
+
+  def setVariance(self, canny_smoothing_variance):
+    self.canny_smoothing_variance = canny_smoothing_variance 

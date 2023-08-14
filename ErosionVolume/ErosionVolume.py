@@ -633,7 +633,9 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     # gaussian_img = sitk.Cast(gaussian_img, sitk.sitkFloat32)
 
     # Edge detection
-    edge = sitk.CannyEdgeDetection(smooth_img, lowerThreshold=0.2, upperThreshold=0.99, variance = 3*[0.05*sigma_over_spacing])
+    self.lower_threshold = 0.2
+    self.canny_smoothing_variance = 0.08
+    edge = sitk.CannyEdgeDetection(smooth_img, lowerThreshold=self.lower_threshold, upperThreshold=0.99, variance = 3*[self.canny_smoothing_variance*sigma_over_spacing])
     edge = sitk.Cast(edge, sitk.sitkUInt8)
 
     dilate_filter = sitk.BinaryDilateImageFilter()
@@ -826,7 +828,9 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
                               masterVolumeNode,
                               currentMarkupsData,
                               voxelSize,
-                              outputTableNode)
+                              outputTableNode,
+                              self.lower_threshold,
+                              self.canny_smoothing_variance)
 
     # update widgets
     self.segmentEditor.setSegmentationNode(inputErosionNode)
