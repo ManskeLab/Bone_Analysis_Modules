@@ -18,6 +18,7 @@ import os
 
 import SimpleITK as sitk
 import sitkUtils
+import numpy as np
 
 #
 # ErosionVolume
@@ -613,6 +614,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     print(sigma_over_spacing)
 
     # gaussian smoothing filter
+    # gaussian smoothing filter
     print("Applying Smoothing filter")
     smooth_img = sitk.Median(img)
     smooth_img = sitk.LaplacianSharpening(smooth_img)
@@ -623,20 +625,38 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     smooth_img = sitk.Median(smooth_img)
     smooth_img = sitk.LaplacianSharpening(smooth_img)
     smooth_img = sitk.Median(smooth_img)
-    smooth_img = sitk.Median(smooth_img)
-    smooth_img = sitk.Median(smooth_img)
+    smooth_img = sitk.LaplacianSharpening(smooth_img)
+    gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
+
+    gaussian_filter.SetSigma(sigma_over_spacing*1.5)
+    gaussian_img = gaussian_filter.Execute(smooth_img)
     smooth_img = sitk.Normalize(smooth_img)
-    # sitk.WriteImage(smooth_img, 'Z:/work2/manske/temp/seedpointfix/smooth.nii')
-    # gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
-    # gaussian_filter.SetSigma(sigma_over_spacing*1.5)
-    # gaussian_img = gaussian_filter.Execute(img)
-    # gaussian_img = sitk.Cast(gaussian_img, sitk.sitkFloat32)
+
+    sitk.WriteImage(smooth_img, 'Z:/work2/manske/temp/seedpointfix/smooth.nii')
+
+    stat = sitk.StatisticsImageFilter()
+    stat.Execute(smooth_img)
+
+    mean = stat.GetMean()
+    max_ = stat.GetMaximum()
+
+    print(mean, max_)
 
     # Edge detection
-    self.lower_threshold = 0.2
-    self.canny_smoothing_variance = 0.08
-    edge = sitk.CannyEdgeDetection(smooth_img, lowerThreshold=self.lower_threshold, upperThreshold=0.99, variance = 3*[self.canny_smoothing_variance*sigma_over_spacing])
+    lower_threshold = 0.4
+    canny_smoothing_variance = 0.07
+    edge = sitk.CannyEdgeDetection(smooth_img, lowerThreshold=lower_threshold, upperThreshold=0.99, variance = 3*[canny_smoothing_variance*sigma_over_spacing])
     edge = sitk.Cast(edge, sitk.sitkUInt8)
+    sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge1.nii')
+    edge2 = sitk.GradientMagnitude(smooth_img)
+    sitk.WriteImage(edge2, 'Z:/work2/manske/temp/seedpointfix/edge2_pre.nii')
+    edge2 = sitk.BinaryThreshold(edge2, 20, 999)
+    sitk.WriteImage(edge2, 'Z:/work2/manske/temp/seedpointfix/edge2.nii')
+    edge3 = sitk.BinaryThreshold(smooth_img, 1.5, 999)
+    sitk.WriteImage(edge3, 'Z:/work2/manske/temp/seedpointfix/thresh.nii')
+
+    edge = edge | edge2 | edge3
+    sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge4.nii')
 
     dilate_filter = sitk.BinaryDilateImageFilter()
     dilate_filter.SetForegroundValue(1)
@@ -646,41 +666,42 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     erode_filter.SetForegroundValue(1)
     erode_filter.SetKernelRadius(1)
 
-    # # Binary Closing
-    dilated_img = dilate_filter.Execute(edge)
-    erode_img = erode_filter.Execute(dilated_img)
+    # # # Binary Closing
+    # dilated_img = dilate_filter.Execute(edge)
+    # erode_img = erode_filter.Execute(dilated_img)
 
-    dilated_img = dilate_filter.Execute(erode_img)
-    erode_img = erode_filter.Execute(dilated_img)
+    # dilated_img = dilate_filter.Execute(erode_img)
+    # erode_img = erode_filter.Execute(dilated_img)
 
-    # erode_img = edge
-    edge = erode_img
+    erode_img = edge
+    # edge = erode_img
+    sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge3.nii')
     # sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge.nii')
 
     invert_filter = sitk.InvertIntensityImageFilter()
     invert_filter.SetMaximum(1)
-    full_void_volume_img = invert_filter.Execute(erode_img)
+    full_void_volume_img = mask_img* invert_filter.Execute(erode_img)
+    sitk.WriteImage(full_void_volume_img, 'Z:/work2/manske/temp/seedpointfix/void.nii')
 
     final_img = mask_img * 0
 
-    num_control_points = markupsNode.GetNumberOfControlPoints()
+    # num_control_points = markupsNode.GetNumberOfControlPoints()
     success = False
 
-    for id in range(num_control_points):
-      point = [[round(ax) for ax in self.markupsTableWidget.getNthControlPointIJKCoords(id)]]
-      print(point)
+    for id in range(1):
+      point = [round(ax) for ax in self.markupsTableWidget.getNthControlPointIJKCoords(id)]
+      points = [point]
 
       connected_filter = sitk.ConnectedThresholdImageFilter()
       connected_filter.SetLower(1)
       connected_filter.SetUpper(1)
-      connected_filter.SetSeedList(point)
+      connected_filter.SetSeedList(points)
       connected_filter.SetReplaceValue(1)
 
       tmp_mask_img = connected_filter.Execute(mask_img)
       void_volume_img = tmp_mask_img * full_void_volume_img
       # void_volume_img = dilate_filter.Execute(void_volume_img)
-      # sitk.WriteImage(void_volume_img, 'Z:/work2/manske/temp/seedpointfix/invert.nii')
-
+      sitk.WriteImage(void_volume_img, 'Z:/work2/manske/temp/seedpointfix/invert.nii')
       stat = sitk.LabelShapeStatisticsImageFilter()
 
       x = 0
@@ -696,42 +717,81 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       filter = sitk.SimilarityIndexImageFilter()
       filter.Execute(void_volume_img, connected_img)
 
-      if (filter.GetSimilarityIndex() < 0.2):
+      if filter.GetSimilarityIndex() < 0.2:
+          # Erosion is already disconnected from trabecular
           l=0
           print("no erosion")
+      else:
+          # Get list of seed points
+          points_saggital = [[point[1], point[2], 0]]
+          points_coronal = [[point[0], point[2], 0]]
+          points_axial = [[point[0], point[1], 0]]
+
+          connected_filter.SetSeedList(points_saggital)
+          sagittal_slice = connected_img[point[0], :, :]
+          sagittal_con = connected_filter.Execute(sagittal_slice)
+          filter.Execute(sagittal_slice, sagittal_con)
+
+          if filter.GetSimilarityIndex() > 0.8:
+              connected_filter.SetSeedList(points_coronal)
+              coronal_slice = connected_img[:, point[1], :]
+              coronal_con = connected_filter.Execute(coronal_slice)
+              filter.Execute(coronal_slice, coronal_con)
+
+              if filter.GetSimilarityIndex() > 0.8:
+                  connected_filter.SetSeedList(points_axial)
+                  axial_slice = connected_img[:, :, point[2]]
+                  axial_con = connected_filter.Execute(axial_slice)
+                  filter.Execute(axial_slice, axial_con)
+
+                  if filter.GetSimilarityIndex() > 0.8:
+                      print("ERROR: Invalid seed point placement.")
+                      break
+                  else:
+                      points = np.argwhere(sitk.GetArrayFromImage(axial_con))
+                      points = [[int(pt[1]), int(pt[0]), point[2]] for pt in points]
+              else:
+                  points = np.argwhere(sitk.GetArrayFromImage(coronal_con))
+                  points = [[int(pt[1]), point[1], int(pt[0])] for pt in points]
+          else:
+              points = np.argwhere(sitk.GetArrayFromImage(sagittal_con))
+              points = [[point[0], int(pt[1]), int(pt[0])] for pt in points]
+
+          print(points)
+          connected_filter.SetSeedList(points)
 
       erode_img = void_volume_img
 
-      erode_img = erode_filter.Execute(erode_img)
-      
+      # erode_img = erode_filter.Execute(erode_img)
+        
       break_flag = False
       for i in range(l):
-        # Iteratively erode
-        erode_img = erode_filter.Execute(erode_img)
-        erode_img = dilate_filter.Execute(erode_img)
-        # sitk.WriteImage(erode_img, 'Z:/work2/manske/temp/seedpointfix/connect{}_{}.nii'.format(id,i))
-        connected_img = connected_filter.Execute(erode_img)
-        
-        stat.Execute(connected_img)
-        if(stat.GetNumberOfLabels() == 0):
-            print('ERROR: Connected Component did not find erosion at the seed point location of {}'.format(point))
-            break_flag = True
-
-        filter.Execute(erode_img, connected_img)
-
-        if (filter.GetSimilarityIndex() < 0.5):
-            x = i+1
-            break
+          # Iteratively erode
+          erode_img = erode_filter.Execute(erode_img)
+          # erode_img = dilate_filter.Execute(erode_img)
+          sitk.WriteImage(erode_img, 'Z:/work2/manske/temp/seedpointfix/connect{}_{}.nii'.format(id,i))
+          connected_img = connected_filter.Execute(erode_img)
           
-      if (break_flag):
-        continue
+          stat.Execute(connected_img)
+          if(stat.GetNumberOfLabels() == 0):
+              print('ERROR: Connected Component did not find erosion at the seed point location of {}'.format(point))
+              break_flag = True
+
+          filter.Execute(erode_img, connected_img)
+
+          if (filter.GetSimilarityIndex() < 0.5):
+              x = i+1
+              break
+              
+          if (break_flag):
+              continue
       
       dilated_img = connected_img
       print("Dilating {} times".format(x))  
       for i in range(x):
           dilated_img = dilate_filter.Execute(dilated_img)
 
-      # sitk.WriteImage(dilated_img, 'Z:/work2/manske/temp/seedpointfix/dilated.nii')
+      sitk.WriteImage(dilated_img, 'Z:/work2/manske/temp/seedpointfix/dilated.nii')
 
       distance_filter = sitk.SignedMaurerDistanceMapImageFilter()
       distance_filter.SetInsideIsPositive(True)
@@ -740,31 +800,27 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       distance_img = distance_filter.Execute(dilated_img)
       # sitk.WriteImage(distance_img, 'Z:/work2/manske/temp/seedpointfix/distance.nii')
       distance_img.SetSpacing([1,1,1])
-      # edge = dilate_filter.Execute(edge)
-      # edge = erode_filter.Execute(edge)
-      # edge = dilate_filter.Execute(edge)
-      # edge = erode_filter.Execute(edge)
-      feature_img = sitk.Cast(edge, sitk.sitkFloat32)
-      # sitk.WriteImage(feature_img, 'Z:/work2/manske/temp/seedpointfix/feature.nii')
+      feature_img = sitk.Cast(sitk.Mask(smooth_img, mask_img), sitk.sitkFloat32) 
+      sitk.WriteImage(feature_img, 'Z:/work2/manske/temp/seedpointfix/feature.nii')
       feature_img.SetSpacing([1,1,1])
 
       print("Applying level set filter")
       ls_filter = sitk.ThresholdSegmentationLevelSetImageFilter()
-      ls_filter.SetLowerThreshold(0)
-      ls_filter.SetUpperThreshold(1)
-      ls_filter.SetMaximumRMSError(0.002)
+      ls_filter.SetLowerThreshold(-1)
+      ls_filter.SetUpperThreshold(1.5)
+      ls_filter.SetMaximumRMSError(10)
       ls_filter.SetNumberOfIterations(100)
-      ls_filter.SetCurvatureScaling(1)
+      ls_filter.SetCurvatureScaling(0.5)
       ls_filter.SetPropagationScaling(1)
-      ls_filter.SetReverseExpansionDirection(True)
+      ls_filter.SetReverseExpansionDirection(False)
       ls_img = ls_filter.Execute(distance_img, feature_img)
 
       ls_img.SetSpacing(img.GetSpacing())
-      # sitk.WriteImage(ls_img, 'Z:/work2/manske/temp/seedpointfix/levelset.nii')
+      sitk.WriteImage(ls_img, 'Z:/work2/manske/temp/seedpointfix/levelset.nii')
 
       output_img = ls_img>-4
       output_img = (output_img * tmp_mask_img) | dilated_img
-      # output_img = dilate_filter.Execute(output_img)
+      sitk.WriteImage(output_img, 'Z:/work2/manske/temp/seedpointfix/out.nii')
 
       stat.Execute(output_img)
       num_voxel = stat.GetNumberOfPixels(1)
