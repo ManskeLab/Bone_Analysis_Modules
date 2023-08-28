@@ -660,7 +660,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     # sitk.WriteImage(edge2, 'Z:/work2/manske/temp/seedpointfix/thresh.nii')
 
     edge = edge | edge2
-    sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge4.nii')
+    # sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge4.nii')
 
     dilate_filter = sitk.BinaryDilateImageFilter()
     dilate_filter.SetForegroundValue(1)
@@ -685,7 +685,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     invert_filter = sitk.InvertIntensityImageFilter()
     invert_filter.SetMaximum(1)
     full_void_volume_img = mask_img* invert_filter.Execute(erode_img)
-    sitk.WriteImage(full_void_volume_img, 'Z:/work2/manske/temp/seedpointfix/void.nii')
+    # sitk.WriteImage(full_void_volume_img, 'Z:/work2/manske/temp/seedpointfix/void.nii')
 
     final_img = mask_img * 0
 
