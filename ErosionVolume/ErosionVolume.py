@@ -721,231 +721,231 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
             continue
 
         filter = sitk.SimilarityIndexImageFilter()
-        # filter.Execute(void_volume_img, connected_img)
+        filter.Execute(void_volume_img, connected_img)
 
-        # if filter.GetSimilarityIndex() < 0.2:
-        #     # Erosion is already disconnected from trabecular
-        #     l=0
-        #     print("no erosion")
-        # else:
-        # Get list of seed points
-        points_saggital = [[point[1], point[2], 0]]
-        points_coronal = [[point[0], point[2], 0]]
-        points_axial = [[point[0], point[1], 0]]
+        if filter.GetSimilarityIndex() < 0.1:
+            # Erosion is already disconnected from trabecular
+            l=0
+            comb_erosion = connected_img
+        else:
+            # Get list of seed points
+            points_saggital = [[point[1], point[2], 0]]
+            points_coronal = [[point[0], point[2], 0]]
+            points_axial = [[point[0], point[1], 0]]
 
-        connected_filter.SetSeedList(points_axial)
-        axial_slice = connected_img[:, :, point[2]]
-        axial_con = connected_filter.Execute(axial_slice)
-        filter.Execute(axial_slice, axial_con)
-        # sitk.WriteImage(axial_slice, 'Z:/work2/manske/temp/seedpointfix/ax_slice.nii')
-        # sitk.WriteImage(axial_con, 'Z:/work2/manske/temp/seedpointfix/ax.nii')
-        print(filter.GetSimilarityIndex())
-
-        if filter.GetSimilarityIndex() > 0.1:
-            connected_filter.SetSeedList(points_coronal)
-            coronal_slice = connected_img[:, point[1], :]
-            coronal_con = connected_filter.Execute(coronal_slice)
-            filter.Execute(coronal_slice, coronal_con)
-            # sitk.WriteImage(coronal_slice, 'Z:/work2/manske/temp/seedpointfix/cor_slice.nii')
-            # sitk.WriteImage(coronal_con, 'Z:/work2/manske/temp/seedpointfix/cor.nii')
-            print(filter.GetSimilarityIndex())
+            connected_filter.SetSeedList(points_axial)
+            axial_slice = connected_img[:, :, point[2]]
+            axial_con = connected_filter.Execute(axial_slice)
+            filter.Execute(axial_slice, axial_con)
+            # sitk.WriteImage(axial_slice, 'Z:/work2/manske/temp/seedpointfix/ax_slice.nii')
+            # sitk.WriteImage(axial_con, 'Z:/work2/manske/temp/seedpointfix/ax.nii')
+            self.logger.info(filter.GetSimilarityIndex())
 
             if filter.GetSimilarityIndex() > 0.1:
-                connected_filter.SetSeedList(points_saggital)
-                sagittal_slice = connected_img[point[0], :, :]
-                sagittal_con = connected_filter.Execute(sagittal_slice)
-                filter.Execute(sagittal_slice, sagittal_con)
-                # sitk.WriteImage(sagittal_slice, 'Z:/work2/manske/temp/seedpointfix/sag_slice.nii')
-                # sitk.WriteImage(sagittal_con, 'Z:/work2/manske/temp/seedpointfix/sag.nii')
-                print(filter.GetSimilarityIndex())
+                connected_filter.SetSeedList(points_coronal)
+                coronal_slice = connected_img[:, point[1], :]
+                coronal_con = connected_filter.Execute(coronal_slice)
+                filter.Execute(coronal_slice, coronal_con)
+                # sitk.WriteImage(coronal_slice, 'Z:/work2/manske/temp/seedpointfix/cor_slice.nii')
+                # sitk.WriteImage(coronal_con, 'Z:/work2/manske/temp/seedpointfix/cor.nii')
+                self.logger.info(filter.GetSimilarityIndex())
 
                 if filter.GetSimilarityIndex() > 0.1:
-                    print("ERROR: Invalid seed point placement.")
-                    continue
+                    connected_filter.SetSeedList(points_saggital)
+                    sagittal_slice = connected_img[point[0], :, :]
+                    sagittal_con = connected_filter.Execute(sagittal_slice)
+                    filter.Execute(sagittal_slice, sagittal_con)
+                    # sitk.WriteImage(sagittal_slice, 'Z:/work2/manske/temp/seedpointfix/sag_slice.nii')
+                    # sitk.WriteImage(sagittal_con, 'Z:/work2/manske/temp/seedpointfix/sag.nii')
+                    self.logger.info(filter.GetSimilarityIndex())
+
+                    if filter.GetSimilarityIndex() > 0.1:
+                        print("ERROR: Invalid seed point placement.")
+                        continue
+                    else:
+                        plane = 0
+                        init_erosion = sagittal_con
+                        points = np.argwhere(sitk.GetArrayFromImage(sagittal_con))
+                        points = [[point[0], int(pt[1]), int(pt[0])] for pt in points]
                 else:
-                    plane = 0
-                    init_erosion = sagittal_con
-                    points = np.argwhere(sitk.GetArrayFromImage(sagittal_con))
-                    points = [[point[0], int(pt[1]), int(pt[0])] for pt in points]
+                    plane = 1
+                    init_erosion = coronal_con
+                    points = np.argwhere(sitk.GetArrayFromImage(coronal_con))
+                    points = [[int(pt[1]), point[1], int(pt[0])] for pt in points]
             else:
-                plane = 1
-                init_erosion = coronal_con
-                points = np.argwhere(sitk.GetArrayFromImage(coronal_con))
-                points = [[int(pt[1]), point[1], int(pt[0])] for pt in points]
-        else:
-            plane = 2
-            init_erosion = axial_con
-            points = np.argwhere(sitk.GetArrayFromImage(axial_con))
-            points = [[int(pt[1]), int(pt[0]), point[2]] for pt in points]
+                plane = 2
+                init_erosion = axial_con
+                points = np.argwhere(sitk.GetArrayFromImage(axial_con))
+                points = [[int(pt[1]), int(pt[0]), point[2]] for pt in points]
 
-        erode_img = void_volume_img
-        dims = erode_img.GetSize()
+            erode_img = void_volume_img
+            dims = erode_img.GetSize()
 
-        comb_erosion = erode_img*0
-        if plane == 0:
-            comb_erosion[point[plane], :, :] = init_erosion
-        elif plane == 1:
-            comb_erosion[:, point[plane], :] = init_erosion
-        else:
-            comb_erosion[:, :, point[plane]] = init_erosion
-
-        for slice_idx in range(point[plane]+1, dims[plane]):
-            print(slice_idx+1)
-            erode_slice = 0
+            comb_erosion = erode_img*0
             if plane == 0:
-                erode_slice = erode_img[slice_idx, :, :]
-                prev_slice = comb_erosion[slice_idx-1, :, :]
-                stat.Execute(prev_slice)
-
+                comb_erosion[point[plane], :, :] = init_erosion
             elif plane == 1:
-                erode_slice = erode_img[:, slice_idx, :]
-                prev_slice = comb_erosion[:, slice_idx-1, :]
-                stat.Execute(prev_slice)
-
+                comb_erosion[:, point[plane], :] = init_erosion
             else:
-                erode_slice = erode_img[:, :, slice_idx]
-                prev_slice = comb_erosion[:, :, slice_idx-1]
-                stat.Execute(prev_slice)
+                comb_erosion[:, :, point[plane]] = init_erosion
 
-            if stat.GetNumberOfLabels() == 0:
-                break
-            
-            print(stat.GetNumberOfPixels(1))
-            deflate_times = int(stat.GetNumberOfPixels(1)/100)
-            
-            for i in range(deflate_times):
-                prev_slice = erode_filter.Execute(prev_slice)
+            for slice_idx in range(point[plane]+1, dims[plane]):
+                print(slice_idx+1)
+                erode_slice = 0
+                if plane == 0:
+                    erode_slice = erode_img[slice_idx, :, :]
+                    prev_slice = comb_erosion[slice_idx-1, :, :]
+                    stat.Execute(prev_slice)
 
-            points = np.argwhere(sitk.GetArrayFromImage(prev_slice))
+                elif plane == 1:
+                    erode_slice = erode_img[:, slice_idx, :]
+                    prev_slice = comb_erosion[:, slice_idx-1, :]
+                    stat.Execute(prev_slice)
+
+                else:
+                    erode_slice = erode_img[:, :, slice_idx]
+                    prev_slice = comb_erosion[:, :, slice_idx-1]
+                    stat.Execute(prev_slice)
+
+                if stat.GetNumberOfLabels() == 0:
+                    break
                 
-            points = [[int(pt[1]), int(pt[0]), 0] for pt in points]
-            connected_filter.SetSeedList(points)
-
-            erode_con = connected_filter.Execute(erode_slice)
-            # if(slice_idx == 200):
-                # sitk.WriteImage(erode_con, 'Z:/work2/manske/temp/seedpointfix/init_con_{}.nii'.format(slice_idx))
-                # sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/slice_init_{}.nii'.format(slice_idx))
-
-            filter.Execute(erode_slice, erode_con)
-
-            if filter.GetSimilarityIndex() > 0.1:
-                # original_slice = erode_slice
-                break_flag = False
-                for i in range(l):
-                    # Iteratively erode
-                    erode_slice = erode_filter.Execute(erode_slice)
-                    erode_con = connected_filter.Execute(erode_slice)
-
-                    # if(slice_idx == 200):
-                    #     sitk.WriteImage(erode_con, 'Z:/work2/manske/temp/seedpointfix/connected_{}_{}.nii'.format(i, slice_idx))
-                    #     sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/slice_eroded_{}_{}.nii'.format(i, slice_idx))
-                    
-                    # check if disconnected
-                    stat.Execute(erode_con)
-                    if stat.GetNumberOfLabels() == 0:
-                        break
-
-                    filter.Execute(erode_slice, erode_con)
-                    print(filter.GetSimilarityIndex())
-                    
-                    # break if disconnected
-                    if (filter.GetSimilarityIndex() < 0.1):
-                        x = i+1
-                        break
+                print(stat.GetNumberOfPixels(1))
+                deflate_times = int(stat.GetNumberOfPixels(1)/100)
                 
-                # Dilate back to original size
-                for i in range(x):
-                    erode_con = dilate_filter.Execute(erode_con)
-            
-            # append to 3d stack
-            if plane == 0:
-                comb_erosion[slice_idx, :, :] = erode_con
-            elif plane == 1:
-                comb_erosion[:, slice_idx, :] = erode_con
-            else:
-                comb_erosion[:, :, slice_idx] = erode_con
+                for i in range(deflate_times):
+                    prev_slice = erode_filter.Execute(prev_slice)
 
-        for slice_idx in range(point[plane]-1, 0, -1):
-            print(slice_idx+1)
-            erode_slice = 0
-
-            if plane == 0:
-                erode_slice = erode_img[slice_idx, :, :]
-                prev_slice = comb_erosion[slice_idx+1, :, :]
-                stat.Execute(prev_slice)
-
-            elif plane == 1:
-                erode_slice = erode_img[:, slice_idx, :]
-                prev_slice = comb_erosion[:, slice_idx+1, :]
-                stat.Execute(prev_slice)
-
-            else:
-                erode_slice = erode_img[:, :, slice_idx]
-                prev_slice = comb_erosion[:, :, slice_idx+1]
-                stat.Execute(prev_slice)
-
-            if stat.GetNumberOfLabels() == 0:
-                break
-            
-            prev_voxels = stat.GetNumberOfPixels(1)
-            print(prev_voxels)
-            deflate_times = int(prev_voxels/20)
-            
-            for i in range(deflate_times):
-                prev_slice = erode_filter.Execute(prev_slice)
-
-            points = np.argwhere(sitk.GetArrayFromImage(prev_slice))
-
-            points = [[int(pt[1]), int(pt[0]), 0] for pt in points]
-            connected_filter.SetSeedList(points)
-
-            erode_con = connected_filter.Execute(erode_slice)
-
-            # if(slice_idx == 183):
-            #     sitk.WriteImage(erode_con, 'Z:/work2/manske/temp/seedpointfix/init_con_{}.nii'.format(slice_idx))
-            #     sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/slice_init_{}.nii'.format(slice_idx))
-            
-            filter.Execute(erode_slice, erode_con)
-            
-            print(filter.GetSimilarityIndex())
-            if filter.GetSimilarityIndex() > 0.1:
-                # original_slice = erode_slice
-                break_flag = False
-                for i in range(l):
-                    # Iteratively erode
-                    erode_slice = erode_filter.Execute(erode_slice)
-                    erode_con = connected_filter.Execute(erode_slice)
-
-                    # if(slice_idx == 181):
-                    #     sitk.WriteImage(erode_con, 'Z:/work2/manske/temp/seedpointfix/connected_{}_{}.nii'.format(i, slice_idx))
-                    #     sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/slice_eroded_{}_{}.nii'.format(i, slice_idx))
+                points = np.argwhere(sitk.GetArrayFromImage(prev_slice))
                     
-                    # check if disconnected
-                    stat.Execute(erode_con)
-                    if stat.GetNumberOfLabels() == 0:
-                        break
+                points = [[int(pt[1]), int(pt[0]), 0] for pt in points]
+                connected_filter.SetSeedList(points)
 
-                    filter.Execute(erode_slice, erode_con)
-                    print(filter.GetSimilarityIndex())
+                erode_con = connected_filter.Execute(erode_slice)
+                # if(slice_idx == 200):
+                    # sitk.WriteImage(erode_con, 'Z:/work2/manske/temp/seedpointfix/init_con_{}.nii'.format(slice_idx))
+                    # sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/slice_init_{}.nii'.format(slice_idx))
+
+                filter.Execute(erode_slice, erode_con)
+
+                if filter.GetSimilarityIndex() > 0.1:
+                    # original_slice = erode_slice
+                    break_flag = False
+                    for i in range(l):
+                        # Iteratively erode
+                        erode_slice = erode_filter.Execute(erode_slice)
+                        erode_con = connected_filter.Execute(erode_slice)
+
+                        # if(slice_idx == 200):
+                        #     sitk.WriteImage(erode_con, 'Z:/work2/manske/temp/seedpointfix/connected_{}_{}.nii'.format(i, slice_idx))
+                        #     sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/slice_eroded_{}_{}.nii'.format(i, slice_idx))
+                        
+                        # check if disconnected
+                        stat.Execute(erode_con)
+                        if stat.GetNumberOfLabels() == 0:
+                            break
+
+                        filter.Execute(erode_slice, erode_con)
+                        print(filter.GetSimilarityIndex())
+                        
+                        # break if disconnected
+                        if (filter.GetSimilarityIndex() < 0.1):
+                            x = i+1
+                            break
                     
-                    # break if disconnected
-                    if (filter.GetSimilarityIndex() < 0.1):
-                        x = i+1
-                        break
+                    # Dilate back to original size
+                    for i in range(x):
+                        erode_con = dilate_filter.Execute(erode_con)
                 
-                # Dilate back to original size
-                for i in range(x):
-                    erode_con = dilate_filter.Execute(erode_con)
-            # if(slice_idx == 181):
-            #     # sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/dilated_{}.nii'.format(slice_idx))
-            
-            # append to 3d stack
-            if plane == 0:
-                comb_erosion[slice_idx, :, :] = erode_con
-            elif plane == 1:
-                comb_erosion[:, slice_idx, :] = erode_con
-            else:
-                comb_erosion[:, :, slice_idx] = erode_con
+                # append to 3d stack
+                if plane == 0:
+                    comb_erosion[slice_idx, :, :] = erode_con
+                elif plane == 1:
+                    comb_erosion[:, slice_idx, :] = erode_con
+                else:
+                    comb_erosion[:, :, slice_idx] = erode_con
+
+            for slice_idx in range(point[plane]-1, 0, -1):
+                print(slice_idx+1)
+                erode_slice = 0
+
+                if plane == 0:
+                    erode_slice = erode_img[slice_idx, :, :]
+                    prev_slice = comb_erosion[slice_idx+1, :, :]
+                    stat.Execute(prev_slice)
+
+                elif plane == 1:
+                    erode_slice = erode_img[:, slice_idx, :]
+                    prev_slice = comb_erosion[:, slice_idx+1, :]
+                    stat.Execute(prev_slice)
+
+                else:
+                    erode_slice = erode_img[:, :, slice_idx]
+                    prev_slice = comb_erosion[:, :, slice_idx+1]
+                    stat.Execute(prev_slice)
+
+                if stat.GetNumberOfLabels() == 0:
+                    break
+                
+                prev_voxels = stat.GetNumberOfPixels(1)
+                print(prev_voxels)
+                deflate_times = int(prev_voxels/25)
+                
+                for i in range(deflate_times):
+                    prev_slice = erode_filter.Execute(prev_slice)
+
+                points = np.argwhere(sitk.GetArrayFromImage(prev_slice))
+
+                points = [[int(pt[1]), int(pt[0]), 0] for pt in points]
+                connected_filter.SetSeedList(points)
+
+                erode_con = connected_filter.Execute(erode_slice)
+
+                # if(slice_idx == 183):
+                #     sitk.WriteImage(erode_con, 'Z:/work2/manske/temp/seedpointfix/init_con_{}.nii'.format(slice_idx))
+                #     sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/slice_init_{}.nii'.format(slice_idx))
+                
+                filter.Execute(erode_slice, erode_con)
+                
+                print(filter.GetSimilarityIndex())
+                if filter.GetSimilarityIndex() > 0.1:
+                    # original_slice = erode_slice
+                    break_flag = False
+                    for i in range(l):
+                        # Iteratively erode
+                        erode_slice = erode_filter.Execute(erode_slice)
+                        erode_con = connected_filter.Execute(erode_slice)
+
+                        # if(slice_idx == 181):
+                        #     sitk.WriteImage(erode_con, 'Z:/work2/manske/temp/seedpointfix/connected_{}_{}.nii'.format(i, slice_idx))
+                        #     sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/slice_eroded_{}_{}.nii'.format(i, slice_idx))
+                        
+                        # check if disconnected
+                        stat.Execute(erode_con)
+                        if stat.GetNumberOfLabels() == 0:
+                            break
+
+                        filter.Execute(erode_slice, erode_con)
+                        print(filter.GetSimilarityIndex())
+                        
+                        # break if disconnected
+                        if (filter.GetSimilarityIndex() < 0.1):
+                            x = i+1
+                            break
+                    
+                    # Dilate back to original size
+                    for i in range(x):
+                        erode_con = dilate_filter.Execute(erode_con)
+                # if(slice_idx == 181):
+                #     # sitk.WriteImage(erode_slice, 'Z:/work2/manske/temp/seedpointfix/dilated_{}.nii'.format(slice_idx))
+                
+                # append to 3d stack
+                if plane == 0:
+                    comb_erosion[slice_idx, :, :] = erode_con
+                elif plane == 1:
+                    comb_erosion[:, slice_idx, :] = erode_con
+                else:
+                    comb_erosion[:, :, slice_idx] = erode_con
 
         # sitk.WriteImage(comb_erosion, 'Z:/work2/manske/temp/seedpointfix/comb.nii')
 
