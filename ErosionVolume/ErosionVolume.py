@@ -1040,9 +1040,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
                               masterVolumeNode,
                               currentMarkupsData,
                               voxelSize,
-                              outputTableNode,
-                              self.lower_threshold,
-                              self.canny_smoothing_variance)
+                              outputTableNode)
 
     # update widgets
     self.segmentEditor.setSegmentationNode(inputErosionNode)
