@@ -325,7 +325,7 @@ class VoidVolumeLogic:
                 relabel_map[key] = erosionId
         
         relabel_filter = sitk.ChangeLabelImageFilter()
-        print(relabel_map)
+        # print(relabel_map)
         relabel_filter.SetChangeMap(relabel_map)
         relabeled_img = relabel_filter.Execute(relabeled_img)
 
@@ -413,8 +413,8 @@ class VoidVolumeLogic:
         destination_x = round((model_origin[0] - contour_origin[0]) / spacing)
         destination_y = round((model_origin[1] - contour_origin[1]) / spacing)
         destination_z = round((model_origin[2] - contour_origin[2]) / spacing)
-        print(destination_x, destination_y, destination_z)
-        print(model_origin)
+        # print(destination_x, destination_y, destination_z)
+        # print(model_origin)
         r = sitk.VersorTransform()
         r.SetMatrix(direction)
         destination_index = r.TransformPoint((destination_x, destination_y, destination_z))
@@ -423,7 +423,7 @@ class VoidVolumeLogic:
         paste_filter.SetDestinationIndex(destination_index)
         paste_filter.SetSourceSize(model_size)
         self.model_img = paste_filter.Execute(model_img, self.model_img)
-        print(model_img.GetOrigin())
+        # print(model_img.GetOrigin())
         
         # update seed points
         destination_x *= int(direction[0])

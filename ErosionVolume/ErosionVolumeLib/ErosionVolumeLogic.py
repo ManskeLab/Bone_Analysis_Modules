@@ -121,7 +121,7 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
       seeds.append(itk_coord)
       # store seed point numbers in the variable erosion_ids
       seed_id = markupsNode.GetNthControlPointID(i)
-      print(minimalRadius)
+      # print(minimalRadius)
       # erosion_id_max = 0
       # try:
       #   erosion_id = int(seed_id)
@@ -166,14 +166,14 @@ class ErosionVolumeLogic(ScriptedLoadableModuleLogic):
         step += 1
     except Exception as e:
       slicer.util.errorDisplay('Error')
-      print(e)
+      # print(e)
       return False
     erosion_img = self.voidVolume.getOutput()
 
     #check if output failed (matches input mask)
     erosion_arr = sitk.GetArrayFromImage(erosion_img)
     contour_arr = slicer.util.arrayFromVolume(inputContourNode)
-    print(np.count_nonzero(erosion_arr), np.count_nonzero(contour_arr), contour_arr.size * 0.05)
+    # print(np.count_nonzero(erosion_arr), np.count_nonzero(contour_arr), contour_arr.size * 0.05)
     if abs(np.count_nonzero(erosion_arr) - np.count_nonzero(contour_arr)) < contour_arr.size * 0.05:
       text = """Unable to detect erosions. Check the set parameters in the module.\n
 -Thresholds may be incorrect for the image

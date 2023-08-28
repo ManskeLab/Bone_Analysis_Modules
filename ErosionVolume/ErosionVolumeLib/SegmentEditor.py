@@ -223,7 +223,7 @@ class SegmentEditor:
       markupsLogic.JumpSlicesToLocation(centroid[0], centroid[1], centroid[2], False)
 
   def checkEraseButtons(self):
-    print(self.editor.masterVolumeNode() and self.editor.segmentationNode())
+    # print(self.editor.masterVolumeNode() and self.editor.segmentationNode())
     self.eraseBetweenSlicesButton.enabled = self.editor.masterVolumeNode() and self.editor.segmentationNode()
 
   def onEraseBetweenSlicesButton(self):
@@ -311,7 +311,7 @@ class SegmentEditor:
 
     segmentationNode.GetDisplayNode().SetSegmentVisibility(maskSegmentId, False)
     self.editor.setCurrentSegmentID(self.segmentIdToErase)
-    print(maskSegmentId)
+    # print(maskSegmentId)
 
   def enter(self):
     """

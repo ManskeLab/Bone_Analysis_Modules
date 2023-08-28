@@ -158,9 +158,9 @@ class MarkupsTable:
     for i in range(self.markupsControlPointsTableWidget.rowCount):
       controlPointPosition = [0, 0, 0]
       self._currentNode.GetNthControlPointPosition(i, controlPointPosition)
-      print(i)
-      print(controlPointPosition)
-      print("*****")
+      # print(i)
+      # print(controlPointPosition)
+      # print("*****")
     if (self.jumpToSliceEnabled and self._currentNode):
       self._logic.jumpSlicesToNthPointInMarkup(self._mrmlScene, self._currentNode.GetID(), row, False, self.viewGroup)
   
@@ -199,7 +199,7 @@ class MarkupsTable:
         # remove the point at that row
         self._currentNode.RemoveNthControlPoint(deleteControlPoints[i])
 
-        print(deleteControlPoints[i])
+        # print(deleteControlPoints[i])
         self.markupsControlPointsTableWidget.removeRow(deleteControlPoints[i])
       self._currentNode.EndModify(wasModifying)
     
@@ -414,7 +414,7 @@ class MarkupsTable:
     currentNode = self._currentNode
 
     controlPointsNum = currentNode.GetNumberOfControlPoints()
-    print(controlPointsNum)
+    # print(controlPointsNum)
     for i in range(controlPointsNum):
       if self.markupsControlPointsTableWidget.item(i, CONTROL_POINT_LABEL_COLUMN):
         controlPointLabel = currentNode.GetNthControlPointLabel(i)
