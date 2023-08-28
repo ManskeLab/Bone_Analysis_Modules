@@ -649,7 +649,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     print(lower_threshold_img)
 
     # Edge detection
-    edge = sitk.CannyEdgeDetection(smooth_img, lowerThreshold=0.1, upperThreshold=0.99, variance = 3*[0.05*sigma_over_spacing])
+    edge = sitk.CannyEdgeDetection(smooth_img, lowerThreshold=0.1, upperThreshold=0.99, variance = 3*[0.1*sigma_over_spacing])
     edge = sitk.Cast(edge, sitk.sitkUInt8)
     sitk.WriteImage(edge, 'Z:/work2/manske/temp/seedpointfix/edge1.nii')
     edge1 = sitk.GradientMagnitude(smooth_img)
@@ -733,12 +733,12 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
         points_coronal = [[point[0], point[2], 0]]
         points_axial = [[point[0], point[1], 0]]
 
-        connected_filter.SetSeedList(points_saggital)
-        sagittal_slice = connected_img[point[0], :, :]
-        sagittal_con = connected_filter.Execute(sagittal_slice)
-        filter.Execute(sagittal_slice, sagittal_con)
-        sitk.WriteImage(sagittal_slice, 'Z:/work2/manske/temp/seedpointfix/sag_slice.nii')
-        sitk.WriteImage(sagittal_con, 'Z:/work2/manske/temp/seedpointfix/sag.nii')
+        connected_filter.SetSeedList(points_axial)
+        axial_slice = connected_img[:, :, point[2]]
+        axial_con = connected_filter.Execute(axial_slice)
+        filter.Execute(axial_slice, axial_con)
+        sitk.WriteImage(axial_slice, 'Z:/work2/manske/temp/seedpointfix/ax_slice.nii')
+        sitk.WriteImage(axial_con, 'Z:/work2/manske/temp/seedpointfix/ax.nii')
         print(filter.GetSimilarityIndex())
 
         if filter.GetSimilarityIndex() > 0.1:
@@ -751,32 +751,32 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
             print(filter.GetSimilarityIndex())
 
             if filter.GetSimilarityIndex() > 0.1:
-                connected_filter.SetSeedList(points_axial)
-                axial_slice = connected_img[:, :, point[2]]
-                axial_con = connected_filter.Execute(axial_slice)
-                filter.Execute(axial_slice, axial_con)
-                sitk.WriteImage(axial_slice, 'Z:/work2/manske/temp/seedpointfix/ax_slice.nii')
-                sitk.WriteImage(axial_con, 'Z:/work2/manske/temp/seedpointfix/ax.nii')
+                connected_filter.SetSeedList(points_saggital)
+                sagittal_slice = connected_img[point[0], :, :]
+                sagittal_con = connected_filter.Execute(sagittal_slice)
+                filter.Execute(sagittal_slice, sagittal_con)
+                sitk.WriteImage(sagittal_slice, 'Z:/work2/manske/temp/seedpointfix/sag_slice.nii')
+                sitk.WriteImage(sagittal_con, 'Z:/work2/manske/temp/seedpointfix/sag.nii')
                 print(filter.GetSimilarityIndex())
 
                 if filter.GetSimilarityIndex() > 0.1:
                     print("ERROR: Invalid seed point placement.")
                     continue
                 else:
-                    plane = 2
-                    init_erosion = axial_con
-                    points = np.argwhere(sitk.GetArrayFromImage(axial_con))
-                    points = [[int(pt[1]), int(pt[0]), point[2]] for pt in points]
+                    plane = 0
+                    init_erosion = sagittal_con
+                    points = np.argwhere(sitk.GetArrayFromImage(sagittal_con))
+                    points = [[point[0], int(pt[1]), int(pt[0])] for pt in points]
             else:
                 plane = 1
                 init_erosion = coronal_con
                 points = np.argwhere(sitk.GetArrayFromImage(coronal_con))
                 points = [[int(pt[1]), point[1], int(pt[0])] for pt in points]
         else:
-            plane = 0
-            init_erosion = sagittal_con
-            points = np.argwhere(sitk.GetArrayFromImage(sagittal_con))
-            points = [[point[0], int(pt[1]), int(pt[0])] for pt in points]
+            plane = 2
+            init_erosion = axial_con
+            points = np.argwhere(sitk.GetArrayFromImage(axial_con))
+            points = [[int(pt[1]), int(pt[0]), point[2]] for pt in points]
 
         erode_img = void_volume_img
         dims = erode_img.GetSize()
@@ -889,7 +889,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
             
             prev_voxels = stat.GetNumberOfPixels(1)
             print(prev_voxels)
-            deflate_times = int(prev_voxels/100)
+            deflate_times = int(prev_voxels/20)
             
             for i in range(deflate_times):
                 prev_slice = erode_filter.Execute(prev_slice)
