@@ -628,8 +628,8 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
     smooth_img = sitk.LaplacianSharpening(smooth_img)
     gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
 
-    gaussian_filter.SetSigma(sigma_over_spacing*1.5)
-    gaussian_img = gaussian_filter.Execute(smooth_img)
+    # gaussian_filter.SetSigma(sigma_over_spacing*1.5)
+    # gaussian_img = gaussian_filter.Execute(smooth_img)
     smooth_img = sitk.Normalize(smooth_img)
 
     # sitk.WriteImage(smooth_img, 'Z:/work2/manske/temp/seedpointfix/smooth.nii')
