@@ -845,11 +845,16 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
 
                 prev_slice = erode_filter_5.Execute(dilate_filter_5.Execute(prev_slice))
                 
+                print("***")
                 while True:
                     stat.Execute(prev_slice)
+                    print(stat.GetNumberOfPixels(1))
                     if stat.GetNumberOfPixels(1) < 60:
                        break
-                    prev_slice = erode_filter.Execute(prev_slice)
+                    temp_prev_slice = erode_filter.Execute(prev_slice)
+                    if not np.any(temp_prev_slice):
+                       break
+                    prev_slice = temp_prev_slice
 
                 # print("****")
                 # stat.Execute(prev_slice)
@@ -934,7 +939,12 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
                     stat.Execute(prev_slice)
                     if stat.GetNumberOfPixels(1) < 60:
                        break
-                    prev_slice = erode_filter.Execute(prev_slice)
+                    temp_prev_slice = erode_filter.Execute(prev_slice)
+                    if not np.any(temp_prev_slice):
+                       break
+                    prev_slice = temp_prev_slice
+
+
                 
                 print("****")
                 stat.Execute(prev_slice)
