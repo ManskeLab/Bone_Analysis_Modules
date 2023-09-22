@@ -1054,6 +1054,7 @@ class ErosionVolumeWidget(ScriptedLoadableModuleWidget):
       sitkUtils.PushVolumeToSlicer(final_img, tempLabelMap)
       # push erosions from temporary label map to output erosion node
       self._logic.labelmapToSegmentationNode(tempLabelMap, outputVolumeNode)
+      outputVolumeNode.SetReferenceImageGeometryParameterFromVolumeNode(inputVolumeNode)
       # remove temporary label map
       slicer.mrmlScene.RemoveNode(tempLabelMap)
 
